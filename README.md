@@ -1,0 +1,123 @@
+# Lumenwake
+
+A mission game drawn by shaders. You arrive by shuttle at a floating town, Meridian Landing. Choose who you are and pick a class, take a contract from the dispatcher, step on the pad, and fight across a string of sky islands that is generated from the contract's seed. Bring back gear, get paid, take the next one.
+
+"Lumenwake" is a working title.
+
+![The title, the arrival, a contract, and the three elders](docs/cinematics.jpg)
+
+![The peoples of the corps](docs/people.jpg)
+
+## What is in it
+
+- **A town.** A paved square round a survey beacon, the contract hall, a market, homes, a landing field, an overlook and the gate terrace, with crew who walk their rounds and have something to say.
+- **Three classes.** Vanguard (arc blade), Ranger (pulse rifle), Adept (focus rod). A class sets starting attributes, the family of weapon it can wield and the four abilities on its bar.
+- **A three-step attack chain.** Attacks come in threes and the third is the heavy one: a blade's third cut takes everything in front, a rifle's third shot hits harder, a rod's third bursts.
+- **Gear.** Weapon, frame and unit. Each piece is a base type, an item level, a rarity (Standard, Tuned, Rare, Prime) and rolled affixes; a Prime piece also lends ranks of a talent. It drops from creatures, supply pods and bosses, every contract pays one piece, and the quartermaster buys and sells it.
+- **Contracts.** Three on the board at a time: clear the way, recover survey cores, or bring down the boss of the place. Four places (Glasswood Terraces, Ember Shelf, The Hush, Rime Steps), each with its own look, creatures and boss.
+- **Generated missions.** A contract's seed gives the layout (islands and bridges), what waits on each island (bought from a budget that grows with the contract's level and with how deep the island lies), where the supply pods are, and how the fights roll.
+- **Bosses.** The Stone Warden, the Spore Matron and the Tide Sentinel: several moves each, reinforcements, and faster once past half health.
+
+- **Five peoples.** Scout units, humans, the veiled, karn and lynd: a build, a head and a way of dressing each, on one set of joints. The crew is a mix of them, and the hero can be any of them in any class.
+- **Elders the size of buildings.** The Stone Warden, the Spore Matron and the Tide Sentinel are colossi eight to thirteen metres tall, each with its own shape, moves and a volley it throws at where you stand. The play camera stands back for them.
+- **Cinematics.** Arriving at the town, dropping onto a contract, an elder waking, an elder falling. All of them can be skipped (Esc, Enter, Space or the Skip button), and none is needed to play: add `?nocine` to the address to go without.
+
+## Run it
+
+Any static file server works; there is no build step and nothing to install.
+
+```bash
+python3 -m http.server 8080
+```
+
+Then open `http://localhost:8080`. Add `?touch` to see the phone layout on a desktop.
+
+Progress is not saved yet: each visit starts a new journey in the town.
+
+## Controls
+
+| Input | Action |
+| --- | --- |
+| Left click | Walk to a spot, attack a creature, talk to someone. Hold to keep walking. |
+| W A S D | Walk by hand |
+| 1 2 3 4 | Abilities (aimed at the target, or at the cursor) |
+| R / F | Drink a Red Tonic / Blue Draught |
+| Space / Tab | Attack the nearest creature / pick the next one |
+| Right drag, Q / E, wheel | Turn, tilt and zoom the view |
+| C / B / V | Character sheet / pack / view |
+
+## How the code is laid out
+
+Three walls. Content is data, the simulation is rules, and the app draws and listens. The simulation never calls the renderer, the camera or the interface: it announces what happened on an event bus (`feel`, `fade`, `world:changed`, `shot:launch`, `pickup`, ...) and the app reacts.
+
+```
+src/
+  content/      data only: what exists
+    classes.js      classes and weapon families
+    abilities.js    what goes on the bar (numbers and the kind of effect)
+    gear.js         bases, rarities, affixes, how stats read
+    creatures.js    creatures and bosses: numbers, moves, drops, encounter cost
+    themes.js       the places: ground, plants, creatures, boss, hour
+    town.js         the town: rooms, paving, fixtures, crew
+    items.js        flasks, materials, recipes
+    talents.js      talents
+  sim/          rules: no DOM, no GL, no camera
+    rng.js          the one seeded source of dice
+    stats.js        every stat is a base run through one pipeline of modifiers
+    items.js        rolling, naming, pricing and reading gear
+    encounters.js   what waits on each island, bought from a budget
+    systems/        player, ai, specials (creature moves), hazards, combat,
+                    skills (ability effects), loot, spawner, missions, crew
+  world/        where things are
+    layout.js       rooms and bridges from a seed, or from the town's data
+    nav.js          where a body may stand
+    zone.js         a layout turned into what the renderer and the rules read
+    world.js        one zone at a time
+    props.js        every piece of scenery, with the shader that draws it
+  gfx/          the renderer (raw WebGL2, no libraries)
+  app/          the composition root: game loop, controls, camera view, effects
+  ui/           HUD, windows, touch controls
+  audio/        synthesized sound and music
+  core/         events, input, maths, noise
+```
+
+### Cinematics
+
+A cinematic is a row in `src/content/cinematics.js`: a list of shots, each with a camera, what the cast does, cues for sound and effects, and lettering. The camera is described as an orbit about something (the hero, the elder, a room), so one sequence works on any island a contract rolls, and distances can be given in heights of a cast member so one shot fits every size of elder. `TRIGGERS` in the same file says which event starts which sequence.
+
+`src/app/cinema.js` is the director that plays them. The rules never know a cinematic exists: the game loop asks the director how fast the world may run (0 holds it still, a fraction is slow motion) and whether the hero's controls are held. Whatever a sequence leaves behind is applied in one place (`finish`), so skipping in the first second leaves the game exactly as watching to the end would. `src/ui/cinema.js` draws the bars, cards, captions and the Skip button.
+
+## Adding things
+
+| To add | Do this |
+| --- | --- |
+| A class | A row in `content/classes.js`: attributes, weapon family, four ability ids, a colour. |
+| An ability | A row in `content/abilities.js` using an existing effect (`arc`, `ring`, `bolt`, `volley`, `heal`, `dash`). A new kind of effect is one function in `sim/systems/skills.js`. |
+| A gear base, affix or rarity | A row in `content/gear.js`. Anything in the stat list can be rolled. |
+| A stat | A line in `derive` in `sim/stats.js` and its name in `STAT_TEXT`. |
+| A creature | A row in `content/creatures.js` (with a `cost`) and an entry in a theme's table. A new shape: an archetype in `gfx/archetypes/`. |
+| A boss | A creature row with `boss: true` and a list of `specials`; name it as a theme's `boss`. For a colossus add `giant: true`, `turn`, `fall` and `hitY`, and model it at its true size as the three in `gfx/archetypes/colossi.js` are, with poses for emerge, roar and fall. |
+| A people | A row in `content/peoples.js` and a branch for its `index` in `gfx/archetypes/humanoid.js` (head, build, clothes). Give it to someone in `content/town.js` with `people:`. |
+| A cinematic | A row in `content/cinematics.js`, and a row in `TRIGGERS` if an event should start it. |
+| A creature move | An entry in `SPECIALS` in `sim/systems/specials.js`. |
+| A place | A row in `content/themes.js`. |
+| A building or prop | `registerProp` in `world/props.js`, then place it in `content/town.js` or a theme's table. |
+
+## How it is drawn
+
+The picture is Brushwild's renderer: one raymarch decides what is where, and a final pass draws it as pencil lays and pen lines on paper. Here it leans toward cel shading (flat stepped fills, hard-edged shade, a steady dark line) through one dial, `CEL` in `src/gfx/glsl/pencil.js`. One limit to know about: only one prop can be drawn in each 4 by 4 cell of ground, so fixtures placed by hand must not share a cell.
+
+## Not done yet
+
+- No saving, no tests in the repo, no co-op.
+- The six ordinary creatures reuse Brushwild's creature shapes (the three elders are new).
+- The elders fill much of the picture and are drawn at full resolution: their cost on a slow GPU or a phone has not been measured.
+- The sounds for the elders and the cinematics have been written but not listened to.
+- The tutorial is switched off, and the game has not been tried on a real phone.
+- The simulation still steps with the frame's time, so two runs repeat exactly only at a fixed frame time.
+- Talent logic still lives beside its data in `content/talents.js`.
+- The share picture and icons in `static/` are still Brushwild's.
+
+## License
+
+MIT. See [LICENSE](LICENSE). Lettering: Chakra Petch and Orbitron from Google Fonts (SIL Open Font License), loaded from Google's servers.

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Lumenwake</title>
+<meta name="description" content="Take a contract on the survey ship, drop to islands in the sky, and fight your way across them room by room. A mission game drawn by shaders." />
+<meta name="theme-color" content="#e8e2d4" />
+<link rel="icon" href="./static/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="icon" href="./static/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="./static/apple-touch-icon.png" />
+<link rel="manifest" href="./static/manifest.webmanifest" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Lumenwake" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Lumenwake" />
+<meta property="og:title" content="Lumenwake" />
+<meta property="og:description" content="Take a contract on the survey ship, drop to islands in the sky, and fight your way across them room by room. A mission game drawn by shaders." />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Lumenwake" />
+<meta name="twitter:description" content="Take a contract on the survey ship, drop to islands in the sky, and fight your way across them room by room. A mission game drawn by shaders." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&family=Orbitron:wght@600;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./src/ui/ui.css" />
+</head>
+<body class="titled">
+<canvas id="view" role="img" aria-label="The game world, drawn in pen and pencil"></canvas>
+
+<div id="ui">
+  <!-- status -->
+  <section id="status" class="plate" aria-label="Your character">
+    <div class="badge" id="lvl" title="Level">1</div>
+    <div class="bars">
+      <div class="who"><span id="pname">Surveyor</span><span id="boon" class="boon" hidden></span><span id="glint" class="coin" title="Glint">20</span></div>
+      <div class="meter"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14C3 10 1.5 7.4 2.6 5c1-2.2 4-2.1 5.4.2 1.4-2.3 4.4-2.4 5.4-.2 1.1 2.4-.4 5-5.4 9z" fill="#d8584a" stroke="#623c1e" stroke-width="1.3" stroke-linejoin="round"/></svg><div class="bar hp" id="hp-bar" role="meter" aria-label="Health" aria-valuemin="0"><i id="hp-fill"></i></div><b id="hp-text">0 / 0</b></div>
+      <div class="meter"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6c2.4 3.2 4.6 5.6 4.6 8.2a4.6 4.6 0 0 1-9.2 0c0-2.6 2.2-5 4.6-8.2z" fill="#4f86b4" stroke="#623c1e" stroke-width="1.3" stroke-linejoin="round"/></svg><div class="bar fo" id="fo-bar" role="meter" aria-label="Focus" aria-valuemin="0"><i id="fo-fill"></i></div><b id="fo-text">0 / 0</b></div>
+      <div class="bar xp" id="xp-bar" role="meter" aria-label="Experience toward the next level" aria-valuemin="0" aria-valuemax="100"><i id="xp-fill"></i></div>
+    </div>
+  </section>
+
+  <section id="target" class="plate" aria-label="Your target" hidden>
+    <div class="who"><span id="t-name"></span><span id="t-lvl" class="dim"></span></div>
+    <div class="bar hp"><i id="t-fill"></i></div>
+  </section>
+
+  <section id="compass" aria-label="Map and place">
+    <button type="button" id="map-ring" title="Map and waystones (T)" aria-label="Map: waystones to travel to and places found, key T"></button>
+    <div id="place" class="plate small"><span id="zone">Meridian Deck</span><span id="clock" class="dim">Aloft</span></div>
+  </section>
+
+  <section id="boss" class="plate" aria-label="Boss" hidden>
+    <div class="label" id="boss-name"></div>
+    <div class="bar hp" role="img" aria-label="Boss health"><i id="boss-fill"></i></div>
+  </section>
+  <section id="tracker" class="plate small" aria-label="Contract" hidden>
+    <div class="label">Contract</div>
+    <div id="tracker-text"></div>
+  </section>
+
+  <section id="log" role="log" aria-live="polite" aria-label="Messages"></section>
+  <div id="toast" class="plate" role="status" aria-live="polite"></div>
+
+  <section id="guide" class="plate" aria-label="What to try next" hidden>
+    <div class="words">
+      <div class="label" id="guide-count"></div>
+      <p id="guide-text" role="status" aria-live="polite"></p>
+    </div>
+    <button type="button" id="guide-skip" class="btn" aria-label="Skip the first steps">Skip</button>
+  </section>
+  <div id="guide-arrow" aria-hidden="true" hidden><svg viewBox="0 0 44 44"><path d="M6 22h26M22 10l12 12-12 12" fill="none" stroke="#f1ebdc" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22h26M22 10l12 12-12 12" fill="none" stroke="#d64634" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+  <section id="hotbar" aria-label="Skills and potions"></section>
+
+  <nav id="menu" aria-label="Menus">
+    <button type="button" data-open="character" title="Character (C)" aria-label="Character sheet, key C"></button>
+    <button type="button" data-open="bag" title="Bag (B)" aria-label="Bag, key B"></button>
+    <button type="button" data-open="view" title="View (V)" aria-label="Turn and zoom the view, key V"></button>
+    <button type="button" data-open="help" title="How to play" aria-label="How to play"></button>
+    <button type="button" data-open="sound" title="Sound (M)" aria-label="Sound on or off, key M" aria-pressed="true"></button>
+  </nav>
+
+  <div id="plates" aria-hidden="true"></div>
+  <div id="floaters" aria-hidden="true"></div>
+  <div id="panels"></div>
+</div>
+
+<!-- a cinematic's frame: bars, lettering, and the way out of it -->
+<div id="cine">
+  <div class="bar top"></div><div class="bar bottom"></div>
+  <div id="cine-card" class="cine-card" role="status" aria-live="polite"><strong id="cine-title"></strong><span id="cine-sub"></span></div>
+  <p id="cine-caption" role="status" aria-live="polite"></p>
+  <button type="button" id="cine-skip" hidden aria-label="Skip this scene, key Escape">Skip<kbd>Esc</kbd></button>
+</div>
+
+<div id="title">
+  <div class="title-card">
+    <h1>Lumenwake</h1>
+    <p class="tag">Contracts across the sky islands</p>
+    <p class="pick-label">Who you are</p>
+    <div id="people-pick" class="people-pick" role="group" aria-label="Who you are"></div>
+    <p id="people-blurb" class="people-blurb"></p>
+    <p class="pick-label">Choose a class to begin</p>
+    <div id="class-pick" class="class-pick"></div>
+    <div class="title-actions" hidden>
+      <button type="button" id="btn-begin" class="primary" disabled>Begin</button>
+      <button type="button" id="btn-new" hidden>New journey</button>
+    </div>
+    <p class="keys" id="keys-hint">Click to move and fight &nbsp;·&nbsp; WASD to walk &nbsp;·&nbsp; 1–4 abilities &nbsp;·&nbsp; drag right mouse to turn the view</p>
+  </div>
+</div>
+
+<div id="fatal" hidden>
+  <div class="plate"><h2>Lumenwake could not start</h2><p></p></div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
