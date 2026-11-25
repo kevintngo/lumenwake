@@ -1,175 +1,82 @@
 # Lumenwake
 
-A mission game drawn by shaders. You arrive by shuttle at a floating town, Meridian Landing. Choose who you are and pick a class, take a contract from the dispatcher, step on the pad, and fight across a string of sky islands that is generated from the contract's seed. Bring back gear, get paid, take the next one.
+A cel-shaded sky-island action RPG rendered in raw WebGL2 shaders. Arrive by shuttle at Meridian Landing, choose your people and class, take contracts from the dispatcher, and fight across procedurally generated islands, underground vaults, and low-gravity moon shards against packs and towering colossi.
 
-**Play it: https://kevintngo.github.io/lumenwake/** (a desktop browser with WebGL 2; `./publish.sh` builds and republishes it).
+**Play online:** [https://lumenwake-game.vercel.app](https://lumenwake-game.vercel.app)
 
-"Lumenwake" is a working title.
+## Features
 
-![The title, the arrival, a contract, and the three elders](docs/cinematics.jpg)
+- **Three classes & five peoples:** Vanguard (arc blade), Ranger (pulse rifle), and Adept (focus rod), playable as Scout Unit, Human, Veiled, Karn, or Lynd.
+- **Six contract biomes & escalating threat:** Glasswood Terraces, Ember Shelf, The Hush, Rime Steps, The Underhalls, and The Shatter, each with threat ranks, run conditions, landmarks, and giant elder colossi.
+- **Ten-slot gear, relics, salvage & honing:** Paper-doll equipment with rarities, affixes, boss relics, salvage parts, honing, and item locks.
+- **Evolving Lumen companion:** Shoulder-mounted light companion with three tempers, eight forms, assist bolts, and rechargeable bursts.
+- **Procedural music & recorded SFX:** Per-biome and per-boss interactive Web Audio score layered with recorded sound effects.
+- **Custom WebGL2 renderer & Preact UI:** Raymarched pen-and-cel shaders separated into standalone `.glsl`/`.vert`/`.frag` files, live 3D portrait stages, responsive desktop and touch layouts, and local save persistence with export/import.
 
-![The peoples of the corps](docs/people.jpg)
+## Development
 
-![The select screen, the contract board, a report, the character sheet, an elder's bar, a lit crystal](docs/interface.jpg)
-
-![The five newer creatures](docs/creatures.jpg)
-
-![The eight kinds of lumen](docs/lumens.jpg)
-
-## What is in it
-
-- **First steps.** A new surveyor is walked through the first hour by doing it: to the dispatcher, a first contract laid out by hand (First Light), a first fight, a first piece of gear, a jump, the lumen's burst, a survey mark, a gentler elder, and home to spend points and feed the lumen. One line at a time on a card over the hotbar, a chevron over the thing in the world (an arrow at the edge of the picture when it is out of sight), and a ring round the button to press, which follows you into the menu. Each step ends when the thing is done. It can be skipped, and started again from the pause menu.
-- **A town.** A paved square round a survey beacon, the contract hall, a market, homes, a landing field, an overlook and the gate terrace, with crew who walk their rounds and have something to say.
-- **Three classes.** Vanguard (arc blade), Ranger (pulse rifle), Adept (focus rod). A class sets starting attributes, the family of weapon it can wield and the four abilities on its bar.
-- **A three-step attack chain.** Attacks come in threes and the third is the heavy one: a blade's third cut takes everything in front, a rifle's third shot hits harder, a rod's third bursts.
-- **Gear in ten slots.** Weapon and off-hand (a ward, a charge cell or a focus lens, by class), unit, two mods, visor, frame, grips, greaves and boots, laid out round the figure like a paper doll. Each piece is a base type, an item level, a rarity (Standard, Tuned, Rare, Prime, Relic) and rolled affixes; a Prime piece also lends ranks of a talent. The seven newer kinds carry smaller rolls and one line fewer, so a surveyor in ten pieces is about a third stronger than one in three: they are for choosing what to lean on. What is held, the off-hand, the frame, the unit, the grips and the boots show on the figure, and every tile is drawn from the same shapes. A carried piece says at a glance whether it is plainly better or worse than what is worn, and selecting it shows what wearing it would do to your own numbers.
-- **Relics.** Each elder carries two pieces with a power of their own: a third blow that shakes the ground, rot, a frost that makes creatures take more, creatures that burst when felled, a blow that would fell you refused once a contract, a landing that strikes the ground, a lumen whose bolts leap, and others. An elder is likelier to leave one the higher the place's threat, and likelier again after every elder that left none. The board and the Contract tab show the chance and which relics an elder carries.
-- **Salvage, honing and locks.** Spare gear comes apart into parts (one button takes every standard and tuned piece that is no better than what you wear). Parts and glint hone a piece a level at a time, up to two levels over your own, so a relic you like can be kept level with what the ground gives. A locked piece is never salvaged or sold.
-- **Contracts.** Three on the board at a time: clear the way, recover survey cores, or bring down the boss of the place. Six places, each with its own look, creatures and boss: four of sky islands (Glasswood Terraces, Ember Shelf, The Hush, Rime Steps), and two that are not.
-- **Places that remember you.** Every place keeps a threat rank, Quiet to Unbound. A contract won there raises it by one; being lifted out beaten lowers it by one. At each rank the creatures are a level or two up and hit harder, and one to three conditions are drawn for that one visit by the contract's own dice: creatures that are swift, thick-hided, in greater numbers, led by elder creatures, that burst where they fall, strays from another place in the mix, the place at night, or the elder enraged early. So a second visit is never the first one over again, and it pays more: more experience and glint, and a better lean toward rare gear. The board and the Contract tab show the rank and what is different this time.
-- **The Underhalls.** A dungeon: square halls and corridors between sheer walls of dressed stone, no sky, and no light but braziers, crystal and the lumen at your shoulder. A broken way is a pit to jump.
-- **The Shatter.** Open space: shards of a broken moon with the stars under them and the ringed world close. Things weigh so little that a jump carries three times as far, so the gaps are three times as wide.
-- **Generated missions.** A contract's seed gives the layout (islands and bridges), what waits on each island (bought from a budget that grows with the contract's level and with how deep the island lies), where the supply pods are, and how the fights roll.
-- **Bosses.** The Stone Warden, the Spore Matron, the Tide Sentinel, the Lantern Keeper (who carries the only big light in the Underhalls) and the Star Drifter (a ray nineteen metres across that swims over the Shatter): several moves each, reinforcements, and faster once past half health.
-
-- **Five peoples.** Scout units, humans, the veiled, karn and lynd: a build, a head and a way of dressing each, on one set of joints. The crew is a mix of them, and the hero can be any of them in any class.
-- **Elders the size of buildings.** All five are colossi eight to thirteen metres tall (or, the Drifter, across), each with its own shape, moves and a volley it throws at where you stand. The play camera stands back for them.
-- **Eleven kinds of creature.** The six small ones, plus a pack hound that springs, a watcher drone that keeps its distance, a delver that comes up under you, a strider that fires down a line, and a sparkmite that bursts. Each place has its own mix.
-- **A lumen at your shoulder.** A small light that follows you, puts a bolt into whatever you are fighting, and stores up a burst (G). Feed it what creatures drop: three tempers grow with what it eats, and at levels 5 and 12 it takes a new shape by the strongest of them. Eight kinds in all, each with a burst of its own.
-- **A jump.** Space jumps. Some side islands have a bridge broken in the middle, some have no bridge at all but a row of stepping stones, and big islands may have a terrace with a supply pod on it: all of them need a jump. A blow that runs along the ground (a slam, a delver coming up) can be jumped too. Miss, and you are hauled back from the cloud a little worse for it.
-- **Things to find.** Side islands off the main way, and on them survey marks (each adds to the pay; all three make the prize a better piece), a beacon that puts everything left on the map, lit crystals that lend a boon until you are lifted out, and lost cargo with something sitting on it.
-- **Blades of light.** The vanguard's sabers and glaives burn white at the core and blue at the edge, with a glow round them in place of the pen line; they hum while drawn on a contract, sweep as they swing, sizzle where they cut and switch on as you go down.
-- **Sound.** Recorded and made effects (see Sound effects below) over a synthesized score: every area and every elder has a piece of its own.
-- **Pictures drawn by the game.** Every portrait and scene in the interface is a frame from the game's own renderer: the peoples and classes on the select screen, the crew when they speak, the elders on their bar and on hunt contracts, a view of each place on the board and the report. The hero's own portrait is taken while you play, so it is always who you chose. In the menu the hero and the lumen stand alive on nothing: they breathe, and turn when dragged (or with the arrow keys).
-- **One menu, and a pause menu.** Character, Gear, Lumen, Contract and Guide are tabs of one window that holds the game while it is open. Esc opens the pause menu: settings for display, sound, controls and accessibility (text size, reduced motion, high contrast, skip cinematics), kept between visits.
-- **Pads that show the way.** The pad that sends you down, and the one that lifts you out, keep lifting rings of light off themselves: slow and faint while cold, quick and bright once they will take you.
-- **Saves.** Every surveyor you make is kept in the browser: every few seconds, when a contract ends, and whenever the page is hidden or left. The select screen opens on them (Continue, or a new surveyor; one can be let go), and Settings, Saves writes a copy of them all to a file and reads one back. A contract in progress is not kept: leave in the middle and you are on the ship with what you had picked up.
-- **Phones.** Held upright, the picture is a strip across the top and the stick, the buttons and the HUD sit on a dark blue deck under it; on the select screen the camera is placed so the whole hero stands in the strip between the name plate and the choices, whatever the screen's shape; held sideways, the picture fills the screen and the controls sit in its corners. Menus fill the screen and scroll. Every screen is checked by a script for text that is cut off, runs out of its plate, breaks in the middle of a word or lies over other text.
-- **Lettering coloured by what it names.** People, places, numbers, experience, glint, good and bad, creatures, each class and each kind of contract have a colour of their own, all at 4.5:1 or better on every ground they sit on (the table is at the end of `src/ui/ui.css`).
-- **A piece of music for every place and every elder.** Each of the seven areas has its own composed tune, key, meter, tempo and lead instrument (the town a piano and violin in D major; Glasswood a celesta in 6/8; Ember a solo cello sarabande; the Hush glass tones in 5/4 over a low choir; Rime a breathy flute; the Underhalls a quiet organ chorale; the Shatter bowed metal in 7/4), and each of the five elders a theme of its own that takes over while it lives, with a fuller variant once it is enraged. A fight cuts the tune down over a soft drum and low strings; low health thins it; a cinematic holds it. All of it is made in the browser with no audio files: one row per area in `AREAS` and per elder in `BOSSES` in `src/audio/audio.js`, each theme written out as chords and scale degrees.
-- **Cinematics.** Arriving at the town, dropping onto a contract, an elder waking, an elder falling. All of them can be skipped (Esc, Enter, Space or the Skip button), and none is needed to play: add `?nocine` to the address to go without.
-
-## Run it
-
-Any static file server works; there is no build step and nothing to install.
+Requires Node.js 20+.
 
 ```bash
-python3 -m http.server 8080
+npm install
+npm run dev
 ```
 
-Then open `http://localhost:8080`. Add `?touch` to see the phone layout on a desktop.
+Useful URL parameters during development:
+- `?touch` — force touch layout on desktop (`?touch=0` to disable)
+- `?new` — start as if no saves exist
+- `?nocine` — skip cinematics automatically
+- `?firststeps` — force the guided first-steps tutorial
 
-Progress is kept in the browser (see Saves above). Add `?new` to open one visit as if nothing were kept.
+## Production Build & Deployment
 
-## Trailer
+```bash
+npm run typecheck
+npm run build
+npm run preview
+```
 
-`./trailer/make.sh` films a 42.5-second square gameplay trailer (1080 x 1080, 60 frames a second, for a timeline such as X) from the real game and writes `trailer/lumenwake-trailer-square.mp4` and `trailer/lumenwake-cover.jpg`. It opens on the shuttle flying in under the ringed world, walks into the square and about the town, fights twice, plays the Spore Matron's waking, cuts through the other places, shows the Gear tab and the five peoples on the select screen, and ends with the surveyor walking across the square toward the ringed world at evening. `trailer/director.js` is the shot list, played through the game's own systems and cinematics. `trailer/score.js` is the trailer's own score, written to the cuts and played on the game's synthesized instruments; the game's effects are rendered under it at a lower level. Both are rendered into an offline Web Audio context one frame at a time beside the picture. `trailer/record.mjs` drives headless Chrome with the page's clock taken away; `trailer/encode.swift` joins frames and sound with the system's AVFoundation. Needs Node 22+, Chrome and Xcode's `swiftc`; no ffmpeg.
-
-## Sound effects
-
-Most effects are recordings in `static/sfx` (2 MB of short WAVs): CC0 recordings from Kenney's packs, and a few made with ElevenLabs where nothing free fitted. `static/sfx/SOURCES.md` lists them; `tools/sfx/` makes them again (`generate.mjs` for the ElevenLabs ones through fal, `build.mjs` to cut and level everything). `SAMPLED` in `src/audio/audio.js` says which file answers which event; the chimes tuned to the music, and anything without a file, are still synthesized.
+Configured for zero-config static deployment on Vercel (`vercel.json` builds with `npm run build` and serves `dist/`).
 
 ## Controls
 
 | Input | Action |
 | --- | --- |
-| Left click | Walk to a spot, attack a creature, talk to someone. Hold to keep walking. |
-| W A S D | Walk by hand |
-| 1 2 3 4 | Abilities (aimed at the target, or at the cursor) |
-| Space | Jump |
-| F / Tab | Attack the nearest creature or talk to someone near / pick the next creature |
-| R / T | Drink a Red Tonic / Blue Draught |
-| Right drag, Q / E, wheel | Turn, tilt and zoom the view |
-| G | Let the lumen's burst go |
-| C / B / L / J / H | The menu, on its Character / Gear / Lumen / Contract / Guide tab (Q and E change tab) |
-| M / V | Sound on or off / the camera's buttons |
-| Esc | Close what is open; otherwise the pause menu and settings |
+| Left click / hold | Move to ground, attack creature, or talk to NPC |
+| `W` `A` `S` `D` / Arrows | Move |
+| `1` `2` `3` `4` | Cast abilities |
+| `Space` | Jump (clears gaps, terraces, and ground slams) |
+| `F` / `Tab` | Attack nearest / interact / cycle target |
+| `R` / `T` | Drink Red Tonic / Blue Draught |
+| `G` | Activate Lumen burst |
+| Right drag, `Q` / `E`, Wheel | Orbit, tilt, and zoom camera |
+| `C` / `B` / `L` / `J` / `H` | Open Character / Gear / Lumen / Contract / Guide (`Q`/`E` switch tabs) |
+| `M` / `V` | Toggle sound / camera preset |
+| `Esc` | Close window, clear target, or open pause menu |
 
-## How the code is laid out
+## Architecture
 
-Three walls. Content is data, the simulation is rules, and the app draws and listens. The simulation never calls the renderer, the camera or the interface: it announces what happened on an event bus (`feel`, `fade`, `world:changed`, `shot:launch`, `pickup`, ...) and the app reacts.
-
-```
+```text
+public/               Static assets served directly (art/, sfx/, icons, manifest, og.jpg)
 src/
-  content/      data only: what exists
-    classes.js      classes and weapon families
-    abilities.js    what goes on the bar (numbers and the kind of effect)
-    gear.js         bases (each with the look it has in the hand), rarities, affixes, how stats read
-    tutorial.js     the first steps, in order: what each says, points at and waits for
-    creatures.js    creatures and bosses: numbers, moves, drops, encounter cost
-    themes.js       the places: ground, plants, creatures, boss, hour
-    threat.js       how a place answers being surveyed again: the ranks, and the conditions a visit can draw
-    relics.js       the pieces each elder carries, the power each has, and the odds of one
-    town.js         the town: rooms, paving, fixtures, crew
-    items.js        flasks, materials, recipes
-    talents.js      talents
-  sim/          rules: no DOM, no GL, no camera
-    rng.js          the one seeded source of dice
-    stats.js        every stat is a base run through one pipeline of modifiers
-    items.js        rolling, naming, pricing and reading gear
-    encounters.js   what waits on each island, bought from a budget
-    systems/        player, ai, specials (creature moves), hazards, combat,
-                    skills (ability effects), loot, spawner, missions, crew
-  world/        where things are
-    layout.js       rooms and bridges from a seed, or from the town's data
-    nav.js          where a body may stand
-    zone.js         a layout turned into what the renderer and the rules read
-    world.js        one zone at a time
-    props.js        every piece of scenery, with the shader that draws it
-  gfx/          the renderer (raw WebGL2, no libraries)
-  app/          the composition root: game loop, controls, camera view, effects,
-                the first steps' runner, the portraits and the gear tiles, saves
-  ui/           HUD, windows, touch controls
-  audio/        sound: recorded effects (static/sfx) and a synthesized score
-  core/         events, input, maths, noise
+  main.ts             Application entry point
+  config.ts           Shared world, render, camera, and physics constants
+  types/              Shared TypeScript domain, entity, world, event, render, and game contracts
+  core/               Device detection, typed EventBus, input handler, math, spatial RNG/noise
+  data/               Pure readonly game catalogs (classes, abilities, gear, creatures, biomes, props, etc.)
+  world/              Procedural zone layout, navigation graph, chunk generation, world collision/queries
+  sim/                Headless simulation systems grouped by domain:
+    character/        Stats derivation, talents, player movement & attack chain
+    inventory/        Gear rolling/honing/salvage & loot system
+    combat/           Combat resolution, skills, relics, hazards, monster AI & specials
+    companion/        Lumen progression math & companion system
+    missions/         Threat calculation, encounters, contract lifecycle, sites, town crew
+  rendering/          Raw WebGL2 engine, passes, camera, toroidal world textures, and standalone GLSL shaders
+  audio/              Modular Web Audio synth kit, sample map, SFX triggers, procedural music & ambience
+  app/                Composition root (Game), controls, environment, FX, view builder, cinematics, portraits, tutorial, saves
+  ui/                 Preact components, imperative 60fps overlays (plates, touch stick, markers), settings & modular CSS
 ```
-
-### Cinematics
-
-A cinematic is a row in `src/content/cinematics.js`: a list of shots, each with a camera, what the cast does, cues for sound and effects, and lettering. The camera is described as an orbit about something (the hero, the elder, a room), so one sequence works on any island a contract rolls, and distances can be given in heights of a cast member so one shot fits every size of elder. `TRIGGERS` in the same file says which event starts which sequence.
-
-`src/app/cinema.js` is the director that plays them. The rules never know a cinematic exists: the game loop asks the director how fast the world may run (0 holds it still, a fraction is slow motion) and whether the hero's controls are held. Whatever a sequence leaves behind is applied in one place (`finish`), so skipping in the first second leaves the game exactly as watching to the end would. `src/ui/cinema.js` draws the bars, cards, captions and the Skip button.
-
-## Adding things
-
-| To add | Do this |
-| --- | --- |
-| A class | A row in `content/classes.js`: attributes, weapon family, four ability ids, a colour. |
-| An ability | A row in `content/abilities.js` using an existing effect (`arc`, `ring`, `bolt`, `volley`, `heal`, `dash`). A new kind of effect is one function in `sim/systems/skills.js`. |
-| A relic | A row in `content/relics.js` (its slot, the elder that carries it, its numbers, one line of text) and one method under its id in `sim/systems/relics.js`, called from the moment in the rules it answers. |
-| A gear base, affix or rarity | A row in `content/gear.js`. Anything in the stat list can be rolled. A base's `look` picks its shape in `gfx/glsl/held.js`, which the hero and the menu's tiles both draw from; a new shape is a branch there. |
-| A condition a revisit can draw | A row in `CONDITIONS` in `content/threat.js`: its name, one line of text, and the numbers it changes (`hp`, `atk`, `quick`, `purse`, `aggro`, `glint`, or one of `leader`, `burst`, `strays`, `hour`, `rageAt`); `only` says which contracts it can be drawn for. A new kind of number is read where creatures are made, in `temper` in `sim/systems/missions.js`. |
-| A step of the first steps | A row in `content/tutorial.js`: its line, what it points at, the control to ring, and the event or test that ends it. |
-| A stat | A line in `derive` in `sim/stats.js` and its name in `STAT_TEXT`. |
-| A creature | A row in `content/creatures.js` (with a `cost`) and an entry in a theme's table. A new shape: an archetype in `gfx/archetypes/`. |
-| A boss | A creature row with `boss: true` and a list of `specials`; name it as a theme's `boss`. For a colossus add `giant: true`, `turn`, `fall`, `hitY` and `sit` (how it sits for its portrait), and model it at its true size as the ones in `gfx/archetypes/colossi.js` and `elders.js` are, with poses for emerge, roar and fall. Its pictures for the board and the Contract tab are drawn from the model when the game starts. |
-| A kind of lumen | A row in `content/companions.js` (its stage, the temper that leads to it, its burst) and a shape for it in `gfx/archetypes/lumen.js`. A new food is a row in `FOODS`. |
-| Something to find | A row in `content/sites.js` (the landmark, its reach, its marker's colour), a line in `world/layout.js` saying which islands get it, and a branch in `sim/systems/sites.js` for what it does. |
-| A picture for the interface | Add a shot to `tools/art-studio.js` and run it: it draws with the game's renderer into `static/art/`. |
-| A people | A row in `content/peoples.js` and a branch for its `index` in `gfx/archetypes/humanoid.js` (head, build, clothes). Give it to someone in `content/town.js` with `people:`. |
-| A cinematic | A row in `content/cinematics.js`, and a row in `TRIGGERS` if an event should start it. |
-| A creature move | An entry in `SPECIALS` in `sim/systems/specials.js`. |
-| A place | A row in `content/themes.js`, and a row for its music in `AREAS` in `audio/audio.js` (without one it plays the town's). `realm` says what it stands in (0 cloud under a sky, 1 underground with `walls`, 2 open space), `gravity` how hard it pulls and `hop` how much wider its jumps are laid out; a picture for the board is a line in `tools/art-studio.js`. |
-| A building or prop | `registerProp` in `world/props.js`, then place it in `content/town.js` or a theme's table. |
-
-## How it is drawn
-
-The picture is Brushwild's renderer: one raymarch decides what is where, and a final pass draws it as pencil lays and pen lines on paper. Here it leans toward cel shading (flat stepped fills, hard-edged shade, a steady dark line) through one dial, `CEL` in `src/gfx/glsl/pencil.js`. One limit to know about: only one prop can be drawn in each 4 by 4 cell of ground, so fixtures placed by hand must not share a cell.
-
-## Not done yet
-
-- No tests in the repo, no co-op.
-- Six of the eleven ordinary creatures still use Brushwild's shapes, and the two new places have no creatures of their own yet: they are stocked from the others.
-- The elders fill much of the picture and are drawn at full resolution: their cost on a slow GPU or a phone has not been measured.
-- None of the music has been listened to by its author: it is checked by a test that compares what each piece schedules (so no two share a lead voice or a ten-second stretch of the same instruments), by rendering each piece through the browser to measure its level, and by playing whole contracts with the audio running to see that nothing fails.
-- The first steps have been played end to end by a test bot that presses only what they ring, not by a new player; the game has not been tried on a real phone.
-- Relics, the ten slots and honing are balanced by measurement (a full set of three relics made the test bot's contracts about a fifth quicker; ten rare pieces are about 1.3 times three in blows and in lasting), not by play.
-- Visors and greaves are not drawn on the figure yet, only on their tiles.
-- The threat ranks are balanced by a test bot that cannot die, not by play: at the top rank a level 6 surveyor takes about six times the damage and twice the time of a first visit.
-- The simulation still steps with the frame's time, so two runs repeat exactly only at a fixed frame time.
-- Talent logic still lives beside its data in `content/talents.js`.
-- The share picture and icons in `static/` are still Brushwild's.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Lettering: Chakra Petch and Orbitron from Google Fonts (SIL Open Font License), loaded from Google's servers.
+MIT. See [LICENSE](LICENSE) for full license and third-party sound/font attributions.

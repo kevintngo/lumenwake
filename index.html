@@ -3,166 +3,44 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Lumenwake</title>
-<meta name="description" content="Take a contract on the survey ship, drop to islands in the sky, and fight your way across them room by room. A mission game drawn by shaders." />
-<meta name="theme-color" content="#e8e2d4" />
-<link rel="icon" href="./static/favicon-32.png" sizes="32x32" type="image/png" />
-<link rel="icon" href="./static/favicon.svg" type="image/svg+xml" />
-<link rel="apple-touch-icon" href="./static/apple-touch-icon.png" />
-<link rel="manifest" href="./static/manifest.webmanifest" />
+<title>Lumenwake — Sky-Island Action RPG</title>
+<meta name="description" content="Take a contract at Meridian Landing, drop to cel-shaded sky islands, and battle towering colossi room by room. A WebGL2 shader action RPG playable in the browser." />
+<link rel="canonical" href="https://lumenwake-game.vercel.app/" />
+<meta name="theme-color" content="#14295f" />
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="Lumenwake" />
 <meta property="og:type" content="website" />
+<meta property="og:locale" content="en_US" />
 <meta property="og:site_name" content="Lumenwake" />
-<meta property="og:title" content="Lumenwake" />
-<meta property="og:description" content="Take a contract on the survey ship, drop to islands in the sky, and fight your way across them room by room. A mission game drawn by shaders." />
-<meta property="og:url" content="https://kevintngo.github.io/lumenwake/" />
-<meta property="og:image" content="https://kevintngo.github.io/lumenwake/static/og.jpg" />
+<meta property="og:title" content="Lumenwake — Sky-Island Action RPG" />
+<meta property="og:description" content="Take a contract at Meridian Landing, drop to cel-shaded sky islands, and battle towering colossi room by room. A WebGL2 shader action RPG playable in the browser." />
+<meta property="og:url" content="https://lumenwake-game.vercel.app/" />
+<meta property="og:image" content="https://lumenwake-game.vercel.app/og.jpg" />
+<meta property="og:image:type" content="image/jpeg" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="A small scout unit faces a stone colossus rising out of an island, a ringed planet behind it" />
+<meta property="og:image:alt" content="A surveyor faces the towering Stone Warden colossus across a cel-shaded sky island beneath a ringed planet" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="https://kevintngo.github.io/lumenwake/static/og.jpg" />
-<meta name="twitter:title" content="Lumenwake" />
-<meta name="twitter:description" content="Take a contract on the survey ship, drop to islands in the sky, and fight your way across them room by room. A mission game drawn by shaders." />
+<meta name="twitter:url" content="https://lumenwake-game.vercel.app/" />
+<meta name="twitter:title" content="Lumenwake — Sky-Island Action RPG" />
+<meta name="twitter:description" content="Take a contract at Meridian Landing, drop to cel-shaded sky islands, and battle towering colossi room by room. A WebGL2 shader action RPG playable in the browser." />
+<meta name="twitter:image" content="https://lumenwake-game.vercel.app/og.jpg" />
+<meta name="twitter:image:alt" content="A surveyor faces the towering Stone Warden colossus across a cel-shaded sky island beneath a ringed planet" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600&family=Orbitron:wght@600;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="./src/ui/ui.css" />
 </head>
 <body class="titled">
 <canvas id="view" role="img" aria-label="The game world, drawn in pen and pencil"></canvas>
-
-<div id="ui">
-  <!-- the top left corner, as one column: the hero's plate, then the lumen's. They are laid out one under the other
-       (never by a measured offset), so neither can cover the other whatever size the lettering is. The menu buttons
-       and the contract's tracker are in the column too: a phone held sideways stacks them here; elsewhere the
-       stylesheet pins them to their own corners. -->
-  <div id="hero">
-  <section id="status" class="plate" aria-label="Your character">
-    <div class="face"><img id="hero-face" alt="" /><div class="badge" id="lvl" title="Level">1</div></div>
-    <div class="bars">
-      <div class="who"><span class="names"><span id="pname">Surveyor</span><small id="pkind"></small></span><span id="boon" class="boon" hidden></span><span id="glint" class="coin" title="Glint">20</span></div>
-      <div class="meter"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14C3 10 1.5 7.4 2.6 5c1-2.2 4-2.1 5.4.2 1.4-2.3 4.4-2.4 5.4-.2 1.1 2.4-.4 5-5.4 9z" fill="#d8584a" stroke="#623c1e" stroke-width="1.3" stroke-linejoin="round"/></svg><div class="bar hp" id="hp-bar" role="meter" aria-label="Health" aria-valuemin="0"><i id="hp-fill"></i></div><b id="hp-text">0 / 0</b></div>
-      <div class="meter"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6c2.4 3.2 4.6 5.6 4.6 8.2a4.6 4.6 0 0 1-9.2 0c0-2.6 2.2-5 4.6-8.2z" fill="#4f86b4" stroke="#623c1e" stroke-width="1.3" stroke-linejoin="round"/></svg><div class="bar fo" id="fo-bar" role="meter" aria-label="Focus" aria-valuemin="0"><i id="fo-fill"></i></div><b id="fo-text">0 / 0</b></div>
-      <div class="bar xp" id="xp-bar" role="meter" aria-label="Experience toward the next level" aria-valuemin="0" aria-valuemax="100"><i id="xp-fill"></i></div>
-    </div>
-  </section>
-
-  <!-- the lumen: what it is, how full it is; a click lets its burst go (or opens its window) -->
-  <section id="lumen" class="plate" aria-label="Your lumen">
-    <button type="button" id="lumen-btn" aria-label="Your lumen: let its burst go, key G">
-      <span class="face"><img id="lumen-face" alt="" /></span>
-      <span class="lumen-words"><strong id="lumen-name"></strong><small id="lumen-sub"></small><span class="bar lu" role="meter" aria-label="How full it is" aria-valuemin="0" aria-valuemax="100" id="lumen-bar"><i id="lumen-fill"></i></span></span>
-      <kbd>G</kbd>
-    </button>
-  </section>
-
-  <nav id="menu" aria-label="Menus">
-    <button type="button" data-open="character" title="Character (C)" aria-label="Character, key C"></button>
-    <button type="button" data-open="bag" title="Gear (B)" aria-label="Gear, key B"></button>
-    <button type="button" data-open="lumen" title="Lumen (L)" aria-label="Your lumen, key L"></button>
-    <button type="button" data-open="menu" title="Menu (Esc)" aria-label="Pause menu and settings, key Escape"></button>
-  </nav>
-
-  <section id="tracker" class="plate small" aria-label="Contract" hidden>
-    <div class="label">Contract</div>
-    <div id="tracker-text"></div>
-  </section>
-  </div>
-
-  <section id="target" class="plate" aria-label="Your target" hidden>
-    <div class="who"><span id="t-name"></span><span id="t-lvl" class="dim"></span></div>
-    <div class="bar hp"><i id="t-fill"></i></div>
-  </section>
-
-  <section id="compass" aria-label="Map and place">
-    <button type="button" id="map-ring" title="Map" aria-label="Map of what is near"></button>
-    <div id="place" class="plate small"><span id="zone">Meridian Deck</span><span id="clock" class="dim">Aloft</span></div>
-  </section>
-
-  <section id="boss" class="plate" aria-label="Elder" hidden>
-    <div class="face"><img id="boss-face" alt="" /></div>
-    <div class="boss-words"><strong id="boss-name"></strong><small id="boss-sub"></small></div>
-    <div class="bar hp" role="img" aria-label="Elder's health"><i id="boss-fill"></i><b class="half" aria-hidden="true"></b></div>
-  </section>
-  <section id="log" role="log" aria-live="polite" aria-label="Messages"></section>
-  <div id="toast" class="plate" role="status" aria-live="polite"></div>
-
-  <!-- someone speaking: their likeness, their name, what they say -->
-  <section id="talk" class="plate" aria-live="polite" hidden>
-    <div class="face"><img id="talk-face" alt="" /></div>
-    <div class="talk-words"><div class="who"><strong id="talk-name"></strong><small id="talk-title"></small></div><p id="talk-line"></p></div>
-  </section>
-
-  <!-- a contract's report, back in town -->
-  <section id="report" class="plate" role="dialog" aria-labelledby="report-name" hidden>
-    <button type="button" class="x" id="report-x" aria-label="Close" title="Close (Esc)">×</button>
-    <div class="report-art"><img id="report-art" alt="" /><div class="stamp" id="report-kind"></div></div>
-    <div class="report-body">
-      <h2 id="report-name"></h2>
-      <p id="report-line"></p>
-      <div class="report-stats" id="report-stats"></div>
-      <div id="report-prize"></div>
-      <div class="report-foot"><button type="button" class="btn primary" id="report-ok">Continue</button></div>
-    </div>
-  </section>
-
-  <section id="hotbar" aria-label="Skills and potions"></section>
-
-  <div id="plates" aria-hidden="true"></div>
-  <div id="floaters" aria-hidden="true"></div>
-  <!-- the one window: the tabbed menu, the shop or the board (ui/panels.js) -->
-  <div id="panels"></div>
-  <!-- the pause menu and its settings (ui/pause.js) -->
-  <div id="pause" role="dialog" aria-modal="true" aria-labelledby="pause-title" tabindex="-1" hidden></div>
-</div>
-
-<!-- a cinematic's frame: bars, lettering, and the way out of it -->
-<div id="cine">
-  <div class="bar top"></div><div class="bar bottom"></div>
-  <div id="cine-card" class="cine-card" role="status" aria-live="polite"><strong id="cine-title"></strong><span id="cine-sub"></span></div>
-  <p id="cine-caption" role="status" aria-live="polite"></p>
-  <button type="button" id="cine-skip" hidden aria-label="Skip this scene, key Escape">Skip<kbd>Esc</kbd></button>
-</div>
-
-<!-- who to be: the hero stands in the middle of the picture, the peoples down one side, the classes down the other -->
-<div id="title">
-  <div class="select">
-    <header class="select-head">
-      <h1>Lumenwake</h1>
-      <p class="tag">Contracts across the sky islands</p>
-    </header>
-    <!-- kept journeys: with any, the screen opens on them (the two columns below are for a new surveyor) -->
-    <section class="select-col saves" id="saves" aria-labelledby="pick-saves" hidden>
-      <h2 class="pick-label" id="pick-saves">Your surveyors</h2>
-      <div id="save-list" class="save-list" role="radiogroup" aria-labelledby="pick-saves"></div>
-      <button type="button" id="btn-create" class="btn">New surveyor</button>
-    </section>
-    <section class="select-col people" aria-labelledby="pick-people">
-      <h2 class="pick-label" id="pick-people">Who you are</h2>
-      <div id="people-pick" class="people-pick" role="radiogroup" aria-labelledby="pick-people"></div>
-    </section>
-    <section class="select-col classes" aria-labelledby="pick-class">
-      <h2 class="pick-label" id="pick-class">Your class</h2>
-      <div id="class-pick" class="class-pick" role="radiogroup" aria-labelledby="pick-class"></div>
-    </section>
-    <footer class="select-foot">
-      <p id="select-summary" role="status" aria-live="polite"></p>
-      <div class="title-actions">
-        <button type="button" id="btn-begin" class="primary" disabled>Begin</button>
-        <button type="button" id="btn-new" hidden>Your surveyors</button>
-      </div>
-      <p class="keys" id="keys-hint">WASD to move &nbsp;·&nbsp; F attack &nbsp;·&nbsp; Space jump</p>
-    </footer>
-  </div>
-</div>
-
+<div id="ui-root"></div>
 <div id="fatal" hidden>
   <div class="plate"><h2>Lumenwake could not start</h2><p></p></div>
 </div>
-
-<script type="module" src="./src/main.js"></script>
+<script type="module" src="/src/main.ts"></script>
 </body>
 </html>

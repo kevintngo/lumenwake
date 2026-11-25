@@ -1,0 +1,11 @@
+uniform vec3 uCamPos, uCamRight, uCamUp, uCamFwd;
+uniform vec2 uTanFov;
+uniform vec3 uFocus;
+uniform float uTime;
+uniform vec3 uSunDir;
+uniform vec3 uSunDisk, uMoonDisk;
+uniform float uNight;
+uniform float uGold;
+uniform float uCloud;
+uniform vec2 uWind;
+uniform float uRealm;

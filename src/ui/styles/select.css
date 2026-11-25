@@ -1,0 +1,542 @@
+#title {
+  position: fixed;
+  inset: 0;
+  display: block;
+  transition: opacity 0.9s ease;
+}
+
+body:not(.titled) #title {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body:not(.titled) #title * {
+  pointer-events: none !important;
+}
+
+.select {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 372px) 1fr minmax(320px, 400px);
+  grid-template-rows: auto 1fr auto;
+  gap: 14px 22px;
+  padding: calc(22px + var(--st)) calc(28px + var(--sr)) calc(20px + var(--sb)) calc(28px + var(--sl));
+  pointer-events: none;
+}
+
+.select > * {
+  pointer-events: auto;
+}
+
+.select-head,
+.select-col,
+.select-foot {
+  background: var(--paper);
+  border: 1.4px solid var(--pen);
+  box-shadow: inset 0 0 0 4px var(--paper), inset 0 0 0 5px rgba(143, 216, 255, 0.22);
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+}
+
+.select-head {
+  grid-column: 1;
+  justify-self: start;
+  padding: 14px 26px 14px 22px;
+}
+
+.select-head h1 {
+  margin: 0;
+  font: 800 clamp(30px, 3.4vw, 46px)/1.05 var(--display);
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+
+.select-head .tag {
+  margin: 6px 0 0;
+  font: 500 14px/1.2 var(--hand);
+  letter-spacing: 0.12em;
+  color: var(--pen-text);
+}
+
+.select-col {
+  align-self: center;
+  padding: 16px 16px 18px;
+  display: grid;
+  gap: 12px;
+  max-height: 100%;
+  overflow: auto;
+}
+
+.select-col.people,
+.select-col.saves {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.select-col.classes {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+body.has-saves:not(.creating) .select-col.people,
+body.has-saves:not(.creating) .select-col.classes {
+  display: none;
+}
+
+.save-list {
+  display: grid;
+  gap: 8px;
+}
+
+.save-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.save-row .pick {
+  width: 100%;
+}
+
+.save-row .x {
+  width: 44px;
+  height: auto;
+  align-self: stretch;
+}
+
+.save-ask {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px 13px;
+  background: var(--deep);
+  border: 1.2px solid var(--c-bad);
+}
+
+.save-ask p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.save-ask div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+#btn-create {
+  min-height: 46px;
+}
+
+.pick-label {
+  margin: 0;
+  font: 600 14px/1 var(--hand);
+  letter-spacing: 0.16em;
+  color: var(--ochre);
+  text-transform: none;
+}
+
+.people-pick,
+.class-pick {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 0;
+  max-width: none;
+}
+
+.pick {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 8px 14px 8px 10px;
+  text-align: left;
+  color: var(--ink);
+  background: var(--deep);
+  border: 1.2px solid var(--faint);
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pick:hover {
+  background: var(--paper-2);
+  filter: none;
+}
+
+.pick[aria-checked='true'] {
+  background: var(--paper-2);
+  border-color: var(--focus);
+  box-shadow: inset 5px 0 0 var(--focus);
+}
+
+.pick:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.pick img {
+  width: 64px;
+  height: 72px;
+  object-fit: cover;
+  object-position: 50% 16%;
+}
+
+.class-card.pick {
+  padding: 10px 14px 10px 10px;
+  display: grid;
+}
+
+.class-card.pick img {
+  width: 104px;
+  height: 88px;
+  object-position: 50% 40%;
+}
+
+.pick-words {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pick-words strong {
+  font: 600 17px/1.15 var(--display);
+  letter-spacing: 0.07em;
+  color: var(--c-name);
+}
+
+.pick-words span {
+  font-size: 14.5px;
+  line-height: 1.35;
+  color: var(--dim);
+}
+
+.pick-words small {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--pen-text);
+}
+
+.class-card.c-vanguard strong {
+  color: var(--c-vanguard);
+}
+
+.class-card.c-ranger strong {
+  color: var(--c-ranger);
+}
+
+.class-card.c-adept strong {
+  color: var(--c-adept);
+}
+
+.select-foot {
+  grid-column: 2;
+  grid-row: 3;
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 14px 30px;
+}
+
+#select-summary {
+  margin: 0;
+  font: 600 20px/1.1 var(--display);
+  letter-spacing: 0.08em;
+}
+
+.title-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.title-actions button {
+  font: 500 18px/1 var(--hand);
+  letter-spacing: 0.08em;
+  border: 1.4px solid var(--pen);
+  padding: 11px 34px 12px;
+}
+
+.title-actions button:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+#btn-begin {
+  min-width: 220px;
+  min-height: 48px;
+  padding: 10px 34px 12px;
+  font: 600 19px/1 var(--display);
+  letter-spacing: 0.14em;
+  color: #1b1400;
+  background: var(--ochre);
+  border: 1.5px solid #ffe2a6;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+#btn-begin:hover {
+  background: #ffd684;
+  filter: none;
+}
+
+.select-foot .keys {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dim);
+  text-align: center;
+}
+
+@media (max-width: 620px), (orientation: portrait) {
+  .select {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px;
+    overflow-y: auto;
+  }
+
+  .select-head {
+    align-self: flex-start;
+    padding: 8px 16px 9px;
+    margin-bottom: auto;
+  }
+
+  .select-head h1 {
+    font-size: 26px;
+  }
+
+  .select-head .tag {
+    display: none;
+  }
+
+  .select-col {
+    align-self: stretch;
+    padding: 10px 10px 12px;
+    gap: 8px;
+    max-height: none;
+    overflow: visible;
+    min-width: 0;
+  }
+
+  .select-col > *,
+  .pick,
+  .pick-words {
+    min-width: 0;
+  }
+
+  .people-pick {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .people-pick .pick {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 5px;
+    padding: 6px 2px 7px;
+    text-align: center;
+  }
+
+  .people-pick .pick img {
+    width: 46px;
+    height: 52px;
+  }
+
+  .people-pick .pick-words span {
+    display: none;
+  }
+
+  .people-pick .pick-words strong {
+    font: 600 clamp(12px, 3.3vw, 15px)/1.15 var(--hand);
+    letter-spacing: 0;
+  }
+
+  .class-pick {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .class-card.pick {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 6px;
+    padding: 7px 6px 8px;
+    text-align: center;
+  }
+
+  .class-card.pick img {
+    width: 100%;
+    height: 62px;
+  }
+
+  .class-card .pick-words span,
+  .class-card .pick-words small {
+    display: none;
+  }
+
+  .class-card .pick-words strong {
+    font-size: 14px;
+  }
+
+  .select-foot {
+    align-self: stretch;
+    justify-self: stretch;
+    padding: 10px 14px 12px;
+    gap: 8px;
+  }
+
+  #btn-begin {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .select-foot .keys {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 560px) and (min-width: 621px),
+  (orientation: landscape) and (max-width: 900px) and (min-width: 621px) {
+  .select {
+    grid-template-columns: minmax(176px, 27%) 1fr minmax(196px, 30%);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    padding: calc(8px + var(--st)) calc(10px + var(--sr)) calc(8px + var(--sb)) calc(10px + var(--sl));
+  }
+
+  .select-head {
+    padding: 6px 14px 7px;
+  }
+
+  .select-head h1 {
+    font-size: 22px;
+  }
+
+  .select-head .tag {
+    display: none;
+  }
+
+  .select-col,
+  .select-col.people,
+  .select-col.classes,
+  .select-col.saves {
+    align-self: stretch;
+    grid-row: 2 / span 2;
+    padding: 8px 8px 9px;
+    gap: 6px;
+    max-height: none;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+  }
+
+  .people-pick,
+  .class-pick,
+  .save-list {
+    gap: 4px;
+  }
+
+  .pick {
+    gap: 10px;
+    padding: 3px 10px 3px 6px;
+  }
+
+  .pick img {
+    width: 34px;
+    height: 36px;
+  }
+
+  .class-card.pick img {
+    width: 56px;
+    height: 44px;
+  }
+
+  .pick-words span,
+  .pick-words small {
+    display: none;
+  }
+
+  .save-row .pick-words span {
+    display: block;
+  }
+
+  .pick-words strong {
+    font-size: 15px;
+  }
+
+  .select-foot {
+    align-self: end;
+    padding: 8px 18px 9px;
+    gap: 6px;
+  }
+
+  #select-summary {
+    font-size: 16px;
+  }
+
+  .select-foot .keys {
+    display: none;
+  }
+
+  #btn-begin {
+    min-height: 44px;
+  }
+
+  body.has-saves:not(.creating) .select {
+    grid-template-columns: minmax(260px, 42%) 1fr;
+  }
+
+  body.has-saves:not(.creating) .select-foot {
+    grid-column: 2;
+  }
+}
+
+@media (min-width: 901px) and (orientation: landscape) and (max-height: 820px) {
+  .select {
+    gap: 12px 22px;
+    padding-top: calc(16px + var(--st));
+    padding-bottom: calc(14px + var(--sb));
+  }
+
+  .select-head {
+    padding: 10px 22px 10px 18px;
+  }
+
+  .select-col {
+    padding: 12px 14px 14px;
+    gap: 9px;
+  }
+
+  .people-pick,
+  .class-pick {
+    gap: 6px;
+  }
+
+  .pick {
+    padding: 5px 12px 5px 8px;
+  }
+
+  .pick img {
+    width: 46px;
+    height: 50px;
+  }
+
+  .class-card.pick {
+    padding: 7px 12px 7px 8px;
+  }
+
+  .class-card.pick img {
+    width: 86px;
+    height: 66px;
+  }
+
+  .select-foot {
+    padding: 12px 30px;
+    gap: 8px;
+  }
+}

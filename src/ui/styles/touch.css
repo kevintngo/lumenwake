@@ -1,0 +1,845 @@
+.touch-only,
+#stick {
+  display: none;
+}
+
+body.touch {
+  position: fixed;
+  inset: 0;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.touch .touch-only {
+  display: block;
+}
+
+body.touch #hero,
+body.touch #target,
+body.touch #boss,
+body.touch #compass,
+body.touch #hotbar,
+body.touch #log,
+body.touch #toast,
+body.touch #talk,
+body.touch #tutor-stack {
+  zoom: 1;
+}
+
+body.touch #stick {
+  display: block;
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 1;
+}
+
+#stick .base {
+  position: absolute;
+  width: calc(27 * var(--u));
+  height: calc(27 * var(--u));
+  border-radius: 50%;
+  border: 2px solid var(--pen);
+  background: rgba(20, 41, 95, 0.55);
+  box-shadow:
+    0 0 0 3px rgba(8, 15, 40, 0.5),
+    inset 0 0 0 calc(1.1 * var(--u)) rgba(11, 22, 55, 0.5),
+    inset 0 0 0 calc(1.1 * var(--u) + 1px) rgba(143, 216, 255, 0.3);
+}
+
+#stick .nub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(12 * var(--u));
+  height: calc(12 * var(--u));
+  margin: calc(-6 * var(--u)) 0 0 calc(-6 * var(--u));
+  border-radius: 50%;
+  background: var(--paper);
+  border: 2px solid var(--pen);
+  box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4.4px rgba(255, 122, 102, 0.6), 2px 3px 0 rgba(0, 0, 0, 0.28);
+}
+
+#stick.held .nub {
+  background: var(--paper-2);
+  border-color: var(--focus);
+}
+
+body.touch #hotbar {
+  left: auto;
+  right: var(--sr);
+  bottom: var(--sb);
+  transform: none;
+  display: block;
+  width: 0;
+  height: 0;
+  padding: 0;
+}
+
+body.touch .sep,
+body.touch .slot .key,
+body.touch #lumen kbd,
+body.touch #cine-skip kbd,
+body.touch #pkind {
+  display: none;
+}
+
+body.touch .slot {
+  position: absolute;
+  width: calc(12.5 * var(--u));
+  height: calc(12.5 * var(--u));
+  border-radius: 50%;
+  touch-action: none;
+  box-shadow:
+    inset 0 0 0 3px var(--paper),
+    inset 0 0 0 4px rgba(143, 216, 255, 0.2),
+    0 0 0 2.5px rgba(5, 10, 28, 0.55),
+    2px 3px 0 rgba(0, 0, 0, 0.28);
+}
+
+body.touch .slot svg {
+  inset: 17%;
+  width: 66%;
+  height: 66%;
+}
+
+body.touch .slot .cool {
+  border-radius: 50%;
+}
+
+body.touch .slot .count {
+  right: -4px;
+  bottom: -4px;
+  min-width: 22px;
+  padding: 0 4px;
+  border: 1.2px solid var(--pen);
+  border-radius: 9px;
+  text-align: center;
+  line-height: 17px;
+}
+
+body.touch .slot.act {
+  right: calc(6 * var(--u));
+  bottom: calc(4.5 * var(--u));
+  width: calc(18.5 * var(--u));
+  height: calc(18.5 * var(--u));
+  border-width: 2.2px;
+  box-shadow:
+    inset 0 0 0 3px var(--paper),
+    inset 0 0 0 4.6px rgba(255, 122, 102, 0.6),
+    0 0 0 2.5px rgba(5, 10, 28, 0.55),
+    2px 3px 0 rgba(0, 0, 0, 0.28);
+}
+
+body.touch .slot.act svg {
+  inset: 20%;
+  width: 60%;
+  height: 60%;
+}
+
+.slot.act .i-talk,
+.slot.act.talk .i-attack {
+  display: none;
+}
+
+.slot.act.talk .i-talk {
+  display: block;
+}
+
+.slot.act.idle svg {
+  opacity: 0.5;
+}
+
+body.touch .slot.s0 {
+  right: calc(31.5 * var(--u));
+  bottom: calc(7.5 * var(--u));
+}
+
+body.touch .slot.s1 {
+  right: calc(27.2 * var(--u));
+  bottom: calc(20.7 * var(--u));
+}
+
+body.touch .slot.s2 {
+  right: calc(15.95 * var(--u));
+  bottom: calc(28.9 * var(--u));
+}
+
+body.touch .slot.s3 {
+  right: calc(2.05 * var(--u));
+  bottom: calc(28.9 * var(--u));
+}
+
+body.touch .slot.next {
+  right: calc(44 * var(--u));
+  bottom: calc(21.5 * var(--u));
+  width: calc(11 * var(--u));
+  height: calc(11 * var(--u));
+}
+
+body.touch .slot.jump {
+  right: calc(45.5 * var(--u));
+  bottom: calc(6 * var(--u));
+  width: calc(14 * var(--u));
+  height: calc(14 * var(--u));
+}
+
+body.touch .slot.d0,
+body.touch .slot.d1 {
+  width: calc(11.5 * var(--u));
+  height: calc(11.5 * var(--u));
+}
+
+body.touch .fl {
+  font-size: 22px;
+  -webkit-text-stroke-width: 3px;
+}
+
+body.touch .fl.crit {
+  font-size: 30px;
+}
+
+body.touch .fl.heal,
+body.touch .fl.xp,
+body.touch .fl.miss {
+  font-size: 18px;
+}
+
+body.touch .fl.rot {
+  font-size: 16px;
+}
+
+body.touch .np {
+  font-size: 14px;
+  padding: 0 8px 2px;
+}
+
+body.touch .np small {
+  font-size: 14px;
+}
+
+body.touch .plus {
+  width: 44px;
+  height: 44px;
+}
+
+body.touch .btn {
+  min-height: 44px;
+  padding: 8px 16px 10px;
+}
+
+body.touch .face {
+  width: 44px;
+  height: 44px;
+}
+
+body.touch #status {
+  width: auto;
+}
+
+body.touch #target {
+  min-width: 0;
+}
+
+body.touch #boss {
+  top: calc(var(--st) + 70px);
+  width: min(600px, calc(100vw - 40px));
+}
+
+body.touch #talk {
+  bottom: auto;
+  top: calc(var(--st) + 84px);
+}
+
+body.touch #cine-skip {
+  height: 40px;
+  bottom: calc((var(--bar) - 40px) / 2);
+}
+
+body.touch #tutor-stack {
+  bottom: auto;
+  top: calc(var(--st) + 122px);
+  flex-direction: column-reverse;
+}
+
+body.touch #tutor {
+  padding: 7px 10px 9px 14px;
+}
+
+body.touch .tutor-line {
+  font-size: 16.5px;
+}
+
+body.touch .tile,
+body.touch .worn-tile {
+  touch-action: manipulation;
+}
+
+@media (orientation: portrait) {
+  body.touch {
+    --u: clamp(3.4px, 1.026vw, 4.9px);
+    --status-h: 86px;
+    --below: calc(var(--view-h) + var(--status-h) + 14px);
+  }
+
+  body.touch:not(.titled) {
+    --view-h: clamp(56.25vw, calc(var(--vh) - 60 * var(--u) - 176px - var(--sb)), 80vw);
+    background:
+      linear-gradient(rgba(143, 216, 255, 0.045) 1px, transparent 1px) 0 0 / 100% 24px,
+      linear-gradient(90deg, rgba(143, 216, 255, 0.045) 1px, transparent 1px) 0 0 / 24px 100%,
+      #0a1433;
+  }
+
+  body.touch:not(.titled) #ui::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: var(--view-h);
+    border-top: 1.8px solid var(--pen);
+    box-shadow: 0 3.4px 0 -1px rgba(143, 216, 255, 0.28);
+  }
+
+  body.touch #menu button {
+    box-shadow:
+      inset 0 0 0 3px var(--paper),
+      inset 0 0 0 4px rgba(143, 216, 255, 0.22),
+      2px 3px 0 rgba(0, 0, 0, 0.28);
+  }
+
+  body.touch #target {
+    left: 8px;
+    top: calc(8px + var(--st));
+    transform: none;
+    width: min(200px, 52vw);
+    padding: 5px 12px 9px;
+    gap: 4px;
+  }
+
+  body.touch #target .who {
+    font-size: 17px;
+  }
+
+  body.touch #boss {
+    left: 8px;
+    right: 100px;
+    top: calc(var(--st) + 8px);
+    width: auto;
+    transform: none;
+    padding: 6px 12px 9px 8px;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 4px 10px;
+  }
+
+  body.touch #boss .face {
+    width: 44px;
+    height: 44px;
+  }
+
+  body.touch #ui:has(#boss:not([hidden])) #target {
+    display: none;
+  }
+
+  body.touch #compass {
+    right: 8px;
+    top: calc(8px + var(--st));
+    width: 84px;
+  }
+
+  body.touch #map-ring {
+    width: 84px;
+    height: 84px;
+  }
+
+  body.touch #toast {
+    top: calc(var(--view-h) - 10px);
+    transform: translate(-50%, -100%);
+    padding: 7px 20px 9px;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+  }
+
+  body.touch #toast strong {
+    font-size: 24px;
+  }
+
+  body.touch #toast span {
+    font-size: 16px;
+  }
+
+  body.touch #hero {
+    left: 8px;
+    right: 8px;
+    top: calc(var(--view-h) + 8px);
+    flex-direction: row;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  body.touch #status {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    height: var(--status-h);
+    padding: 8px 14px 8px 10px;
+  }
+
+  body.touch #pname {
+    visibility: hidden;
+  }
+
+  body.touch #clock {
+    display: none;
+  }
+
+  body.touch #zone {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.touch #place {
+    position: fixed;
+    left: 76px;
+    top: calc(var(--view-h) + 16px);
+    padding: 0;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    clip-path: none;
+    justify-content: flex-start;
+    font-size: 19px;
+    line-height: 1.1;
+    max-width: calc(100vw - 300px);
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+
+  body.touch.has-boon #place {
+    max-width: calc(100vw - 344px);
+  }
+
+  body.touch #lumen {
+    flex: none;
+    width: 86px;
+    height: var(--status-h);
+  }
+
+  body.touch #lumen-btn {
+    height: 100%;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 3px;
+    padding: 6px 8px 7px;
+    text-align: center;
+  }
+
+  body.touch #lumen .face {
+    width: 38px;
+    height: 38px;
+  }
+
+  body.touch .lumen-words {
+    width: 100%;
+  }
+
+  body.touch #lumen-sub {
+    display: none;
+  }
+
+  body.touch #lumen-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.touch #tracker {
+    left: 8px;
+    right: 8px;
+    top: var(--below);
+    width: auto;
+    padding: 4px 12px 6px;
+    display: block;
+    white-space: normal;
+    font-size: 15px;
+    line-height: 1.3;
+  }
+
+  body.touch #tracker .label {
+    display: inline;
+    margin-right: 8px;
+  }
+
+  body.touch #tracker-text {
+    display: inline;
+  }
+
+  body.touch #log {
+    display: flex;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    top: calc(var(--below) + 58px);
+    bottom: calc(60 * var(--u) + var(--sb));
+    justify-content: flex-end;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(transparent, #000 26px);
+    mask-image: linear-gradient(transparent, #000 26px);
+  }
+
+  body.touch #menu {
+    left: 8px;
+    right: auto;
+    top: auto;
+    bottom: calc(46.5 * var(--u) + var(--sb));
+    flex-direction: row;
+    gap: calc(1.6 * var(--u));
+  }
+
+  body.touch #menu button {
+    width: calc(11 * var(--u));
+    height: calc(11 * var(--u));
+  }
+
+  body.touch .slot.d0 {
+    right: calc(16 * var(--u));
+    bottom: calc(46.5 * var(--u));
+  }
+
+  body.touch .slot.d1 {
+    right: calc(3 * var(--u));
+    bottom: calc(46.5 * var(--u));
+  }
+
+  body.touch #stick {
+    left: 0;
+    bottom: var(--sb);
+    width: calc(100vw - 56 * var(--u));
+    height: calc(44 * var(--u));
+  }
+
+  body.touch #stick .base {
+    left: calc(50% - 13.5 * var(--u));
+    top: calc(50% - 13.5 * var(--u));
+  }
+}
+
+@media (orientation: portrait) and (min-aspect-ratio: 1 / 2) {
+  body.touch #log {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) {
+  body.touch {
+    --u: clamp(3.3px, 1.03vh, 4.8px);
+  }
+
+  body.touch #hero {
+    left: calc(10px + var(--sl));
+    top: 8px;
+    width: 226px;
+    gap: 5px;
+    align-items: stretch;
+  }
+
+  body.touch #status {
+    width: auto;
+    padding: 7px 12px 7px 9px;
+    gap: 9px;
+  }
+
+  body.touch .badge {
+    width: 38px;
+    height: 38px;
+    font-size: 21px;
+  }
+
+  body.touch .bars {
+    gap: 3px;
+  }
+
+  body.touch .who {
+    font-size: 17px;
+  }
+
+  body.touch .coin {
+    font-size: 15px;
+  }
+
+  body.touch .meter b {
+    font-size: 14px;
+    min-width: 54px;
+  }
+
+  body.touch .bar.xp {
+    height: 6px;
+  }
+
+  body.touch #lumen {
+    width: auto;
+  }
+
+  body.touch #lumen-btn {
+    grid-template-columns: 30px 1fr;
+    gap: 9px;
+    padding: 5px 10px 6px 8px;
+  }
+
+  body.touch #lumen .face {
+    width: 30px;
+    height: 30px;
+  }
+
+  body.touch #lumen-sub {
+    display: none;
+  }
+
+  body.touch #menu {
+    position: static;
+    flex-direction: row;
+    gap: 4px;
+  }
+
+  body.touch #menu button {
+    width: 42px;
+    height: 42px;
+  }
+
+  body.touch #tracker {
+    position: static;
+    align-self: flex-start;
+    width: auto;
+    max-width: 226px;
+    padding: 3px 12px 5px;
+    display: block;
+    white-space: normal;
+  }
+
+  body.touch #tracker .label {
+    display: inline;
+    margin-right: 8px;
+  }
+
+  body.touch #tracker-text {
+    display: inline;
+  }
+
+  body.touch #target {
+    top: 8px;
+    width: 210px;
+    padding: 5px 14px 9px;
+    gap: 4px;
+  }
+
+  body.touch #boss {
+    left: calc(246px + var(--sl));
+    right: calc(112px + var(--sr));
+    top: 8px;
+    width: auto;
+    transform: none;
+    padding: 6px 14px 9px 10px;
+  }
+
+  body.touch #ui:has(#boss:not([hidden])) #target {
+    display: none;
+  }
+
+  body.touch #compass {
+    right: calc(10px + var(--sr));
+    top: 8px;
+    width: auto;
+    gap: 5px;
+    justify-items: end;
+  }
+
+  body.touch #map-ring {
+    width: 96px;
+    height: 96px;
+  }
+
+  body.touch #place {
+    padding: 2px 10px 4px;
+    font-size: 16px;
+    gap: 7px;
+  }
+
+  body.touch #place .dim {
+    font-size: 14px;
+  }
+
+  body.touch #toast {
+    top: 8px;
+    padding: 6px 24px 8px;
+    max-width: calc(100vw - 500px);
+  }
+
+  body.touch #toast strong {
+    font-size: 25px;
+  }
+
+  body.touch #log {
+    display: flex;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    bottom: calc(8px + var(--sb));
+    width: max-content;
+    max-width: calc(100vw - 148 * var(--u));
+    align-items: center;
+  }
+
+  body.touch #log p {
+    align-self: center;
+    font-size: 15px;
+  }
+
+  body.touch #stick {
+    left: 0;
+    bottom: 0;
+    width: 40vw;
+    height: 52vh;
+  }
+
+  body.touch #stick .base {
+    left: calc(var(--sl) + 9 * var(--u));
+    bottom: calc(var(--sb) + 7 * var(--u));
+  }
+
+  body.touch .slot.d0 {
+    right: calc(61 * var(--u));
+    bottom: calc(3 * var(--u));
+  }
+
+  body.touch .slot.d1 {
+    right: calc(61 * var(--u));
+    bottom: calc(16 * var(--u));
+  }
+}
+
+@media (orientation: landscape) and (max-width: 739px) {
+  body.touch #target {
+    width: 176px;
+  }
+
+  body.touch #toast {
+    left: calc(246px + var(--sl));
+    right: calc(124px + var(--sr));
+    top: 8px;
+    transform: none;
+    max-width: none;
+  }
+
+  body.touch #log {
+    left: calc(10px + var(--sl));
+    transform: none;
+    bottom: auto;
+    top: 182px;
+    max-width: 46vw;
+    max-height: 64px;
+    overflow: hidden;
+    align-items: flex-start;
+    justify-content: flex-end;
+  }
+
+  body.touch #log p {
+    align-self: flex-start;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 740px) {
+  body.touch #ui > #tutor-stack {
+    top: calc(var(--st) + 66px);
+  }
+
+  body.touch #tutor,
+  body.touch #tutor-tip {
+    max-width: calc(100vw - 500px);
+  }
+}
+
+body.contrast {
+  --ink: #ffffff;
+  --dim: #ffffff;
+  --pen: #ffffff;
+  --pen-text: #ffffff;
+  --faint: rgba(255, 255, 255, 0.82);
+  --paper: #0b1b4a;
+  --paper-2: #1a3a8c;
+  --deep: #050f2e;
+  --c-key: #ffffff;
+  --c-item: #ffffff;
+}
+
+body.contrast .plate,
+body.contrast #log p,
+body.contrast .np,
+body.contrast .btn,
+body.contrast #menu button,
+body.contrast .x {
+  background:
+    linear-gradient(135deg, var(--pen) calc(var(--cut) * 0.7071 + 2px), transparent 0) top left /
+      calc(var(--cut) + 5px) calc(var(--cut) + 5px) no-repeat,
+    linear-gradient(-45deg, var(--pen) calc(var(--cut) * 0.7071 + 2px), transparent 0) bottom right /
+      calc(var(--cut) + 5px) calc(var(--cut) + 5px) no-repeat,
+    var(--paper);
+  border-width: 2.4px;
+  box-shadow: none;
+}
+
+body.contrast .btn.primary {
+  background: var(--sun);
+  border-color: var(--sun);
+}
+
+body.contrast .slot,
+body.contrast .tile,
+body.contrast .worn-tile,
+body.contrast .card,
+body.contrast .detail,
+body.contrast .stats div,
+body.contrast .attr-tile,
+body.contrast .ability,
+body.contrast .prog,
+body.contrast .buyrow,
+body.contrast .contract,
+body.contrast .pause-item,
+body.contrast .set-tab,
+body.contrast .who-card,
+body.contrast .chip {
+  border-width: 2px;
+}
+
+body.contrast .tile {
+  border-color: var(--rc, #ffffff);
+}
+
+body.contrast .tile.empty,
+body.contrast .worn-tile.empty {
+  border: 1.4px dashed rgba(255, 255, 255, 0.6);
+}
+
+body.contrast .bar {
+  border-width: 1.6px;
+  background: #000a26;
+}
+
+body.contrast .scrim {
+  background: rgba(2, 6, 20, 0.82);
+}
+
+body.contrast #pause {
+  background: rgba(2, 6, 20, 0.86);
+}
+
+body.contrast .lines li,
+body.contrast .set-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+body.contrast .fl {
+  -webkit-text-stroke-color: #000a26;
+}
