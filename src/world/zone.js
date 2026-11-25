@@ -37,7 +37,7 @@ export function createZone(spec, nav) {
     }
     for (const l of links) {
       const px = x - l.ax, pz = z - l.az;
-      const t = clamp(px * l.ux + pz * l.uz, 0, l.len);
+      const t = clamp(px * l.ux + pz * l.uz, l.tmin, l.tmax);
       const d = Math.hypot(px - l.ux * t, pz - l.uz * t) - l.w / 2;
       if (d < best) {
         best = d; nearRoom = null; nearLink = l;
@@ -52,6 +52,9 @@ export function createZone(spec, nav) {
     if (d <= 0) {
       if (deck || !nearRoom) return base;
       // turf rolls a little, but never at the rim, on a pad or where a bridge lands
+      // a terrace: a round table of ground a jump high, with something on it worth the jump
+      const pl = nearRoom.plateau;
+      if (pl && Math.hypot(x - pl.x, z - pl.z) < pl.r) return base + pl.h;        // (a hard edge: its side is one texel of slope, too steep to walk)
       const flat = nearRoom.kind === 'boss' ? 0.25 : nearRoom.kind === 'start' || nearRoom.kind === 'exit' ? smoothstep(3.5, 6.5, Math.hypot(x - nearRoom.x, z - nearRoom.z)) : 1;
       return base + fbm2(x * 0.07, z * 0.07, 2, S + 7) * B.roll * smoothstep(0, -3, d) * flat * 0.6;
     }
@@ -77,6 +80,7 @@ export function createZone(spec, nav) {
   for (const r of rooms) {
     if (r.kind === 'start') build('pad', r.x, r.z, { room: r.i, role: 'arrive' });
     if (r.kind === 'exit') build('pad', r.x, r.z, { room: r.i, role: 'leave', pal: 1 });
+    if (r.plateau) keep.push({ x: r.plateau.x, z: r.plateau.z, r: r.plateau.r + 1.4 });
     keep.push({ x: r.x, z: r.z, r: r.clear ?? (r.kind === 'boss' ? r.r * 0.8 : r.kind === 'cache' ? 2.5 : r.r * 0.3) });        // an elder's island is bare but for its rim
   }
   for (const l of links) {
@@ -88,10 +92,11 @@ export function createZone(spec, nav) {
     }
     // a lamp where the bridge lands on the far island
     const t = l.t1 + 0.4, s = (l.a + l.b) % 2 ? 1 : -1;
-    if (!spec.hub) build('lamp', l.ax + l.ux * t + l.uz * s * (l.w / 2 + 1.1), l.az + l.uz * t - l.ux * s * (l.w / 2 + 1.1));
+    if (!spec.hub && l.part !== 2) build('lamp', l.ax + l.ux * t + l.uz * s * (l.w / 2 + 1.1), l.az + l.uz * t - l.ux * s * (l.w / 2 + 1.1));
     void across;
   }
   for (const f of spec.fixtures || []) build(f.id, f.x, f.z, f);
+  for (const r of rooms) if (r.plateau) build('pod', r.plateau.x, r.plateau.z, { room: r.i, role: 'pod', terrace: true, rot: rnd() * 6.283 });        // what is on a terrace
   // supply pods: each room has said how many; they stand off the middle
   for (const r of rooms) {
     for (let k = 0; k < (r.pods || 0); k++) {
@@ -122,7 +127,7 @@ export function createZone(spec, nav) {
   function onLink(x, z, margin) {
     for (const l of links) {
       const px = x - l.ax, pz = z - l.az, t = px * l.ux + pz * l.uz;
-      if (t > -1 && t < l.len + 1 && Math.abs(px * l.uz - pz * l.ux) < l.w / 2 + margin) return true;
+      if (t > l.tmin - 1 && t < l.tmax + 1 && Math.abs(px * l.uz - pz * l.ux) < l.w / 2 + margin) return true;
     }
     return false;
   }

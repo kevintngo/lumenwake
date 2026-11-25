@@ -13,8 +13,15 @@ export class Nav {
       const ang = Math.atan2(ux, uz);
       // the bridge proper runs from rim to rim (a little inside each)
       const t0 = rimAt(a, ang) - 1.0, t1 = len - (rimAt(b, ang + Math.PI) - 1.0);
-      return { ...l, ax: a.x, az: a.z, ux, uz, len, t0, t1, ha: a.h, hb: b.h, ang };
+      return { ...l, ax: a.x, az: a.z, ux, uz, len, t0, t1, ha: a.h, hb: b.h, ang, tmin: 0, tmax: len };
     });
+    // A broken bridge is two stubs with a gap between them: the same bridge twice, each kept to its own end.
+    for (const l of [...this.links]) {
+      if (!l.gap) continue;
+      const mid = (l.t0 + l.t1) / 2;
+      this.links.push({ ...l, tmin: mid + l.gap / 2, part: 2 });
+      l.tmax = mid - l.gap / 2;
+    }
     this.blocks = [];       // { x, z, r }: things that stand in the way
     this.gates = [];        // { x, z, nx, nz, half, shut }: a line across a bridge
   }
@@ -32,7 +39,7 @@ export class Nav {
     for (const l of this.links) {
       const px = x - l.ax, pz = z - l.az;
       const t = px * l.ux + pz * l.uz;
-      if (t < 0 || t > l.len) continue;
+      if (t < l.tmin + (l.tmin > 0 ? margin : 0) || t > l.tmax - (l.tmax < l.len ? margin : 0)) continue;
       if (Math.abs(px * l.uz - pz * l.ux) < l.w / 2 - margin) { l.t = t; return l; }
     }
     return null;

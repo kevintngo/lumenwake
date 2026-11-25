@@ -88,7 +88,7 @@ export class Missions {
     g.enter(spec);
     const pods = g.world.structures.filter((s) => s.role === 'pod');
     if (offer.goal === 'recover') {
-      const main = pods.filter((p) => spec.rooms[p.room].kind === 'fight');
+      const main = pods.filter((p) => spec.rooms[p.room].kind === 'fight' && !p.terrace);        // (a core is never up on a terrace: the contract can be finished without a jump)
       for (let k = 0; k < need; k++) main[Math.floor((k + 0.5) * main.length / need)].core = true;
       need = main.filter((p) => p.core).length;
     }
@@ -100,6 +100,7 @@ export class Missions {
     this.pending = null;
     this.openGates(0, true);
     g.bus.emit('mission:begin', { offer, biome: g.biome, goal: GOALS[offer.goal] });
+    if (!g.player.sheet.missions) g.bus.emit('log', { text: 'A jump clears a gap, gets you onto a terrace, and takes you over a blow that runs along the ground.' });
   }
 
   /** Lets down the gates on the bridges that leave a room. */

@@ -73,7 +73,7 @@ export class Camera {
       if (this.pos[1] < floor) this.pos[1] = floor;
     }
     if (this.shake > 0 && !this.still) {
-      const s = this.shake * this.shake * 0.35 * (1 + 0.04 * v3.len(v3.sub(aim, this.pos)));      // the same wobble on the page however far the camera stands
+      const s = this.shake * this.shake * 0.35 * (1 + 0.04 * v3.len(v3.sub(aim, this.pos))) * (this.shakeScale ?? 1);      // the same wobble on the page however far the camera stands
       this.pos[0] += (Math.random() - 0.5) * s; this.pos[1] += (Math.random() - 0.5) * s;
       this.shake = Math.max(0, this.shake - dt * 2.5);
     } else if (this.still) this.shake = 0;

@@ -17,6 +17,8 @@ export class PlayerSystem {
     this.game = game;
     this.stuck = 0;
     this.siteName = '';
+    // a new place: on the ground, with nowhere yet to be put back to
+    game.bus.on('zone', () => { Object.assign(game.player, { aloft: false, air: 0, vy: 0, lift: 0, safeAt: null }); this.safeT = 0; });
   }
 
   update(dt) {
@@ -62,9 +64,19 @@ export class PlayerSystem {
     // rooted for the first beat of a swing so blows feel planted
     if (p.action === 1 && p.actionT < 0.55 && !p.dash) { dx *= 0.25; dz *= 0.25; }
 
+    // a jump: straight up off the ground, steered in the air as on it
+    if (it.jump) {
+      it.jump = false;
+      if (!p.aloft && !p.dash) {
+        p.aloft = true; p.air = 0; p.vy = GAME.JUMP_SPEED;
+        if (!p.action) { p.action = 5; p.actionT = 0; p.actionDur = 2 * GAME.JUMP_SPEED / GAME.GRAVITY; }
+        g.bus.emit('jump', { entity: p, x: p.x, y: p.y, z: p.z });
+      }
+    }
+    const air = !!p.aloft;
     const px = p.x, pz = p.z;
     if (want) {
-      w.moveCircle(p.x, p.z, dx * dt, dz * dt, p.radius, out);
+      w.moveCircle(p.x, p.z, dx * dt, dz * dt, p.radius, out, air ? p.y + p.air : undefined);
       p.x = out.x; p.z = out.z;
       const moved = Math.hypot(p.x - px, p.z - pz);
       // walking into something: give up on a click-move rather than grind against it
@@ -73,7 +85,7 @@ export class PlayerSystem {
       // The stride: legs turn over about 1.65 times a second whatever the pace, so a
       // step is as long as the ground it covers (a stroll takes short steps, a run long
       // ones) and the feet do not slide. A dash is a single held lunge, not a run.
-      if (!p.dash) {
+      if (!p.dash && !air) {
         const pace = moved / Math.max(dt, 1e-4);
         const before = p.walk;
         p.walk += moved * Math.min(4.5, Math.max(1.9, CADENCE / Math.max(pace, 0.1)));
@@ -83,7 +95,24 @@ export class PlayerSystem {
     p.vx = (p.x - px) / Math.max(dt, 1e-4); p.vz = (p.z - pz) / Math.max(dt, 1e-4);        // (what throws things at the hero leads him by this)
     const movedNow = Math.hypot(p.x - px, p.z - pz) / Math.max(dt, 1e-4);
     p.move = damp(p.move, Math.min(1, movedNow / (GAME.PLAYER_SPEED * 0.8)), 14, dt);
-    p.y = damp(p.y, w.surface(p.x, p.z) - (wet ? 0.12 : 0), 22, dt);
+    if (p.aloft) {
+      // in the air: the feet are p.air above where the jump began (p.y), and come down on whatever floor is under them
+      p.vy -= GAME.GRAVITY * dt;
+      p.air += p.vy * dt;
+      const feet = p.y + p.air, floor = w.nav.inside(p.x, p.z, 0.05) ? w.surface(p.x, p.z) : -1e3;      // (over the cloud there is no floor)
+      if (p.vy <= 0 && feet <= floor) {
+        p.y = floor; p.aloft = false; p.air = 0; p.vy = 0; p.lift = 0;
+        if (p.action === 5) p.action = 0;
+        g.bus.emit('landed', { x: p.x, y: p.y, z: p.z });
+      } else if (p.air < -5 || feet < 0.8) this.fell();          // well below where the jump began, or down in the cloud
+      else p.lift = p.air;
+    } else {
+      const ground = w.surface(p.x, p.z);
+      if (ground < p.y - 0.7) { p.aloft = true; p.air = p.y - ground; p.y = ground; p.vy = 0; p.lift = p.air; }      // stepped off a terrace: it is a fall, not a slide
+      else p.y = damp(p.y, ground, 22, dt);
+      // somewhere to be put back if a jump goes wrong: the last ground stood on, well in from any edge
+      if ((this.safeT = (this.safeT || 0) - dt) <= 0 && w.nav.inside(p.x, p.z, 1.0)) { this.safeT = 0.25; p.safeAt = { x: p.x, z: p.z }; }
+    }
 
     // act on the target once in reach
     if (tgt) {
@@ -110,6 +139,19 @@ export class PlayerSystem {
     p.focus = Math.min(p.maxFocus, p.focus + p.focusRegen * (p.calm > 5 ? 1.6 : 1) * dt);
 
     p.safe = !g.missions.active;       // nothing hunts on the ship
+  }
+
+  /** Came down where there is no ground: back to the last ground stood on, shaken. */
+  fell() {
+    const g = this.game, p = g.player, w = g.world, at = p.safeAt || w.spec.start;
+    const loss = Math.round(p.maxHp * 0.12);
+    Object.assign(p, { x: at.x, z: at.z, aloft: false, air: 0, vy: 0, lift: 0, action: 0, dash: null, moveTo: null, pursue: false });
+    p.y = w.surface(p.x, p.z);
+    p.hp = Math.max(1, p.hp - loss);
+    p.invuln = Math.max(p.invuln, 1.2);
+    g.bus.emit('fell', { x: p.x, y: p.y, z: p.z, loss });
+    g.bus.emit('feel', { hurt: 0.8 });
+    g.bus.emit('log', { text: `You slip into the cloud and are hauled back: ${loss} health.` });
   }
 
   /**

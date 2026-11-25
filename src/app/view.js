@@ -30,6 +30,7 @@ export class View {
 
   build(time) {
     const g = this.game, p = g.player, f = this.frame, cam = g.camera;
+    cam.shakeScale = g.settings && g.settings.shake !== undefined ? g.settings.shake : 1;       // (the player's own setting for how much the picture shakes)
     for (const b of this.batches.values()) b.count = 0;
     const ents = g.entities.list;
     const casters = [];

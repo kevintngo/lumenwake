@@ -104,7 +104,7 @@ export const SPECIALS = {
         if (s.t >= 0.3) {
           s.phase = 3; s.t = 0; m.guard = false;
           g.bus.emit('slam', { x: m.x, y: m.y, z: m.z, r: s.r, heavy: true });
-          if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r) g.combat.hurt(m, sp.mult);
+          if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r) g.combat.hurt(m, sp.mult, false, true);
           else if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r + 3) g.bus.emit('miss', { target: p, text: 'Dodged' });
         }
         return still;
@@ -310,7 +310,7 @@ export const SPECIALS = {
         if (s.t >= s.wind) {
           s.down = true; s.t = 0;
           g.bus.emit('slam', { x: m.x, y: m.y, z: m.z, r: s.r, heavy: true });
-          if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r) g.combat.hurt(m, sp.mult);
+          if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r) g.combat.hurt(m, sp.mult, false, true);
           else if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r + 3) g.bus.emit('miss', { target: p, text: 'Dodged' });
         }
         return still;
@@ -339,7 +339,7 @@ export const SPECIALS = {
         if (s.t >= sp.hold) {
           s.snapped = true; s.t = 0; m.guard = false;
           g.bus.emit('slam', { x: m.x, y: m.y, z: m.z, r: s.r });
-          if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r) g.combat.hurt(m, sp.mult);
+          if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r) g.combat.hurt(m, sp.mult, false, true);
         }
         return still;
       }

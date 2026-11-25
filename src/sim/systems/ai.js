@@ -154,7 +154,7 @@ export class MonsterAI {
       const mx = m.x, mz = m.z;
       if (dx || dz) {
         if (m.slow) { if ((m.slow.t -= dt) > 0) { dx *= m.slow.k; dz *= m.slow.k; } else m.slow = null; }
-        g.world.moveCircle(m.x, m.z, dx * dt, dz * dt, m.radius, out);
+        g.world.moveCircle(m.x, m.z, dx * dt, dz * dt, m.radius, out);        // (on foot: a terrace's side stops it)
         m.x = out.x; m.z = out.z;
       }
       if (def.giant && m.room !== undefined) {

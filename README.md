@@ -30,6 +30,7 @@ A mission game drawn by shaders. You arrive by shuttle at a floating town, Merid
 - **Elders the size of buildings.** The Stone Warden, the Spore Matron and the Tide Sentinel are colossi eight to thirteen metres tall, each with its own shape, moves and a volley it throws at where you stand. The play camera stands back for them.
 - **Eleven kinds of creature.** The six small ones, plus a pack hound that springs, a watcher drone that keeps its distance, a delver that comes up under you, a strider that fires down a line, and a sparkmite that bursts. Each place has its own mix.
 - **A lumen at your shoulder.** A small light that follows you, puts a bolt into whatever you are fighting, and stores up a burst (G). Feed it what creatures drop: three tempers grow with what it eats, and at levels 5 and 12 it takes a new shape by the strongest of them. Eight kinds in all, each with a burst of its own.
+- **A jump.** Space jumps. Some side islands have a bridge broken in the middle, some have no bridge at all but a row of stepping stones, and big islands may have a terrace with a supply pod on it: all of them need a jump. A blow that runs along the ground (a slam, a delver coming up) can be jumped too. Miss, and you are hauled back from the cloud a little worse for it.
 - **Things to find.** Side islands off the main way, and on them survey marks (each adds to the pay; all three make the prize a better piece), a beacon that puts everything left on the map, lit crystals that lend a boon until you are lifted out, and lost cargo with something sitting on it.
 - **Pictures drawn by the game.** Every portrait and scene in the interface is a frame from the game's own renderer: the peoples and classes on the select screen, the crew when they speak, the elders on their bar and on hunt contracts, a view of each place on the board and the report. The hero's own portrait is taken while you play, so it is always who you chose.
 - **Lettering coloured by what it names.** People, places, numbers, experience, glint, good and bad, creatures, each class and each kind of contract have a colour of their own, all at 4.5:1 or better on every ground they sit on (the table is at the end of `src/ui/ui.css`).
@@ -55,11 +56,13 @@ Progress is not saved yet: each visit starts a new journey in the town.
 | Left click | Walk to a spot, attack a creature, talk to someone. Hold to keep walking. |
 | W A S D | Walk by hand |
 | 1 2 3 4 | Abilities (aimed at the target, or at the cursor) |
-| R / F | Drink a Red Tonic / Blue Draught |
-| Space / Tab | Attack the nearest creature / pick the next one |
+| Space | Jump |
+| F / Tab | Attack the nearest creature or talk to someone near / pick the next creature |
+| R / T | Drink a Red Tonic / Blue Draught |
 | Right drag, Q / E, wheel | Turn, tilt and zoom the view |
 | G / L | Let the lumen's burst go / open its window to feed it |
 | C / B / V | Character sheet / pack / view |
+| Esc | Let go of the target and close what is open |
 
 ## How the code is laid out
 

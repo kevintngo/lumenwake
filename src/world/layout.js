@@ -51,21 +51,38 @@ export function missionSpec(offer) {
     links.push({ a: from.i, b: rm.i, w: 4.6, gate: true });
     // more often than not a small island off to one side with something worth the detour, and now and
     // then a second one beyond it
+    // Things only a jump reaches: a side island's bridge may be broken in the middle; a second island
+    // beyond it has no bridge at all, only stepping stones; and a big island may have a terrace, a round
+    // table of ground a jump high with a supply pod on it.
+    let side = 0;
     if (kind === 'fight' && rnd() < 0.72) {
-      const turn = (rnd() < 0.5 ? 1 : -1) * (1.2 + rnd() * 0.7);
-      const side = branch(rm, dir + turn);
-      if (side && rnd() < 0.42) branch(side, dir + turn * (0.6 + rnd() * 0.5));
+      side = rnd() < 0.5 ? 1 : -1;
+      const turn = side * (1.2 + rnd() * 0.7);
+      const first = branch(rm, dir + turn, false, rnd() < 0.45);
+      if (first && rnd() < 0.5) branch(first, dir + turn * (0.6 + rnd() * 0.5), true, false);
+    }
+    if (kind === 'fight' && r >= 12 && rnd() < 0.65) {
+      const a = dir - (side || (rnd() < 0.5 ? 1 : -1)) * (1.45 + rnd() * 0.4), d = rm.r * 0.52;
+      rm.plateau = { x: rm.x + Math.sin(a) * d, z: rm.z + Math.cos(a) * d, r: 3.0, h: 1.2 };
     }
   }
-  function branch(from, toward) {
+  function branch(from, toward, hop, broken) {
     for (let tries = 0; tries < 12; tries++) {
       const d3 = toward + (rnd() - 0.5) * 0.5;
       const r3 = 8.4 + rnd() * 2.4, dist = from.r + r3 + 7 + rnd() * 5;
       const x = from.x + Math.sin(d3) * dist, z = from.z + Math.cos(d3) * dist;
       if (!fits(rooms, links, from, x, z, r3)) continue;
-      const side = room(rooms.length, x, z, r3, Math.min(18, Math.max(6, from.h + (rnd() - 0.5) * 3.4)), 'cache', 0.1, rnd);
+      const side = room(rooms.length, x, z, r3, Math.min(18, Math.max(6, from.h + (rnd() - 0.5) * (hop ? 1.6 : 3.4))), 'cache', 0.1, rnd);
       rooms.push(side);
-      links.push({ a: from.i, b: side.i, w: 3.6, gate: false });
+      if (!hop) { links.push({ a: from.i, b: side.i, w: 3.6, gate: false, gap: broken ? 2.6 : 0 }); return side; }
+      // stepping stones from rim to rim, near enough apart to jump and too far to step
+      const s0 = rimAt(from, d3), s1 = dist - rimAt(side, d3 + Math.PI), span = s1 - s0;
+      const n = Math.max(1, Math.round(span / 3.9) - 1);
+      for (let k = 1; k <= n; k++) {
+        const s = s0 + span * k / (n + 1);
+        rooms.push(room(rooms.length, from.x + Math.sin(d3) * s, from.z + Math.cos(d3) * s, 1.15, from.h + (side.h - from.h) * k / (n + 1), 'stone', 0, rnd));
+      }
+      side.hop = true; side.hopFrom = from.i;
       return side;
     }
     return null;

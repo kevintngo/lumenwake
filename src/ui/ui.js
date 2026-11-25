@@ -63,13 +63,13 @@ export function createUI(game) {
   dressBar();
   bus.on('class', dressBar);
   el.hotbar.appendChild(Object.assign(document.createElement('div'), { className: 'sep' }));
-  const drinks = [['tonic', 'R'], ['draught', 'F']].map(([id, key], i) => {
+  const drinks = [['tonic', 'R'], ['draught', 'T']].map(([id, key], i) => {
     const slot = makeSlot(itemIcon(ITEMS[id]), key, ITEMS[id].name, () => game.loot.use(id), `d${i}`);
     slot.count = slot.el.appendChild(Object.assign(document.createElement('span'), { className: 'count' }));
     slot.item = id;
     return slot;
   });
-  const act = makeSlot(ACT_ICONS.attack + ACT_ICONS.talk, 'Space', 'Attack', () => game.controls.act(), 'act touch-only');
+  const act = makeSlot(ACT_ICONS.attack + ACT_ICONS.talk, 'F', 'Attack', () => game.controls.act(), 'act touch-only');
   makeSlot(ACT_ICONS.next, 'Tab', 'Next target', () => game.controls.cycleTarget(), 'next touch-only');
   // held down, the attack button carries the fight on to the next creature
   act.el.addEventListener('pointerdown', (e) => {
@@ -178,6 +178,8 @@ export function createUI(game) {
   const closeReport = () => { rep.box.hidden = true; };
   rep.ok.addEventListener('click', closeReport);
   bus.on('ui:close', closeReport);
+  // Esc: lets go of the target, and closes whatever is open
+  bus.on('ui:escape', () => { game.controls.clearTarget(); bus.emit('ui:close'); });
   bus.on('mission:begin', closeReport);
   bus.on('mission:report', (r) => {
     const B = biomeById(r.offer.biome), time = `${Math.floor(r.time / 60)}:${String(Math.floor(r.time % 60)).padStart(2, '0')}`;

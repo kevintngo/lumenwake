@@ -32,5 +32,8 @@ export const GAME = {
   START_HOUR: 9.5,
   SAVE_KEY: 'lumenwake.save.v1',
   MAX_MONSTERS: 26,
-  PLAYER_SPEED: 5.4,
+  PLAYER_SPEED: 6.6,
+  JUMP_SPEED: 7.6,         // how fast the hero leaves the ground: with GRAVITY, about 1.4 high and three quarters of a second in the air
+  GRAVITY: 21,
+  STEEP: 0.7,              // ground rising faster than this (rise over run) cannot be walked up: it has to be jumped onto
 };

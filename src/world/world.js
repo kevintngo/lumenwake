@@ -3,7 +3,7 @@
 // needs: floor height, where a body may stand, what is in the way. The renderer
 // reads the same chunks to fill the GPU textures.
 
-import { WORLD } from '../config.js';
+import { GAME, WORLD } from '../config.js';
 import { Nav } from './nav.js';
 import { createZone } from './zone.js';
 
@@ -96,13 +96,22 @@ export class World {
     }
   }
 
-  /** Moves a circle from (x, z) by (dx, dz), sliding along rims, props and shut gates. Returns the new position in `out`. */
-  moveCircle(x, z, dx, dz, radius, out) {
-    const nav = this.nav, m = 0.35;
+  /**
+   * Moves a circle from (x, z) by (dx, dz), sliding along rims, props and shut gates. Returns the new position in `out`.
+   * Ground that rises too steeply ahead (the side of a terrace) is a wall to anything on foot.
+   * `feet`: the mover is in the air with its feet this high, so it may cross where there is no floor (and may
+   * come down in the cloud), and only ground higher than its feet stops it.
+   */
+  moveCircle(x, z, dx, dz, radius, out, feet) {
+    const nav = this.nav, m = 0.35, air = feet !== undefined, here = air ? 0 : this.surface(x, z);
+    const wall = (ax, az) => (air
+      ? nav.inside(ax, az, 0) && this.surface(ax, az) - feet > 0.3
+      : this.surface(ax, az) - here > GAME.STEEP * Math.max(Math.hypot(ax - x, az - z), 0.03));
+    const ok = (ax, az) => (air || nav.inside(ax, az, m)) && !nav.shut(x, z, ax, az) && !wall(ax, az);
     let nx = x + dx, nz = z + dz;
-    if (!nav.inside(nx, nz, m) || nav.shut(x, z, nx, nz)) {
-      if (nav.inside(nx, z, m) && !nav.shut(x, z, nx, z)) nz = z;
-      else if (nav.inside(x, nz, m) && !nav.shut(x, z, x, nz)) nx = x;
+    if (!ok(nx, nz)) {
+      if (ok(nx, z)) nz = z;
+      else if (ok(x, nz)) nx = x;
       else { nx = x; nz = z; }
     }
     this.forEachProp(nx, nz, radius, (p) => {
@@ -111,7 +120,7 @@ export class World {
       const ox = nx - p.x, oz = nz - p.z, d = Math.hypot(ox, oz), min = cr + radius;
       if (d < min && d > 1e-4) {
         const px = p.x + ox / d * min, pz = p.z + oz / d * min;
-        if (nav.inside(px, pz, m)) { nx = px; nz = pz; }
+        if (air || nav.inside(px, pz, m)) { nx = px; nz = pz; }
       }
     });
     out.x = nx; out.z = nz;

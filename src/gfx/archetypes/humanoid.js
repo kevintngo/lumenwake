@@ -31,7 +31,7 @@ void entPose() {
   float apart = s * s;                                       // 1 with the feet wide, 0 as they pass
   float bob = mix(abs(c) * 0.05, apart * 0.15 - 0.04, run) * mv + 0.01 * idle * (1.0 - mv);
   float lean = mv * mix(0.05, 0.14, run);
-  hHip = vec3(0.0, 0.5 + bob, 0.0);
+  hHip = vec3(0.0, 0.4 + bob, 0.0);          // short legs: about a fifth of the figure
   hChest = hHip + vec3(0.0, 0.27 - 0.015 * run, lean);
   hHead = hChest + vec3(0.0, 0.43 - 0.01 * run, lean * 0.6 - 0.02 * run * apart);
   // a foot swings forward lifted and comes back planted; in a run the lift starts
@@ -82,7 +82,7 @@ void entPose() {
     hHandL.y += 0.1 * k; hHandR.y += 0.1 * k;
   } else if (act > 3.5 && act < 4.5) {
     // a dash is one held drawing: a long low lunge, arms and blade trailing
-    hHip = vec3(0.0, 0.4, 0.0);
+    hHip = vec3(0.0, 0.33, 0.0);
     hChest = hHip + vec3(0.0, 0.24, 0.17);
     hHead = hChest + vec3(0.0, 0.4, 0.13);
     hFootL = vec3(-0.11, 0.09, 0.46);
@@ -90,6 +90,14 @@ void entPose() {
     hHandL = hChest + vec3(-0.27, -0.08, -0.34);
     hHandR = hChest + vec3(0.3, -0.14, -0.3);
     hBlade = normalize(vec3(0.2, 0.22, -0.95));
+  } else if (act > 4.5 && act < 5.5) {
+    // a jump: knees up and arms out on the way up, feet reaching for the ground on the way down
+    float up = sin(saturate(at) * PI), down = smoothstep(0.55, 1.0, at);
+    hFootL = vec3(-0.13, 0.07 + 0.15 * up * (1.0 - down), 0.1 * up);
+    hFootR = vec3(0.13, 0.07 + 0.19 * up * (1.0 - down), -0.07 * up);
+    hHandL = hChest + vec3(-0.33, -0.06 + 0.22 * up, 0.02);
+    hHandR = hChest + vec3(0.33, -0.06 + 0.2 * up, 0.04);
+    hChest.z += 0.04 * up; hHead.y += 0.02 * up;
   }
 }
 

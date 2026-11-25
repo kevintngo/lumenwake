@@ -6,7 +6,8 @@
 // called with the kit (tone, noise, piano, bell, key) and the event payload.
 // To give a new area its music and ambience, add one row to AREAS.
 
-const LEVELS = { master: 1, sfx: 1, music: 0.6, ambience: 0.55 }; // the mix: music sits well under effects
+const LEVELS = { master: 1, sfx: 1, music: 0.5, ambience: 0.55 }; // the mix: music sits well under effects (turned down from 0.6 after a first listen)
+const SPARE = 0.86;       // every area's piano speaks this much as often as its row says: a little less music everywhere
 const MAX_VOICES = { sfx: 24, chime: 16, music: 48, ambience: 16 }; // a sound past its cap is skipped
 const HEARING = 30;        // world units beyond which monster sounds are silent
 const NEAR = 4;            // ...and within which they play at full level
@@ -1170,7 +1171,7 @@ function createMusic(kit, game) {
     // (It also keeps the count of voices down when the chords come every bar.)
     const touch = st.stance === 'calm' ? { bus: 'lead' } : { bus: 'lead', strings: 1, ring: 0.7 };
     // make room for the bow; say less when the hero is hurt
-    const density = area.piano * stance.piano * (st.bowBars > 0 ? 0.45 : 1) * (thin ? 0.5 : 1);
+    const density = area.piano * stance.piano * SPARE * (st.bowBars > 0 ? 0.45 : 1) * (thin ? 0.5 : 1);
     for (let slot = 0; slot < SLOT_WEIGHT.length; slot++) {
       // (a phrase always begins: the downbeat of its first bar sounds, however sparse the area)
       if (!(opening && slot === 0) && rand() > SLOT_WEIGHT[slot] * density) continue;

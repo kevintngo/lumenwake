@@ -327,8 +327,9 @@ export class Panels {
       <kbd>Left click</kbd><span>Walk to a spot, attack a creature, talk to townsfolk. Hold to keep walking.</span>
       <kbd>W A S D</kbd><span>Walk by hand.</span>
       <kbd>1 2 3 4</kbd><span>Skills. They aim at your target, or at the cursor.</span>
-      <kbd>R / F</kbd><span>Drink a Red Tonic or a Blue Draught.</span>
-      <kbd>Space / Tab</kbd><span>Attack the nearest creature, or pick the next one.</span>
+      <kbd>Space</kbd><span>Jump: over a gap, onto a terrace, clear of a blow along the ground.</span>
+      <kbd>R / T</kbd><span>Drink a Red Tonic or a Blue Draught.</span>
+      <kbd>F / Tab</kbd><span>Attack the nearest creature, or pick the next one.</span>
       <kbd>Right drag</kbd><span>Turn and tilt the view. <kbd>Q</kbd> <kbd>E</kbd> also turn it.</span>
       <kbd>Wheel</kbd><span>Zoom.</span>
       <kbd>G</kbd><span>Lets your lumen's burst go, when it is full. <kbd>L</kbd> opens its window, where it is fed.</span>

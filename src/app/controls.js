@@ -16,7 +16,7 @@ export class Controls {
   release() {
     const g = this.game, it = g.player.intent;
     if (this.hover) { this.hover.hover = false; this.hover = null; }
-    it.moveX = 0; it.moveZ = 0; it.aim = null;
+    it.moveX = 0; it.moveZ = 0; it.aim = null; it.jump = false;
     this.steerTime = 0;
     g.canvas.style.cursor = 'default';
   }
@@ -76,22 +76,34 @@ export class Controls {
 
     for (let i = 0; i < 4; i++) if (input.hit('Digit' + (i + 1))) g.skills.cast(i);
     if (input.hit('KeyR')) g.loot.use('tonic');
-    if (input.hit('KeyF')) g.loot.use('draught');
+    if (input.hit('KeyT')) g.loot.use('draught');
     if (input.hit('Tab')) this.cycleTarget();
-    if (input.hit('Space')) this.act();
+    if (input.hit('Space')) this.jump();
+    if (input.hit('KeyF')) this.act();
     // holding the on-screen attack button keeps the fight going from one creature to the next
     if (input.acting) {
       const t = p.target;
       if (t && t.kind === 'monster' && !t.dead) p.pursue = true;
       else if (!t) { const m = g.entities.nearest('monster', p.x, p.z, 9); if (m) this.setTarget(m, true); }
     }
-    if (input.hit('Escape')) { p.target = null; p.pursue = false; g.bus.emit('ui:close'); }
+    if (input.hit('Escape')) g.bus.emit('ui:escape');          // the interface decides: close what is open, drop the target, or open the menu
+    if (input.hit('KeyJ')) g.bus.emit('ui:toggle', 'contract');
     if (input.hit('KeyG')) g.companion.burst();
     if (input.hit('KeyL')) g.bus.emit('ui:toggle', 'lumen');
     if (input.hit('KeyC')) g.bus.emit('ui:toggle', 'character');
     if (input.hit('KeyB') || input.hit('KeyI')) g.bus.emit('ui:toggle', 'bag');
     if (input.hit('KeyV')) g.bus.emit('ui:toggle', 'view');
     if (input.hit('KeyM')) g.bus.emit('ui:toggle', 'sound');
+  }
+
+  /** Space, or the jump button on a touch screen. */
+  jump() { this.game.player.intent.jump = true; }
+
+  /** Lets go of whatever the hero has in hand. True if there was something. */
+  clearTarget() {
+    const p = this.game.player, had = !!p.target;
+    p.target = null; p.pursue = false;
+    return had;
   }
 
   /** What the one "do it" button (Space, or the big button on a touch screen) would act on. */

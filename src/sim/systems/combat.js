@@ -37,9 +37,11 @@ export class Combat {
    * Something a monster did reaches the player: `mult` attacks' worth, less armour.
    * Returns true if it hurt. `quiet` leaves out the word when it does not (a cloud ticks often).
    */
-  hurt(monster, mult = 1, quiet = false) {
+  hurt(monster, mult = 1, quiet = false, ground = false) {
     const g = this.game, p = g.player;
     if (p.dead) return false;
+    // `ground`: a shock that runs along the ground (a slam, a burrower coming up): clear of it in the air
+    if (ground && (p.air || 0) > 0.45) { g.bus.emit('miss', { target: p, text: 'Jumped' }); return false; }
     if (p.invuln > 0 || rand() < p.dodge) { if (!quiet) g.bus.emit('miss', { target: p, text: 'Dodged' }); return false; }
     const raw = monster.atk * mult * (0.85 + rand() * 0.3) * (p.ward ?? 1);
     this.damage(p, Math.max(1, Math.round(raw * 30 / (30 + p.defense))), monster, false);

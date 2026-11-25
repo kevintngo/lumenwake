@@ -300,6 +300,8 @@ export class Fx {
       else if (d.entity.kind === 'player') this.dust(d.entity.x, d.entity.y, d.entity.z, 1);
     });
     bus.on('moveclick', (d) => this.click(d.x, d.y, d.z));
+    bus.on('jump', (d) => this.dust(d.x, d.y, d.z, 3));
+    bus.on('landed', (d) => { this.dust(d.x, d.y, d.z, 5); this.spawn('ring', d.x, d.y + 0.08, d.z, { size: 0.5, grow: 2.2, life: 0.3, color: WHITE, ground: true }); });
     bus.on('attune', (d) => { this.heal(this.game.player, SKY); this.spawn('beam', d.x, d.y + 3, d.z, { size: 0.5, aspect: 6, life: 1.2, color: SKY }); });
     bus.on('dash', (d) => { this.dust(d.x, d.y, d.z, 5, LEAFY); this.spawn('ring', d.x, d.y + 0.08, d.z, { size: 1.4, life: 0.35, color: WHITE, ground: true }); });
     bus.on('bolt:hit', (d) => { this.hit(d.x, d.y, d.z, FLAME, true); this.spawn('ring', d.x, d.y, d.z, { size: 1.6, life: 0.35, color: FLAME }); });
