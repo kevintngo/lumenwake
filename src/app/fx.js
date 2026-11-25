@@ -9,6 +9,7 @@ const MAX = 700;
 const C = (r, g, b) => [r / 255, g / 255, b / 255];
 const GOLD = C(244, 190, 62), WHITE = C(232, 226, 212), DUST = C(226, 188, 130), SKY = C(136, 180, 216);
 const LEAFY = C(116, 168, 90), RED = C(214, 70, 52), FLAME = C(240, 158, 74), MUSTARD = C(226, 176, 52);
+const VIOLET = C(196, 150, 240);      // a relic's own colour
 
 export class Fx {
   constructor(game) {
@@ -229,6 +230,7 @@ export class Fx {
   // ---------------------------------------------------------------- events
   wire(bus) {
     bus.on('damage', (d) => {
+      if (d.soft) return;               // (rot: the number is enough)
       const t = d.target;
       const col = t.kind === 'player' ? RED : d.crit ? GOLD : WHITE;
       if (t.hitY && d.source) {
@@ -319,7 +321,7 @@ export class Fx {
     bus.on('site:guard', (d) => this.spawn('ring', d.guard.x, d.guard.y + 0.08, d.guard.z, { size: 2.4, grow: 6, life: 0.6, color: RED, ground: true }));
     // a rare piece of gear stands in a ray of its rarity's colour when it lands
     bus.on('drop:rare', (d) => {
-      const col = d.rarity >= 3 ? FLAME : GOLD;
+      const col = d.rarity >= 4 ? VIOLET : d.rarity >= 3 ? FLAME : GOLD;
       this.spawn('beam', d.x, d.y + 2.6, d.z, { size: 0.34, aspect: 7.5, life: 1.6, color: col, alpha: 1.2 });
       this.spawn('ring', d.x, d.y + 0.08, d.z, { size: 1.6, life: 0.7, color: col, ground: true });
       this.sparkle(d.x, d.y + 0.6, d.z, col, 10);
@@ -350,6 +352,14 @@ export class Fx {
       if (d.heavy) this.game.camera.shake = Math.min(1, this.game.camera.shake + 0.45);
     });
     bus.on('shot:hit', (d) => { this.hit(d.x, d.y, d.z, MUSTARD, false); });
+    // a relic's power going off: a ring of its colour on the ground; the lumen's bolt leaping on
+    bus.on('relic:ring', (d) => {
+      this.spawn('ring', d.x, d.y + 0.08, d.z, { size: d.r, life: d.heavy ? 0.55 : 0.4, color: VIOLET, ground: true });
+      this.dust(d.x, d.y, d.z, d.heavy ? 8 : 3);
+      if (d.heavy) this.game.camera.shake = Math.min(1, this.game.camera.shake + 0.35);
+    });
+    bus.on('relic:leap', (d) => this.hit(d.x, d.y, d.z, VIOLET, false));
+    bus.on('relic:found', () => { const p = this.game.player; this.heal(p, VIOLET); });
     bus.on('found', (d) => { if (d.x !== undefined) this.sparkle(d.x, d.y + 0.6, d.z, GOLD, 10); });
     bus.on('boon', (d) => this.heal(d.entity, SKY));
     bus.on('travel:arrive', (d) => { this.spawn('ring', d.x, d.y + 0.08, d.z, { size: 2.2, life: 0.6, color: SKY, ground: true }); this.sparkle(d.x, d.y + 1, d.z, SKY, 8); });

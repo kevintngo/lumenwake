@@ -35,6 +35,7 @@ function pack(o) {
   d.set(c[0], 12); d[15] = o.move || 0;
   d.set(c[1], 16); d[19] = o.extra || 0;
   d.set(c[2], 20); d[23] = o.kit || 0;
+  d[11] = o.flags || 0;
   return d;
 }
 
@@ -48,8 +49,11 @@ function stand(cam, aspect, tall, wide, mid, lens, pitch) {
 
 // The gear tiles: [base, the piece's number in gfx/archetypes/gear.js, how much of the world its tile shows, how it is turned]
 const kitOf = (b) => FAMILIES[b.family].kit;
-const PIECE = (b) => (b.slot === 'weapon' ? kitOf(b) * 2 + (b.look || 0) : b.slot === 'frame' ? 6 + (b.look || 0) : 7 + (b.look || 1));
-const SPAN = { saber: 1.0, glaive: 1.06, rifle: 0.84, carbine: 0.96, rod: 1.14, prism: 1.3, scout: 0.8, bulwark: 0.9, core: 0.36, drive: 0.42 };
+// which drawing of archetypes/gear.js a base is (see its notes): the held, the frames, the units, then the newer pieces
+const WORN_AT = { offhand: 10, visor: 13, grips: 15, greaves: 17, boots: 18, mod: 20 };
+const PIECE = (b) => (b.slot === 'weapon' ? kitOf(b) * 2 + (b.look || 0) : b.slot === 'frame' ? 6 + (b.look || 0) : b.slot === 'unit' ? 7 + (b.look || 1) : WORN_AT[b.slot] + (b.look || 0));
+const SPAN = { saber: 1.0, glaive: 1.06, rifle: 0.84, carbine: 0.96, rod: 1.14, prism: 1.3, scout: 0.8, bulwark: 0.9, core: 0.36, drive: 0.42,
+  ward: 0.46, cell: 0.36, lens: 0.36, visor: 0.5, crest: 0.5, grip: 0.4, gauntlet: 0.46, greave: 0.46, trail: 0.42, mag: 0.46, chip: 0.36, coil: 0.38 };
 
 export class Portraits {
   constructor(game) {
@@ -114,7 +118,7 @@ export class Portraits {
     }
     // the hero, at ease (the people's own sitting pose), holding and wearing what is equipped
     const kit = Math.floor(p.kit + 0.01) + (((p.kit + 0.01) % 1) >= 0.5 ? 0.5 : 0);
-    return { archetype: p.archetype, scale: p.scale, seed: p.seed, colors: p.colors, extra: p.extra, kit, action: 7, tall: 2.06 * p.scale, wide: 1.6 * p.scale, mid: 0.93 * p.scale, floor: 0, ring: 0.62 * p.scale };
+    return { archetype: p.archetype, scale: p.scale, seed: p.seed, colors: p.colors, extra: p.extra, kit, flags: 4 * (p.wears || 0), action: 7, tall: 2.06 * p.scale, wide: 1.6 * p.scale, mid: 0.93 * p.scale, floor: 0, ring: 0.62 * p.scale };
   }
 
   /** The page hands over a box (with a canvas in it) for a figure to stand in. The figure keeps the way it was last turned. */
@@ -196,7 +200,7 @@ export class Portraits {
     for (const id in BASES) {
       const b = BASES[id];
       stand(cam, 1, SPAN[id] || 1, SPAN[id] || 1, 0, 12 * RAD, 0);
-      const fig = { archetype: 'gear', scale: 1, seed: 0.37, colors: p.colors, extra: PIECE(b), kit: people, yaw: b.slot === 'weapon' ? 0 : b.slot === 'frame' ? 0.5 : 0.45 };
+      const fig = { archetype: 'gear', scale: 1, seed: 0.37, colors: p.colors, extra: PIECE(b), kit: people, yaw: b.slot === 'weapon' ? 0 : b.slot === 'frame' ? 0.5 : b.slot === 'boots' ? 1.1 : b.slot === 'visor' ? 0.55 : 0.45 };
       const bytes = g.renderer.figure({ width: size, height: size, dpr: 1.2, camera: cam, env, time: 0, batches: new Map([['gear', { data: pack(fig), count: 1 }]]) });
       ctx.putImageData(new ImageData(new Uint8ClampedArray(bytes.buffer, bytes.byteOffset, size * size * 4), size, size), 0, 0);
       this.gear[id] = sheet.toDataURL('image/png');

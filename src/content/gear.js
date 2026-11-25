@@ -10,13 +10,27 @@
 // A modifier is { stat, op, value }: op 'flat' adds, 'inc' adds a share (0.1 = +10%), 'more' multiplies.
 // `grow` is how much a number gains per item level.
 
-export const GEAR_SLOTS = [['weapon', 'Weapon'], ['frame', 'Frame'], ['unit', 'Unit']];
+// The ten places a surveyor wears gear, in the order the Gear tab lays them out: the hands on one side of the figure,
+// the body down the other. Two mod slots take the same pieces. A piece's base names the kind of slot it fills (`slot`);
+// SLOTS_OF turns that into the slots it can go in.
+export const GEAR_SLOTS = [
+  ['weapon', 'Weapon'], ['offhand', 'Off-hand'], ['unit', 'Unit'], ['mod1', 'Mod'], ['mod2', 'Mod'],
+  ['visor', 'Visor'], ['frame', 'Frame'], ['grips', 'Grips'], ['greaves', 'Greaves'], ['boots', 'Boots'],
+];
+export const SLOT_KINDS = { weapon: 'Weapon', offhand: 'Off-hand', unit: 'Unit', mod: 'Mod', visor: 'Visor', frame: 'Frame', grips: 'Grips', greaves: 'Greaves', boots: 'Boots' };
+export const SLOTS_OF = (kind) => (kind === 'mod' ? ['mod1', 'mod2'] : [kind]);
+// How often each kind drops, and how much of an affix's roll a piece of that kind gets. The three first slots carry a
+// whole roll; the seven newer ones a part of one, and one line fewer, so a surveyor in ten pieces is about a third
+// stronger again (in blows, and in lasting) than one in three, not three times: the new slots are for choosing what to lean on.
+export const SLOT_DROP = { weapon: 3, offhand: 1.4, unit: 1.4, mod: 2, visor: 1.5, frame: 1.6, grips: 1.5, greaves: 1.3, boots: 1.5 };
+export const SLOT_WEIGHT = { weapon: 1, frame: 1, unit: 1, offhand: 0.45, visor: 0.35, grips: 0.3, greaves: 0.3, boots: 0.3, mod: 0.3 };
 
 export const RARITIES = [
   { id: 'standard', name: 'Standard', color: '#e9eef8', affixes: [0, 0], weight: 58, worth: 1 },
   { id: 'tuned', name: 'Tuned', color: '#a6dbff', affixes: [1, 2], weight: 29, worth: 2 },
   { id: 'rare', name: 'Rare', color: '#ffd84f', affixes: [3, 4], weight: 11, worth: 4 },
   { id: 'prime', name: 'Prime', color: '#ff9a4a', affixes: [4, 4], weight: 2, worth: 9, power: true },
+  { id: 'relic', name: 'Relic', color: '#e3b0ff', affixes: [4, 4], weight: 0, worth: 14 },      // an elder's own (content/relics.js): never rolled by chance
 ];
 
 export const BASES = {
@@ -30,6 +44,20 @@ export const BASES = {
   bulwark: { look: 1, name: 'Bulwark Frame', slot: 'frame', implicit: [{ stat: 'defense', op: 'flat', value: 4, grow: 1.0 }, { stat: 'maxHp', op: 'inc', value: 0.05 }] },
   core: { look: 1, name: 'Core Unit', slot: 'unit', implicit: [{ stat: 'maxFocus', op: 'flat', value: 8, grow: 1.4 }] },
   drive: { look: 2, name: 'Drive Unit', slot: 'unit', implicit: [{ stat: 'hpRegen', op: 'flat', value: 0.5, grow: 0.12 }] },
+  // the off-hand: one for each family of weapon, carried in the other hand (a ward), clipped at the hip (a cell) or held up (a lens)
+  ward: { look: 0, name: 'Arc Ward', slot: 'offhand', family: 'blade', implicit: [{ stat: 'defense', op: 'flat', value: 1.2, grow: 0.3 }, { stat: 'maxHp', op: 'inc', value: 0.03 }] },
+  cell: { look: 1, name: 'Charge Cell', slot: 'offhand', family: 'rifle', implicit: [{ stat: 'attackSpeed', op: 'inc', value: 0.04 }, { stat: 'crit', op: 'flat', value: 0.01 }] },
+  lens: { look: 2, name: 'Focus Lens', slot: 'offhand', family: 'wand', implicit: [{ stat: 'power', op: 'inc', value: 0.035, grow: 0.002 }, { stat: 'focusRegen', op: 'flat', value: 0.2, grow: 0.03 }] },
+  // worn: a visor or a helm, grips, greaves, boots, and the small mods any slot of two takes
+  visor: { look: 0, name: 'Scout Visor', slot: 'visor', implicit: [{ stat: 'crit', op: 'flat', value: 0.01 }, { stat: 'defense', op: 'flat', value: 0.3, grow: 0.1 }] },
+  crest: { look: 1, name: 'Crest Helm', slot: 'visor', implicit: [{ stat: 'defense', op: 'flat', value: 0.9, grow: 0.22 }] },
+  grip: { look: 0, name: 'Grip Gloves', slot: 'grips', implicit: [{ stat: 'attackSpeed', op: 'inc', value: 0.025 }] },
+  gauntlet: { look: 1, name: 'Power Gauntlets', slot: 'grips', implicit: [{ stat: 'attack', op: 'flat', value: 0.8, grow: 0.18 }, { stat: 'defense', op: 'flat', value: 0.3, grow: 0.1 }] },
+  greave: { look: 0, name: 'Shin Plates', slot: 'greaves', implicit: [{ stat: 'defense', op: 'flat', value: 0.9, grow: 0.22 }] },
+  trail: { look: 0, name: 'Trail Boots', slot: 'boots', implicit: [{ stat: 'speed', op: 'inc', value: 0.03 }] },
+  mag: { look: 1, name: 'Mag Boots', slot: 'boots', implicit: [{ stat: 'defense', op: 'flat', value: 0.6, grow: 0.15 }, { stat: 'speed', op: 'inc', value: 0.015 }] },
+  chip: { look: 0, name: 'Signal Chip', slot: 'mod', implicit: [{ stat: 'crit', op: 'flat', value: 0.008 }] },
+  coil: { look: 1, name: 'Coil Ring', slot: 'mod', implicit: [{ stat: 'maxFocus', op: 'flat', value: 3, grow: 0.4 }] },
 };
 for (const id in BASES) BASES[id].id = id;
 
@@ -39,20 +67,20 @@ export const AFFIXES = [
   { id: 'grace', word: 'Deft', of: 'Grace', stat: 'grace', op: 'flat', min: 1, max: 3, grow: 0.12 },
   { id: 'vigor', word: 'Stout', of: 'Vigor', stat: 'vigor', op: 'flat', min: 1, max: 3, grow: 0.12 },
   { id: 'mind', word: 'Lucid', of: 'Mind', stat: 'mind', op: 'flat', min: 1, max: 3, grow: 0.12 },
-  { id: 'attack', word: 'Honed', of: 'Ruin', stat: 'attack', op: 'inc', min: 0.05, max: 0.12, grow: 0.01, slots: ['weapon', 'unit'] },
-  { id: 'haste', word: 'Swift', of: 'Haste', stat: 'attackSpeed', op: 'inc', min: 0.04, max: 0.1, grow: 0.004, slots: ['weapon', 'unit'] },
+  { id: 'attack', word: 'Honed', of: 'Ruin', stat: 'attack', op: 'inc', min: 0.05, max: 0.12, grow: 0.01, slots: ['weapon', 'unit', 'grips', 'mod'] },
+  { id: 'haste', word: 'Swift', of: 'Haste', stat: 'attackSpeed', op: 'inc', min: 0.04, max: 0.1, grow: 0.004, slots: ['weapon', 'unit', 'grips', 'offhand', 'mod'] },
   { id: 'crit', word: 'Keen', of: 'the Mark', stat: 'crit', op: 'flat', min: 0.02, max: 0.05, grow: 0.002 },
-  { id: 'critdmg', word: 'Cruel', of: 'Severing', stat: 'critDamage', op: 'flat', min: 0.1, max: 0.25, grow: 0.01, slots: ['weapon', 'unit'] },
-  { id: 'power', word: 'Bright', of: 'Radiance', stat: 'power', op: 'inc', min: 0.05, max: 0.12, grow: 0.008, slots: ['weapon', 'unit'] },
-  { id: 'health', word: 'Hale', of: 'the Bulwark', stat: 'maxHp', op: 'inc', min: 0.04, max: 0.1, grow: 0.004, slots: ['frame', 'unit'] },
-  { id: 'armor', word: 'Plated', of: 'Warding', stat: 'defense', op: 'flat', min: 1, max: 3, grow: 0.5, slots: ['frame', 'unit'] },
-  { id: 'focus', word: 'Deep', of: 'Reserve', stat: 'maxFocus', op: 'flat', min: 5, max: 12, grow: 1.0, slots: ['frame', 'unit'] },
-  { id: 'regen', word: 'Mending', of: 'Renewal', stat: 'hpRegen', op: 'flat', min: 0.3, max: 0.8, grow: 0.08, slots: ['frame', 'unit'] },
+  { id: 'critdmg', word: 'Cruel', of: 'Severing', stat: 'critDamage', op: 'flat', min: 0.1, max: 0.25, grow: 0.01, slots: ['weapon', 'unit', 'grips', 'visor', 'mod'] },
+  { id: 'power', word: 'Bright', of: 'Radiance', stat: 'power', op: 'inc', min: 0.05, max: 0.12, grow: 0.008, slots: ['weapon', 'unit', 'offhand', 'visor', 'mod'] },
+  { id: 'health', word: 'Hale', of: 'the Bulwark', stat: 'maxHp', op: 'inc', min: 0.04, max: 0.1, grow: 0.004, slots: ['frame', 'unit', 'offhand', 'visor', 'greaves'] },
+  { id: 'armor', word: 'Plated', of: 'Warding', stat: 'defense', op: 'flat', min: 1, max: 3, grow: 0.5, slots: ['frame', 'unit', 'offhand', 'visor', 'grips', 'greaves', 'boots'] },
+  { id: 'focus', word: 'Deep', of: 'Reserve', stat: 'maxFocus', op: 'flat', min: 5, max: 12, grow: 1.0, slots: ['frame', 'unit', 'offhand', 'visor', 'mod'] },
+  { id: 'regen', word: 'Mending', of: 'Renewal', stat: 'hpRegen', op: 'flat', min: 0.3, max: 0.8, grow: 0.08, slots: ['frame', 'unit', 'greaves', 'mod'] },
   { id: 'flow', word: 'Flowing', of: 'Currents', stat: 'focusRegen', op: 'flat', min: 0.3, max: 0.8, grow: 0.06 },
-  { id: 'speed', word: 'Fleet', of: 'the Wind', stat: 'speed', op: 'inc', min: 0.03, max: 0.06, grow: 0, slots: ['frame'] },
-  { id: 'dodge', word: 'Slippery', of: 'Evasion', stat: 'dodge', op: 'flat', min: 0.02, max: 0.04, grow: 0.001, slots: ['frame', 'unit'] },
-  { id: 'find', word: 'Lucky', of: 'Fortune', stat: 'find', op: 'inc', min: 0.08, max: 0.2, grow: 0.005, slots: ['unit', 'frame'] },
-  { id: 'leech', word: 'Thirsting', of: 'the Leech', stat: 'lifeOnKill', op: 'flat', min: 2, max: 5, grow: 0.5, slots: ['weapon'] },
+  { id: 'speed', word: 'Fleet', of: 'the Wind', stat: 'speed', op: 'inc', min: 0.03, max: 0.06, grow: 0, slots: ['frame', 'boots', 'greaves'] },
+  { id: 'dodge', word: 'Slippery', of: 'Evasion', stat: 'dodge', op: 'flat', min: 0.02, max: 0.04, grow: 0.001, slots: ['frame', 'unit', 'boots', 'greaves'] },
+  { id: 'find', word: 'Lucky', of: 'Fortune', stat: 'find', op: 'inc', min: 0.08, max: 0.2, grow: 0.005, slots: ['unit', 'frame', 'visor', 'mod'] },
+  { id: 'leech', word: 'Thirsting', of: 'the Leech', stat: 'lifeOnKill', op: 'flat', min: 2, max: 5, grow: 0.5, slots: ['weapon', 'grips', 'mod'] },
 ];
 
 // How a stat reads on an item or the character sheet: its name, and whether it is shown as a share.

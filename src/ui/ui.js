@@ -161,7 +161,11 @@ export function createUI(game) {
     const it = ITEMS[d.item];
     log(it.kind === 'coin' ? `<b class="c-coin">+${d.n} glint</b>` : `Picked up <b class="c-item">${it.name}</b>${d.n > 1 ? ` <b class="c-num">×${d.n}</b>` : ''}`);
   });
-  bus.on('equip', (d) => log(`Now using <b style="color:${describe(d.item).color}">${describe(d.item).name}</b>.`));
+  bus.on('equip', (d) => { if (d.item) log(`Now using <b style="color:${describe(d.item).color}">${describe(d.item).name}</b>.`); });
+  // relics, salvage and honing
+  bus.on('relic:found', (d) => toast(describe(d.item).name, d.first ? 'A relic. The Gear tab says what it does.' : 'A relic, again.', 4.6));
+  bus.on('salvage', (d) => { if (d.pieces === 1) log(`Salvaged: <b class="c-parts">+${d.parts} parts</b>.`); });
+  bus.on('hone', (d) => log(`Honed <b style="color:${describe(d.item).color}">${describe(d.item).name}</b> to level <b class="c-num">${d.level}</b>.`));
   // (with cinematics off there are no cards, so the same things are said in a slip)
   bus.on('boss:arrive', (m) => { if (game.cinema.quiet) toast(m.name, 'It holds this island.', 3.2); });
   bus.on('boss:fell', (m) => log(`<b class="c-foe">${m.name}</b> is down.`));
@@ -204,7 +208,7 @@ export function createUI(game) {
     if (r.threat) rep.line.innerHTML += `<br>${r.threat.now > r.threat.was ? `It will be more dangerous next time: <b class="c-foe">${r.threat.name}</b>.` : `It has settled a little: <b class="c-foe">${r.threat.name}</b>.`}`;
     const stat = (label, value, cls) => `<div><small>${label}</small><b class="${cls}">${value}</b></div>`;
     rep.stats.innerHTML = stat('Time', time, 'c-ink') + stat('Felled', r.kills, 'c-foe') + stat('Experience', '+' + r.xp, 'c-xp') + stat('Glint', '+' + r.glint, 'c-coin');
-    rep.prize.innerHTML = r.prize ? `<div class="label">Also paid</div>${panels.gearCard(r.prize)}` : '';
+    rep.prize.innerHTML = (r.relic ? `<div class="label c-relic">Relic found</div>${panels.gearCard(r.relic)}` : '') + (r.prize ? `<div class="label">Also paid</div>${panels.gearCard(r.prize)}` : '');
     rep.box.hidden = false;
     rep.ok.focus({ preventScroll: true });
   });

@@ -58,7 +58,7 @@ export class View {
       d[o] = e.x; d[o + 1] = e.y + e.lift; d[o + 2] = e.z; d[o + 3] = s;
       if (newDrawing || e.pose === undefined) e.pose = [e.yaw, e.walk, e.action, e.actionT];
       d[o + 4] = e.pose[0]; d[o + 5] = e.pose[1]; d[o + 6] = e.pose[2]; d[o + 7] = e.pose[3];
-      d[o + 8] = e.seed; d[o + 9] = e.flash; d[o + 10] = e.shade; d[o + 11] = (e.ghost ? 1 : 0) + ((e.hover || e === p.target) && !e.hitY ? 2 : 0);        // (a colossus is not redrawn in red for being the target: its bar says so)
+      d[o + 8] = e.seed; d[o + 9] = e.flash; d[o + 10] = e.shade; d[o + 11] = (e.ghost ? 1 : 0) + ((e.hover || e === p.target) && !e.hitY ? 2 : 0) + 4 * (e.wears || 0);        // (a colossus is not redrawn in red for being the target: its bar says so)
       d[o + 12] = c[0][0]; d[o + 13] = c[0][1]; d[o + 14] = c[0][2]; d[o + 15] = e.kind === 'drop' ? 0 : e.move;
       d[o + 16] = c[1][0]; d[o + 17] = c[1][1]; d[o + 18] = c[1][2]; d[o + 19] = e.extra;
       d[o + 20] = c[2][0]; d[o + 21] = c[2][1]; d[o + 22] = c[2][2]; d[o + 23] = e.kit || 0;

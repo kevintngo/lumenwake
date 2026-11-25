@@ -13,13 +13,17 @@ export class Combat {
     this.game = game;
   }
 
-  /** Player hits a monster. mult scales weapon damage; flat adds on top. */
-  strike(target, mult = 1, flat = 0, canCrit = true) {
-    const p = this.game.player;
+  /**
+   * Player hits a monster. mult scales weapon damage; flat adds on top. `indirect`: the blow is not of the hero's own
+   * hand (a relic's power, the lumen's bolt), so it does not set off what answers their hand (sim/systems/relics.js).
+   */
+  strike(target, mult = 1, flat = 0, canCrit = true, indirect = false) {
+    const g = this.game, p = g.player;
     if (!target || target.dead) return;
     const crit = canCrit && rand() < p.crit;
-    let amount = (p.attack * mult + flat) * (0.9 + rand() * 0.2) * (crit ? (p.critDamage || 1.65) : 1);
+    let amount = (p.attack * mult + flat) * (0.9 + rand() * 0.2) * (crit ? (p.critDamage || 1.65) : 1) * g.relics.more(target);
     this.damage(target, Math.max(1, Math.round(amount)), p, crit);
+    if (!indirect) g.relics.landedOn(target);
   }
 
   /** A monster's blow lands on the player (unless dodged or out of reach). */
@@ -48,30 +52,35 @@ export class Combat {
     return true;
   }
 
-  damage(target, amount, source, crit) {
+  /** `soft`: something that eats at a creature rather than strikes it (rot): no flinch, no shove, no weight. */
+  damage(target, amount, source, crit, soft = false) {
     const g = this.game;
     if (target.dead) return;
     if (target.guard) amount = Math.max(1, Math.round(amount * 0.2));        // tucked in its shell: blows glance off
+    if (target.kind === 'player' && amount >= target.hp && g.relics.vigil()) return;        // (a relic may refuse the blow that would fell them)
     target.hp = Math.max(0, target.hp - amount);
-    target.flash = 1;
-    if (target.action !== 1 && target.action !== 5 && !(target.ai && target.ai.state === 'special')) { target.action = 3; target.actionT = 0; target.actionDur = 0.22; }
-    g.bus.emit('damage', { target, amount, crit, source });
+    target.flash = soft ? Math.max(target.flash || 0, 0.4) : 1;
+    if (!soft && target.action !== 1 && target.action !== 5 && !(target.ai && target.ai.state === 'special')) { target.action = 3; target.actionT = 0; target.actionDur = 0.22; }
+    g.bus.emit('damage', { target, amount, crit, source, soft });
     if (target.kind === 'monster') {
       const ai = target.ai;
       ai.target = g.player; ai.provoked = true;
-      // a small shove away from the blow
-      const dx = target.x - source.x, dz = target.z - source.z, d = Math.hypot(dx, dz) || 1;
-      const shove = target.guard || ai.state === 'special' || target.def.giant ? 0 : crit ? 3.2 : 1.8;      // a creature mid-move holds its ground; a colossus always does
-      ai.pushX = dx / d * shove; ai.pushZ = dz / d * shove;
       const fell = target.hp <= 0;
       const big = target.elite || target.boss;
-      g.bus.emit('feel', { hold: target.guard ? 0 : fell ? (big ? HOLD.elder : HOLD.kill) : crit ? HOLD.crit : HOLD.hit, shake: fell && big ? 0.7 : crit ? 0.32 : 0 });
+      if (!soft) {
+        // a small shove away from the blow
+        const dx = target.x - source.x, dz = target.z - source.z, d = Math.hypot(dx, dz) || 1;
+        const shove = target.guard || ai.state === 'special' || target.def.giant ? 0 : crit ? 3.2 : 1.8;      // a creature mid-move holds its ground; a colossus always does
+        ai.pushX = dx / d * shove; ai.pushZ = dz / d * shove;
+      }
+      if (!soft || fell) g.bus.emit('feel', { hold: target.guard ? 0 : fell ? (big ? HOLD.elder : HOLD.kill) : crit ? HOLD.crit : HOLD.hit, shake: fell && big ? 0.7 : crit ? 0.32 : 0 });
       if (fell) this.slay(target);
     } else if (target.kind === 'player') {
       target.calm = 0;
       const heavy = amount >= target.maxHp * 0.08;          // a cloud's sting does not stop the world; a slam does
       g.bus.emit('feel', { hold: heavy ? HOLD.taken : 0, shake: heavy ? 0.5 : 0.25, hurt: 1 });
       if (target.hp <= 0) this.fall(target);
+      else g.relics.struck(source);
     }
   }
 
@@ -95,6 +104,7 @@ export class Combat {
       g.loot.dropFrom(m);
       if (m.burst) g.hazards.burst(m, m.burst[0], m.burst[1], m.burst[2]);        // (a volatile place: content/threat.js)
     }
+    g.relics.felled(m);
     this.grantXp(gained);
     g.missions.onKill(m);
   }

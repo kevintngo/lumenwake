@@ -4,7 +4,8 @@
 import { ITEMS, RECIPES } from '../../content/items.js';
 import { makeEntity, pencils } from '../entities.js';
 import { derive } from '../stats.js';
-import { rollItem, itemName, itemValue, itemPrice, canUse, baseOf } from '../items.js';
+import { rollItem, itemName, itemValue, itemPrice, canUse, baseOf, salvageYield, honeCost, honeBar, honeItem, targetSlot, slotsOf } from '../items.js';
+import { compare } from '../stats.js';
 import { RARITIES } from '../../content/gear.js';
 import { BAG_GEAR } from '../stats.js';
 import { rand } from '../rng.js';
@@ -39,6 +40,7 @@ export class Loot {
     for (let k = 0; k < times; k++) {
       this.dropGear(m.x, m.y, m.z, rollItem({ ilvl: m.level, cls: g.player.sheet.cls, luck: (m.boss ? 1.3 : m.elite ? 0.6 : 0) + (m.luck || 0), rarity: m.boss ? 1 : undefined }));
     }
+    if (m.boss) g.relics.drop(m);          // and, now and then, one of its own (sim/systems/relics.js)
   }
 
   /** A piece of gear on the ground, in its rarity's colour. */
@@ -111,7 +113,15 @@ export class Loot {
   take(d) {
     const g = this.game, s = g.player.sheet;
     if (d.gear) {
-      if (s.gear.length >= BAG_GEAR) { if (!d.warned) { d.warned = true; g.bus.emit('log', { text: 'Your pack holds no more gear. Sell some on the ship.' }); } return false; }
+      const relic = d.gear.relic;
+      if (s.gear.length >= BAG_GEAR && !relic) { if (!d.warned) { d.warned = true; g.bus.emit('log', { text: 'Your pack holds no more gear. Salvage some from the Gear tab.' }); } return false; }
+      if (relic) {
+        // an elder's own: there is always room for it, it is kept out of salvage, and it is written down as found
+        d.gear.lock = true;
+        s.relics = s.relics || {};
+        s.relics[relic] = (s.relics[relic] || 0) + 1;
+        g.bus.emit('relic:found', { item: d.gear, first: s.relics[relic] === 1 });
+      }
       s.gear.push(d.gear);
       g.bus.emit('pickup', { x: d.x, y: d.y, z: d.z, gear: d.gear, name: d.name, rare: d.rare });
       g.bus.emit('bag:changed');
@@ -164,19 +174,96 @@ export class Loot {
     return false;
   }
 
-  /** Puts on a carried piece (what was worn in that slot goes back in the pack). */
-  equip(uid) {
+  /**
+   * Puts on a carried piece (what was worn in that slot goes back in the pack). `slot` picks which of two it goes in
+   * (a mod); without it, the empty one or the one holding the lesser piece. Returns the slot it went in, or false.
+   */
+  equip(uid, slot = null) {
     const g = this.game, p = g.player, s = p.sheet;
     const i = s.gear.findIndex((it) => it.uid === uid);
     if (i < 0) return false;
     const item = s.gear[i];
     if (!canUse(s.cls, item)) { g.bus.emit('log', { text: 'Your class cannot wield that.' }); g.bus.emit('deny'); return false; }
-    const slot = baseOf(item).slot, was = s.equip[slot];
+    if (!slot || !slotsOf(item).includes(slot)) slot = targetSlot(s, item);
+    const was = s.equip[slot];
     s.gear.splice(i, 1);
     if (was) s.gear.push(was);
     s.equip[slot] = item;
     derive(p);
     g.bus.emit('equip', { item, slot });
+    g.bus.emit('bag:changed');
+    return slot;
+  }
+
+  /** Takes off what is worn in a slot, into the pack (not the weapon: a surveyor always carries one). */
+  unequip(slot) {
+    const g = this.game, p = g.player, s = p.sheet, it = s.equip[slot];
+    if (!it || slot === 'weapon') return false;
+    if (s.gear.length >= BAG_GEAR) { g.bus.emit('log', { text: 'Your pack holds no more gear.' }); g.bus.emit('deny'); return false; }
+    s.equip[slot] = null;
+    s.gear.push(it);
+    derive(p);
+    g.bus.emit('equip', { item: null, slot });
+    g.bus.emit('bag:changed');
+    return true;
+  }
+
+  // ---- salvage, honing and locks (the numbers are in sim/items.js)
+  /** Takes a carried piece apart for parts. A locked piece is left alone. */
+  salvage(uid) {
+    const g = this.game, s = g.player.sheet;
+    const i = s.gear.findIndex((it) => it.uid === uid);
+    if (i < 0 || s.gear[i].lock) { g.bus.emit('deny'); return 0; }
+    const n = salvageYield(s.gear[i]);
+    s.parts = (s.parts || 0) + n;
+    s.gear.splice(i, 1);
+    g.bus.emit('salvage', { parts: n, pieces: 1 });
+    g.bus.emit('bag:changed');
+    return n;
+  }
+
+  /** The carried pieces a surveyor has no reason to keep: standard and tuned, not locked, and no better than what is worn. */
+  spare() {
+    const s = this.game.player.sheet;
+    return s.gear.filter((it) => it.rarity <= 1 && !it.lock && !(canUse(s.cls, it) && compare(s, it).verdict > 0));
+  }
+
+  /** Takes every spare piece apart at once. Returns the parts it made. */
+  salvageSpare() {
+    const g = this.game, s = g.player.sheet, spare = this.spare();
+    if (!spare.length) return 0;
+    let n = 0;
+    for (const it of spare) n += salvageYield(it);
+    s.gear = s.gear.filter((it) => !spare.includes(it));
+    s.parts = (s.parts || 0) + n;
+    g.bus.emit('salvage', { parts: n, pieces: spare.length });
+    g.bus.emit('log', { text: `Salvaged <b class="c-num">${spare.length}</b> ${spare.length === 1 ? 'piece' : 'pieces'}: <b class="c-parts">+${n} parts</b>.` });
+    g.bus.emit('bag:changed');
+    return n;
+  }
+
+  /** Locks a carried piece against salvage and sale, or lets it go again. */
+  lock(uid) {
+    const g = this.game, it = g.player.sheet.gear.find((x) => x.uid === uid);
+    if (!it) return false;
+    if (it.lock) delete it.lock; else it.lock = true;
+    g.bus.emit('ui:click');
+    g.bus.emit('bag:changed');
+    return true;
+  }
+
+  /** Raises a piece by a level for parts and a fee. key: 'worn:<slot>' or 'gear:<uid>'. */
+  hone(key) {
+    const g = this.game, p = g.player, s = p.sheet, [kind, id] = String(key).split(':');
+    const it = kind === 'worn' ? s.equip[id] : s.gear.find((x) => String(x.uid) === id);
+    if (!it) return false;
+    const bar = honeBar(s, it);
+    if (bar) { g.bus.emit('log', { text: bar }); g.bus.emit('deny'); return false; }
+    const c = honeCost(it);
+    s.parts -= c.parts; s.glint -= c.glint;
+    honeItem(it);
+    derive(p);
+    g.bus.emit('hone', { item: it, level: it.ilvl });
     g.bus.emit('bag:changed');
     return true;
   }
@@ -185,7 +272,7 @@ export class Loot {
   sellGear(uid) {
     const g = this.game, s = g.player.sheet;
     const i = s.gear.findIndex((it) => it.uid === uid);
-    if (i < 0) return false;
+    if (i < 0 || s.gear[i].lock) return false;
     s.glint += itemValue(s.gear[i]);
     s.gear.splice(i, 1);
     g.bus.emit('trade', { sold: 'gear' });

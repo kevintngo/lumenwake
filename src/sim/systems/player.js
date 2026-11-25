@@ -8,6 +8,7 @@ import { damp, dampAngle } from '../../core/math.js';
 import { yawFromDir, dirFromYaw } from '../entities.js';
 import { FAMILIES } from '../../content/classes.js';
 import { BASES } from '../../content/gear.js';
+import { RELICS } from '../../content/relics.js';
 
 const SWING = 0.42, HIT_AT = 0.45;
 const CADENCE = 10.4;      // radians of stride a second: about 1.65 full cycles
@@ -43,9 +44,11 @@ export class PlayerSystem {
     const worn = p.sheet.equip || {}, look = (slot) => (worn[slot] && BASES[worn[slot].base] ? BASES[worn[slot].base].look || 0 : 0);
     p.kit = fam.kit + 0.1 * (p.action === 1 ? p.chain || 0 : 0) + 0.5 * look('weapon');
     p.extra = (p.build ?? Math.round(p.extra)) + 0.1 * look('frame') + 0.01 * look('unit');
+    const has = (slot) => (worn[slot] && BASES[worn[slot].base] ? 1 + (BASES[worn[slot].base].look || 0) : 0);
+    p.wears = has('offhand') + 4 * (has('grips') + 3 * has('boots'));        // (archetypes/humanoid.js: the off-hand, the grips, the boots)
 
     const wet = w.waterDepth(p.x, p.z) > 0.18;
-    const speed = GAME.PLAYER_SPEED * (wet ? 0.62 : 1) * (p.speedMul || 1);
+    const speed = GAME.PLAYER_SPEED * (wet ? 0.62 : 1) * (p.speedMul || 1) * (p.rush > 0 ? 1 + RELICS.rush.speed : 1);        // (Slipstream: quicker for a moment after a kill)
     let dx = 0, dz = 0, want = 0;
     const tgt = p.target && !p.target.gone && !p.target.dead ? p.target : (p.target = null);
 
@@ -166,7 +169,7 @@ export class PlayerSystem {
     const g = this.game, p = g.player, fam = FAMILIES[p.family] || FAMILIES.blade;
     p.chain = p.chainT > 0 ? ((p.chain || 0) + 1) % 3 : 0;
     const mult = fam.chain[p.chain], last = p.chain === 2;
-    p.attackCd = (1 / p.attackSpeed) * (last ? 1.25 : 1);
+    p.attackCd = (1 / (p.attackSpeed * (p.rush > 0 ? 1 + RELICS.rush.speed : 1))) * (last ? 1.25 : 1);
     p.chainT = p.attackCd + 0.55;
     p.calm = 0;
     if (!fam.shot) {
@@ -181,6 +184,9 @@ export class PlayerSystem {
             const dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz);
             if (d <= reach + m.radius + 0.7 && (d < 0.6 || (dx * fx + dz * fz) / d > 0.15)) g.combat.strike(m, mult);
           }
+          // (a relic may shake the ground where the cut lands: at the creature it was aimed at, or just ahead)
+          const near = Math.hypot(tgt.x - p.x, tgt.z - p.z) <= reach + tgt.radius + 0.7;
+          g.relics.quake(near ? tgt.x : p.x + fx * 1.4, p.y, near ? tgt.z : p.z + fz * 1.4);
         } else if (!tgt.dead && Math.hypot(tgt.x - p.x, tgt.z - p.z) <= reach + tgt.radius + 0.7) g.combat.strike(tgt, mult);
       };
     } else {
@@ -192,7 +198,7 @@ export class PlayerSystem {
         g.skills.launch({
           x: p.x + dx / d * 0.6, y: p.y + 0.95, z: p.z + dz / d * 0.6, vx: dx / d * s.speed, vz: dz / d * s.speed,
           life: s.life, radius: s.radius, color: s.color, size: s.size * (last ? 1.35 : 1), quiet: true,
-          onHit: (m) => g.combat.strike(m, mult), splash: s.splash && last ? s.splash : 0, splashMult: 0.6,
+          onHit: (m) => { g.combat.strike(m, mult); if (last) g.relics.quake(m.x, m.y, m.z); }, splash: s.splash && last ? s.splash : 0, splashMult: 0.6,
         });
       };
     }

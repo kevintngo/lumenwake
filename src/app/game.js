@@ -31,6 +31,7 @@ import { Portraits } from './portrait.js';
 import { PlayerSystem } from '../sim/systems/player.js';
 import { MonsterAI } from '../sim/systems/ai.js';
 import { Combat } from '../sim/systems/combat.js';
+import { Relics } from '../sim/systems/relics.js';
 import { Skills } from '../sim/systems/skills.js';
 import { Spawner } from '../sim/systems/spawner.js';
 import { Loot } from '../sim/systems/loot.js';
@@ -93,6 +94,7 @@ export class Game {
     this.biome = this.world.biome(px, pz);
 
     this.fx = new Fx(this);
+    this.relics = new Relics(this);
     this.combat = new Combat(this);
     this.loot = new Loot(this);
     this.skills = new Skills(this);
@@ -103,7 +105,7 @@ export class Game {
     // order matters: intent -> bodies -> consequences -> population
     this.tutorial = new Tutorial(this);
     this.hazards = new Hazards(this);
-    this.sim = [new PlayerSystem(this), new MonsterAI(this), this.hazards, this.skills, this.loot, this.spawner, this.missions, new Crew(this), new Sites(this), (this.companion = new Companion(this))];
+    this.sim = [new PlayerSystem(this), new MonsterAI(this), this.hazards, this.skills, this.loot, this.spawner, this.missions, new Crew(this), new Sites(this), (this.companion = new Companion(this)), this.relics];
     this.cinema = new Cinema(this);
     this.portraits = new Portraits(this);
     this.missions.arrive();

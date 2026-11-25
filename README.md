@@ -22,7 +22,9 @@ A mission game drawn by shaders. You arrive by shuttle at a floating town, Merid
 - **A town.** A paved square round a survey beacon, the contract hall, a market, homes, a landing field, an overlook and the gate terrace, with crew who walk their rounds and have something to say.
 - **Three classes.** Vanguard (arc blade), Ranger (pulse rifle), Adept (focus rod). A class sets starting attributes, the family of weapon it can wield and the four abilities on its bar.
 - **A three-step attack chain.** Attacks come in threes and the third is the heavy one: a blade's third cut takes everything in front, a rifle's third shot hits harder, a rod's third bursts.
-- **Gear.** Weapon, frame and unit. Each piece is a base type, an item level, a rarity (Standard, Tuned, Rare, Prime) and rolled affixes; a Prime piece also lends ranks of a talent. Every base has its own shape in the hand, on the shoulders or on the back, and its tile in the menu is drawn from that same shape. It drops from creatures, supply pods and bosses, every contract pays one piece, and the quartermaster buys and sells it.
+- **Gear in ten slots.** Weapon and off-hand (a ward, a charge cell or a focus lens, by class), unit, two mods, visor, frame, grips, greaves and boots, laid out round the figure like a paper doll. Each piece is a base type, an item level, a rarity (Standard, Tuned, Rare, Prime, Relic) and rolled affixes; a Prime piece also lends ranks of a talent. The seven newer kinds carry smaller rolls and one line fewer, so a surveyor in ten pieces is about a third stronger than one in three: they are for choosing what to lean on. What is held, the off-hand, the frame, the unit, the grips and the boots show on the figure, and every tile is drawn from the same shapes. A carried piece says at a glance whether it is plainly better or worse than what is worn, and selecting it shows what wearing it would do to your own numbers.
+- **Relics.** Each elder carries two pieces with a power of their own: a third blow that shakes the ground, rot, a frost that makes creatures take more, creatures that burst when felled, a blow that would fell you refused once a contract, a landing that strikes the ground, a lumen whose bolts leap, and others. An elder is likelier to leave one the higher the place's threat, and likelier again after every elder that left none. The board and the Contract tab show the chance and which relics an elder carries.
+- **Salvage, honing and locks.** Spare gear comes apart into parts (one button takes every standard and tuned piece that is no better than what you wear). Parts and glint hone a piece a level at a time, up to two levels over your own, so a relic you like can be kept level with what the ground gives. A locked piece is never salvaged or sold.
 - **Contracts.** Three on the board at a time: clear the way, recover survey cores, or bring down the boss of the place. Six places, each with its own look, creatures and boss: four of sky islands (Glasswood Terraces, Ember Shelf, The Hush, Rime Steps), and two that are not.
 - **Places that remember you.** Every place keeps a threat rank, Quiet to Unbound. A contract won there raises it by one; being lifted out beaten lowers it by one. At each rank the creatures are a level or two up and hit harder, and one to three conditions are drawn for that one visit by the contract's own dice: creatures that are swift, thick-hided, in greater numbers, led by elder creatures, that burst where they fall, strays from another place in the mix, the place at night, or the elder enraged early. So a second visit is never the first one over again, and it pays more: more experience and glint, and a better lean toward rare gear. The board and the Contract tab show the rank and what is different this time.
 - **The Underhalls.** A dungeon: square halls and corridors between sheer walls of dressed stone, no sky, and no light but braziers, crystal and the lumen at your shoulder. A broken way is a pit to jump.
@@ -57,6 +59,10 @@ Then open `http://localhost:8080`. Add `?touch` to see the phone layout on a des
 
 Progress is kept in the browser (see Saves above). Add `?new` to open one visit as if nothing were kept.
 
+## Trailer
+
+`./trailer/make.sh` films a 30-second square gameplay trailer (1080 x 1080, 60 frames a second, for a timeline such as X) from the real game and writes `trailer/lumenwake-trailer-square.mp4` and `trailer/lumenwake-cover.jpg` (the first frame, which is also the poster). `trailer/director.js` is the shot list: it builds a surveyor, takes contracts, stages fights and plays the game's own cinematics, all through the game's systems. The sound is the game's own score and effects, rendered by its audio code into an offline Web Audio context one frame at a time beside the picture, so every blow lands on its frame. `trailer/record.mjs` drives headless Chrome with the page's clock taken away; `trailer/encode.swift` joins frames and sound with the system's AVFoundation. Needs Node 22+, Chrome and Xcode's `swiftc`; no ffmpeg.
+
 ## Controls
 
 | Input | Action |
@@ -87,6 +93,7 @@ src/
     creatures.js    creatures and bosses: numbers, moves, drops, encounter cost
     themes.js       the places: ground, plants, creatures, boss, hour
     threat.js       how a place answers being surveyed again: the ranks, and the conditions a visit can draw
+    relics.js       the pieces each elder carries, the power each has, and the odds of one
     town.js         the town: rooms, paving, fixtures, crew
     items.js        flasks, materials, recipes
     talents.js      talents
@@ -123,6 +130,7 @@ A cinematic is a row in `src/content/cinematics.js`: a list of shots, each with 
 | --- | --- |
 | A class | A row in `content/classes.js`: attributes, weapon family, four ability ids, a colour. |
 | An ability | A row in `content/abilities.js` using an existing effect (`arc`, `ring`, `bolt`, `volley`, `heal`, `dash`). A new kind of effect is one function in `sim/systems/skills.js`. |
+| A relic | A row in `content/relics.js` (its slot, the elder that carries it, its numbers, one line of text) and one method under its id in `sim/systems/relics.js`, called from the moment in the rules it answers. |
 | A gear base, affix or rarity | A row in `content/gear.js`. Anything in the stat list can be rolled. A base's `look` picks its shape in `gfx/glsl/held.js`, which the hero and the menu's tiles both draw from; a new shape is a branch there. |
 | A condition a revisit can draw | A row in `CONDITIONS` in `content/threat.js`: its name, one line of text, and the numbers it changes (`hp`, `atk`, `quick`, `purse`, `aggro`, `glint`, or one of `leader`, `burst`, `strays`, `hour`, `rageAt`); `only` says which contracts it can be drawn for. A new kind of number is read where creatures are made, in `temper` in `sim/systems/missions.js`. |
 | A step of the first steps | A row in `content/tutorial.js`: its line, what it points at, the control to ring, and the event or test that ends it. |
@@ -149,6 +157,8 @@ The picture is Brushwild's renderer: one raymarch decides what is where, and a f
 - The elders fill much of the picture and are drawn at full resolution: their cost on a slow GPU or a phone has not been measured.
 - None of the music has been listened to by its author: it is checked by a test that compares what each piece schedules (so no two share a lead voice or a ten-second stretch of the same instruments), by rendering each piece through the browser to measure its level, and by playing whole contracts with the audio running to see that nothing fails.
 - The first steps have been played end to end by a test bot that presses only what they ring, not by a new player; the game has not been tried on a real phone.
+- Relics, the ten slots and honing are balanced by measurement (a full set of three relics made the test bot's contracts about a fifth quicker; ten rare pieces are about 1.3 times three in blows and in lasting), not by play.
+- Visors and greaves are not drawn on the figure yet, only on their tiles.
 - The threat ranks are balanced by a test bot that cannot die, not by play: at the top rank a level 6 surveyor takes about six times the damage and twice the time of a first visit.
 - The simulation still steps with the frame's time, so two runs repeat exactly only at a fixed frame time.
 - Talent logic still lives beside its data in `content/talents.js`.

@@ -31,6 +31,13 @@ export const GEAR_ICONS = {
   wand: svg(`<path d="M9 35L24 17" stroke-width="3.2"/><path d="M28 3l7 9-7 9-7-9z" fill="#86e6dc"/><path d="M28 3v18M21 12h14" stroke-width="1.3"/><path d="M12 31.5l3 2.6" stroke="#ffc45e" stroke-width="2.6"/><path d="M15 6l1 3M35 24l2 2M12 14l3 1" stroke-width="1.5"/>`),
   frame: svg(`<path d="M12 5l8 3 8-3 6 7-5 5v14l-9 4-9-4V17l-5-5z" fill="#e2bc82"/><path d="M20 8v27" stroke-width="1.4"/><path d="M11 22h18" stroke="#ff8a70" stroke-width="2.4"/><path d="M14 27h4M22 27h4" stroke-width="1.4"/>`),
   unit: svg(`<path d="M20 4l13 7.5v17L20 36 7 28.500v-17z" fill="#1c3a80"/><circle cx="20" cy="20" r="6.5" fill="#fff3c4"/><path d="M20 4v6M20 30v6M7 11.500l5.500 3M27.500 25.500l5.500 3M33 11.500l-5.500 3M12.500 25.500l-5.500 3" stroke-width="1.5"/>`),
+  // the newer slots, drawn for an empty slot (and until the game has drawn the pieces themselves)
+  offhand: svg(`<circle cx="20" cy="20" r="14" fill="#88b4d8"/><circle cx="20" cy="20" r="9" stroke-width="1.4"/><circle cx="20" cy="20" r="3.5" fill="#fff3c4"/>`),
+  visor: svg(`<path d="M6 22c2-9 26-9 28 0v5c-6-3-22-3-28 0z" fill="#88b4d8"/><path d="M10 21c5-3 15-3 20 0" stroke="#86e6dc" stroke-width="2.6"/>`),
+  grips: svg(`<path d="M12 34V22l-3-6 3-1 3 5V8a2.5 2.5 0 0 1 5 0v9-11a2.5 2.5 0 0 1 5 0v12-9a2.5 2.5 0 0 1 5 0v15c0 5-3 10-8 10z" fill="#e2bc82"/><path d="M12 30h16" stroke-width="1.6"/>`),
+  greaves: svg(`<path d="M14 6h12l-1 24-5 5-5-5z" fill="#88b4d8"/><path d="M15 14h10M15 22h10" stroke-width="1.4"/>`),
+  boots: svg(`<path d="M12 5h11v18l9 5v6H9V28l3-4z" fill="#e2bc82"/><path d="M9 30h23M12 12h11" stroke-width="1.5"/>`),
+  mod: svg(`<rect x="10" y="10" width="20" height="20" rx="2" fill="#1c3a80"/><rect x="16" y="16" width="8" height="8" fill="#86e6dc"/><path d="M14 6v4M20 6v4M26 6v4M14 30v4M20 30v4M26 30v4" stroke-width="1.6"/>`),
 };
 /**
  * The drawing for a piece of gear. `base` is its row in content/gear.js. Once the game has drawn the pieces
@@ -46,6 +53,37 @@ export function setGearArt(byBase) { Object.assign(GEAR_ART, byBase); }
 export const gearIcon = (base) => (GEAR_ART[base.id] ? `<img class="gear-art" src="${GEAR_ART[base.id]}" alt="" draggable="false" />` : GEAR_ICONS[base.family] || GEAR_ICONS[base.slot] || GEAR_ICONS.unit);
 
 // ---- the four attributes, and the lumen's three tempers
+// Small marks for an item's lines: one a stat, drawn heavier than the big icons because they are shown at 18px.
+const mini = (body) => `<svg class="ico" viewBox="0 0 40 40" aria-hidden="true" fill="none" stroke="#dff0ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+const HEART = 'M20 34C9 26 5 20 5 13.500a7.500 7.500 0 0 1 15-2.500 7.500 7.500 0 0 1 15 2.500C35 20 31 26 20 34z';
+const DROP = 'M20 5c7 9 10.500 14 10.500 19.500a10.500 10.500 0 0 1-21 0C9.500 19 13 14 20 5z';
+export const STAT_ICONS = {
+  attack: mini(`<path d="M30 6l4 4-17 17-4-4z" fill="#ffab98"/><path d="M9 21l10 10M12 28l-6 6"/>`),
+  attackSpeed: mini(`<path d="M8 9l11 11L8 31M21 9l11 11-11 11" stroke="#ffcc74"/>`),
+  crit: mini(`<circle cx="20" cy="20" r="11"/><circle cx="20" cy="20" r="3.500" fill="#ffcc74" stroke="none"/><path d="M20 4v7M20 29v7M4 20h7M29 20h7"/>`),
+  critDamage: mini(`<path d="M20 4l4 11 12 5-12 5-4 11-4-11L4 20l12-5z" fill="#ff8a70"/>`),
+  power: mini(`<path d="M22 4L9 22h9l-2 14 13-18h-9z" fill="#86e6dc"/>`),
+  maxHp: mini(`<path d="${HEART}" fill="#ff7a66"/>`),
+  hpRegen: mini(`<path d="${HEART}" fill="#ff7a66"/><path d="M20 14v10M15 19h10" stroke="#fff3ec"/>`),
+  lifeOnKill: mini(`<path d="${HEART}"/><path d="M14 17l12 8M26 17l-12 8" stroke="#ff7a66"/>`),
+  maxFocus: mini(`<path d="${DROP}" fill="#5cc8ff"/>`),
+  focusRegen: mini(`<path d="${DROP}" fill="#5cc8ff"/><path d="M20 19v9M15.500 23.500h9" stroke="#eef8ff"/>`),
+  defense: mini(`<path d="M20 4l13 4.500v9.500c0 9-5.500 14.500-13 18-7.500-3.500-13-9-13-18V8.500z" fill="#a6dbff"/>`),
+  speed: mini(`<path d="M4 13h13M4 20h9M4 27h13" stroke="#9ceab4"/><path d="M22 9l12 11-12 11z" fill="#9ceab4"/>`),
+  dodge: mini(`<path d="M9 31C9 16 17 8 32 8" stroke-dasharray="1 7"/><path d="M24 4l9 4-5 8" stroke="#cdeeff"/>`),
+  find: mini(`<path d="M20 4l13 16-13 16L7 20z" fill="#ffdc6b"/>`),
+};
+// (the four attributes share the big icons' drawings)
+export const TOOL_ICONS = {
+  lock: mini(`<rect x="8" y="18" width="24" height="17" rx="2" fill="#dff0ff"/><path d="M13 18v-5a7 7 0 0 1 14 0v5"/>`),
+  open: mini(`<rect x="8" y="18" width="24" height="17" rx="2"/><path d="M13 18v-5a7 7 0 0 1 13.500-2.500"/>`),
+  parts: mini(`<circle cx="20" cy="20" r="6"/><path d="M20 4v6M20 30v6M4 20h6M30 20h6M8.500 8.500l4.500 4.500M27 27l4.500 4.500M31.500 8.500L27 13M13 27l-4.500 4.500" stroke="#b9f0ff"/>`),
+  hone: mini(`<path d="M8 24l12-12 12 12M8 34l12-12 12 12" stroke="#ffd772"/>`),
+  relic: mini(`<path d="M20 3l11 9-4 21H13L9 12z" fill="#e3b0ff"/><path d="M9 12h22M20 3v30" stroke="#5a2f86" stroke-width="2"/>`),
+  swap: mini(`<path d="M6 14h24l-6-6M34 26H10l6 6"/>`),
+  warn: mini(`<path d="M20 5l16 29H4z" stroke="#ffb3a3"/><path d="M20 16v8M20 29v.500" stroke="#ffb3a3"/>`),
+  lend: mini(`<path d="M20 4l4.500 10L35 15.500l-7.500 7.500 2 11L20 28.500 10.500 34l2-11L5 15.500 15.500 14z" fill="#ffc45e"/>`),
+};
 export const ATTR_ICONS = {
   might: svg(`<path d="M10 20h20" stroke-width="3.4"/><rect x="9" y="11" width="5" height="18" rx="1.5" fill="#ffab98"/><rect x="26" y="11" width="5" height="18" rx="1.5" fill="#ffab98"/><path d="M5 15v10M35 15v10" stroke-width="3"/>`),
   grace: svg(`<path d="M32 5C17 7 9 17 8 33c13-2 22-10 24-28z" fill="#ffcc74"/><path d="M8 33L27 11" stroke-width="1.6"/><path d="M14 26l-1-7M19 21l-1-7M24 15.500l-1-5M14.500 26.500l7 1M19.500 21.500l6 1" stroke-width="1.4"/>`),

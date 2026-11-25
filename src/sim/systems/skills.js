@@ -7,6 +7,7 @@ import { ABILITIES } from '../../content/abilities.js';
 import { CLASSES, SLOT_UNLOCK } from '../../content/classes.js';
 import { rank } from '../../content/talents.js';
 import { dirFromYaw, yawFromDir } from '../entities.js';
+import { RELICS } from '../../content/relics.js';
 
 // How much an ability's numbers grow with the hero: [times attack, times flat]
 const scale = (p, a) => (a.scales === 'power' ? p.power : 1);
@@ -122,11 +123,12 @@ export class Skills {
     if (!s || p.dead || p.dash) return false;
     if (!this.unlocked(i)) { g.bus.emit('log', { text: `${s.name} opens at level ${s.unlock}.` }); return false; }
     if (this.cooldowns[i] > 0) return false;
-    const cost = s.focus * (p.thrift ?? 1);
+    const tide = s.id === 'step' && g.relics.has('tide');        // (Tidestep: the step is free, and back in half the time)
+    const cost = tide ? 0 : s.focus * (p.thrift ?? 1);
     if (p.focus < cost) { g.bus.emit('log', { text: 'Not enough focus.' }); g.bus.emit('deny'); return false; }
     const aim = this.aim();
     p.focus -= cost;
-    this.cooldowns[i] = s.cooldown * (s.id === 'bolt' ? 1 - 0.2 * rank(p.sheet, 'tinder') : 1);
+    this.cooldowns[i] = s.cooldown * (s.id === 'bolt' ? 1 - 0.2 * rank(p.sheet, 'tinder') : 1) * (tide ? RELICS.tide.cooldown : 1);
     p.calm = Math.min(p.calm, 2);
     EFFECTS[s.effect](g, p, ABILITIES[s.id], aim);
     g.bus.emit('skill', { id: s.id, effect: s.effect });

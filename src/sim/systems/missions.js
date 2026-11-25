@@ -35,6 +35,7 @@ const NAMES_B = ['Stair', 'Reach', 'Chain', 'Crossing', 'Ledge', 'Span', 'Garden
 export class Missions {
   constructor(game) {
     this.game = game;
+    game.bus.on('relic:found', (d) => { if (this.active) this.active.relic = d.item; });        // (the report shows it)
     this.offers = [];
     this.pending = null;       // a contract taken on the ship, waiting for the pad
     this.active = null;        // the contract being run: { offer, rooms: [state], cores, need, done, t }
@@ -58,7 +59,7 @@ export class Missions {
     const s = this.game.player.sheet;
     const rnd = mulberry32(((s.board || 0) * 7919 + 1013) >>> 0);
     seedSim(((s.board || 0) + 1) * 2654435761);
-    this.stock = [0, 1, 2, 3].map((k) => rollItem({ ilvl: Math.max(1, s.level), cls: s.cls, rarity: k === 3 ? 2 : 1, slot: ['weapon', 'frame', 'unit', undefined][k] }));
+    this.stock = [0, 1, 2, 3, 4].map((k) => rollItem({ ilvl: Math.max(1, s.level), cls: s.cls, family: k < 2 ? CLASSES[s.cls].family : undefined, rarity: k === 4 ? 2 : 1, slot: ['weapon', 'offhand', undefined, undefined, undefined][k] }));
     const goals = ['sweep', 'recover', 'hunt'], first = Math.floor(rnd() * MISSION_BIOMES.length);
     this.offers = [0, 1, 2].map((k) => {
       const biome = MISSION_BIOMES[(first + k) % MISSION_BIOMES.length];        // three different places every time
@@ -312,7 +313,7 @@ export class Missions {
     const g = this.game, p = g.player, a = this.active, s = p.sheet;
     // every survey mark logged adds to the pay, and all of them make the piece of gear a better one
     const extra = 1 + 0.15 * a.marks, all = a.markNeed > 0 && a.marks >= a.markNeed;
-    this.report = { won, offer: a.offer, kills: a.kills, time: a.time, xp: won ? Math.round(a.offer.xp * extra) : 0, glint: won ? Math.round(a.offer.glint * extra) : 0, marks: a.marks, markNeed: a.markNeed };
+    this.report = { won, offer: a.offer, relic: a.relic || null, kills: a.kills, time: a.time, xp: won ? Math.round(a.offer.xp * extra) : 0, glint: won ? Math.round(a.offer.glint * extra) : 0, marks: a.marks, markNeed: a.markNeed };
     // the place remembers: surveyed and won, it is more dangerous next time; beaten there, it settles a little
     const T = this.threat || threatOf(a.offer);
     this.threat = null;

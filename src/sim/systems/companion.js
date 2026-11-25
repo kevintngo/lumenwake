@@ -9,6 +9,7 @@ import { lumenKind, lumenLevel, lumenGrown } from '../lumen.js';
 import { makeEntity, pencils, dirFromYaw } from '../entities.js';
 import { derive } from '../stats.js';
 import { damp, dampAngle } from '../../core/math.js';
+import { RELICS } from '../../content/relics.js';
 
 const ASSIST_EVERY = 2.6;      // seconds between its bolts
 const FULL = 100;
@@ -59,7 +60,7 @@ export class Companion {
     this.cd -= dt;
     const t = p.target;
     if (this.cd <= 0 && t && t.kind === 'monster' && !t.dead && !p.dead && Math.hypot(t.x - p.x, t.z - p.z) < 13) {
-      this.cd = ASSIST_EVERY;
+      this.cd = ASSIST_EVERY * (g.relics.has('wick') ? RELICS.wick.pace : 1);        // (Wick: twice as often)
       this.bolt(t, 0.22 + 0.006 * l.ember, 0.3);
       g.bus.emit('lumen:bolt', { x: e.x, y: e.y, z: e.z });
     }
@@ -69,7 +70,7 @@ export class Companion {
     const g = this.game, e = this.e, dx = t.x - e.x, dz = t.z - e.z, d = Math.hypot(dx, dz) || 1;
     g.skills.launch({
       x: e.x, y: e.y - 0.3, z: e.z, vx: dx / d * 17, vz: dz / d * 17, life: 1.0, radius: 0.4, size, quiet: true,
-      color: this.e.colors[1], onHit: (m) => g.combat.strike(m, mult, 0, false),
+      color: this.e.colors[1], onHit: (m) => { g.combat.strike(m, mult, 0, false, true); g.relics.leap(m, mult); },
     });
   }
 
@@ -77,6 +78,7 @@ export class Companion {
   fill(d) {
     const g = this.game, p = g.player, l = this.lumen;
     if (!l || l.charge >= FULL) return;
+    if (d.soft) return;                 // (rot eating at something is not a blow)
     if (d.target === p) l.charge += 6;
     else if (d.source === p && d.target.kind === 'monster') l.charge += d.crit ? 3.4 : 2.2;
     else return;
@@ -89,7 +91,7 @@ export class Companion {
     if (!e || p.dead || l.charge < FULL) { if (e && !p.dead) g.bus.emit('deny'); return false; }
     l.charge = 0;
     const near = g.monsters.filter((m) => !m.dead).map((m) => ({ m, d: Math.hypot(m.x - p.x, m.z - p.z) })).sort((a, c) => a.d - c.d);
-    if (b.kind === 'ring') for (const { m, d } of near) if (d < b.r + m.radius) g.combat.strike(m, b.mult);
+    if (b.kind === 'ring') for (const { m, d } of near) if (d < b.r + m.radius) g.combat.strike(m, b.mult, 0, true, true);
     if (b.kind === 'volley' || b.kind === 'all') {
       const marks = near.filter((n) => n.d < 16);
       for (let k = 0; k < b.count && marks.length; k++) this.bolt(marks[k % marks.length].m, b.mult, 0.5);

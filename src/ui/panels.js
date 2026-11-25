@@ -13,10 +13,11 @@
 // The menu holds the game while it is open (`holding`, read by ui.js), so it
 // reads its own keys; ui.js hands them over through `key(e)`.
 
-import { ATTRIBUTES, BAG_GEAR, derive, xpToNext } from '../sim/stats.js';
+import { ATTRIBUTES, BAG_GEAR, derive, xpToNext, compare } from '../sim/stats.js';
 import { CLASSES, FAMILIES } from '../content/classes.js';
-import { GEAR_SLOTS } from '../content/gear.js';
-import { describe, canUse, itemPrice, baseOf, rarityOf } from '../sim/items.js';
+import { GEAR_SLOTS, SLOT_KINDS } from '../content/gear.js';
+import { describe, canUse, itemPrice, baseOf, rarityOf, salvageYield, honeCost, honeBar } from '../sim/items.js';
+import { RELICS, relicsOf, relicChance } from '../content/relics.js';
 import { ITEMS, SHOP_STOCK, RECIPES } from '../content/items.js';
 import { TALENTS, rank, takeTalent } from '../content/talents.js';
 import { biomeById } from '../content/themes.js';
@@ -27,12 +28,21 @@ import { BOONS } from '../content/sites.js';
 import { THREAT_MAX, threatOf } from '../content/threat.js';
 import { LUMENS, TEMPERS, FOODS, LUMEN_STAGES, LUMEN_MAX, LUMEN_STEP } from '../content/companions.js';
 import { lumenLevel, lumenToNext, lumenStage, lumenMods, lumenTotal } from '../sim/lumen.js';
-import { SKILL_ICONS, MENU_ICONS, ATTR_ICONS, TEMPER_ICONS, GEAR_ICONS, itemIcon, gearIcon , setGearArt, setElderArt, elderPic } from './icons.js';
+import { SKILL_ICONS, MENU_ICONS, ATTR_ICONS, TEMPER_ICONS, GEAR_ICONS, STAT_ICONS, TOOL_ICONS, itemIcon, gearIcon , setGearArt, setElderArt, elderPic } from './icons.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pct = (v) => `${Math.round(v * 100)}%`;
 const NUMERAL = ['', 'I', 'II', 'III', 'IV', 'V'];
-const SLOT_NAME = Object.fromEntries(GEAR_SLOTS);
+const SLOT_NAME = SLOT_KINDS;          // a base's kind of slot, by name (content/gear.js)
+// How a stat is named on a piece of gear: short, so two fit side by side in the pane. (The character sheet spells them out.)
+const STAT_SHORT = {
+  might: 'Might', grace: 'Grace', vigor: 'Vigor', mind: 'Mind', attack: 'Attack', attackSpeed: 'Attack speed', crit: 'Crit chance', critDamage: 'Crit damage',
+  power: 'Technique', maxHp: 'Health', maxFocus: 'Focus', defense: 'Armor', hpRegen: 'Health regen', focusRegen: 'Focus regen', speed: 'Move speed', dodge: 'Dodge',
+  find: 'Glint found', lifeOnKill: 'Life on kill',
+};
+const statIcon = (stat) => STAT_ICONS[stat] || (ATTR_ICONS[stat] ? ATTR_ICONS[stat].replace('<svg ', '<svg class="ico" ') : '');
+/** One row of an item's card: a mark for the stat, how much, and its name. */
+const statRow = (stat, v, bad) => `<li>${statIcon(stat)}<b class="${bad ? 'c-bad' : 'c-good'}">${v}</b><span>${STAT_SHORT[stat] || stat}</span></li>`;
 const art = (name) => `./static/art/${name}.webp`;
 
 export const TABS = [
@@ -183,6 +193,8 @@ export class Panels {
     for (const t of this.el.querySelectorAll(`[data-ctx="${ctx}"][data-key]`)) t.setAttribute('aria-pressed', String(t.dataset.key === key));
     const pane = this.el.querySelector(`.detail[data-for="${ctx}"]`);
     if (pane) pane.innerHTML = this.detail(ctx);
+    // (a phone's window scrolls: what was picked is brought into sight, with the buttons that act on it)
+    if (pane && document.body.classList.contains('compact') && pane.scrollIntoView) pane.scrollIntoView({ block: 'nearest' });
   }
 
   act(name, arg, el) {
@@ -197,8 +209,14 @@ export class Panels {
     else if (name === 'feedall') { for (let i = g.loot.count(arg); i > 0 && g.companion.feed(arg); i--); }
     else if (name === 'equip') {
       const it = s.gear.find((x) => x.uid === +arg);
-      if (g.loot.equip(+arg) && it) this.picked.gear = 'worn:' + baseOf(it).slot;        // the selection follows the piece onto the hero
+      const slot = g.loot.equip(+arg);
+      if (slot && it) this.picked.gear = 'worn:' + slot;        // the selection follows the piece onto the hero
     }
+    else if (name === 'unequip') { if (g.loot.unequip(arg)) { const it = s.gear[s.gear.length - 1]; if (it) this.picked.gear = 'gear:' + it.uid; } }
+    else if (name === 'salvage') g.loot.salvage(+arg);
+    else if (name === 'salvagespare') g.loot.salvageSpare();
+    else if (name === 'lock') g.loot.lock(+arg);
+    else if (name === 'hone') g.loot.hone(arg);
     else if (name === 'sellgear') g.loot.sellGear(+arg);
     else if (name === 'buygear') g.loot.buyGear(+arg);
     else if (name === 'sell') g.loot.sell(arg, 1);
@@ -269,11 +287,17 @@ export class Panels {
   }
   heroFigure() { return this.stage('hero', 'Your surveyor.'); }
 
-  /** A tile for a piece of gear: a drawing of what kind of thing it is, bordered in its rarity's colour. */
+  /**
+   * A tile for a piece of gear: a drawing of what kind of thing it is, bordered in its rarity's colour. A carried piece
+   * also says, in a corner, whether it is plainly better or worse than what is worn (an arrow), and whether it is locked.
+   */
   gearTile(item, ctx, key) {
-    const d = describe(item), R = rarityOf(item), cannot = !canUse(this.game.player.sheet.cls, item);
-    return `<button type="button" class="tile${cannot ? ' cannot' : ''}" style="--rc:${R.color}" data-act="pick" data-ctx="${ctx}" data-key="${key}" aria-pressed="${this.picked[ctx] === key}"
-      aria-label="${esc(d.name)}, ${R.name} ${d.slot}, level ${d.ilvl}${cannot ? ', not for your class' : ''}" data-tip="${esc(d.name)} · ${R.name} ${d.slot} · level ${d.ilvl}">${gearIcon(baseOf(item))}<span class="lv">${d.ilvl}</span></button>`;
+    const s = this.game.player.sheet, d = describe(item), R = rarityOf(item), cannot = !canUse(s.cls, item);
+    // (a prime or a relic is never marked down: what its power is worth is not in the numbers)
+    const v = (key.startsWith('gear:') || key.startsWith('stock:')) && !cannot ? compare(s, item).verdict : 0, mark = v > 0 ? 'up' : v < 0 && item.rarity < 3 ? 'down' : '';
+    const says = `${esc(d.name)} · ${R.name} ${d.slot} · level ${d.ilvl}${mark === 'up' ? ' · better than what you wear' : mark === 'down' ? ' · no better than what you wear' : ''}${item.lock ? ' · locked' : ''}`;
+    return `<button type="button" class="tile${cannot ? ' cannot' : ''}${item.relic ? ' relic' : ''}" style="--rc:${R.color}" data-act="pick" data-ctx="${ctx}" data-key="${key}" aria-pressed="${this.picked[ctx] === key}"
+      aria-label="${says.replace(/ · /g, ', ')}${cannot ? ', not for your class' : ''}" data-tip="${says}">${gearIcon(baseOf(item))}${mark ? `<i class="mark ${mark}" aria-hidden="true"></i>` : ''}${item.lock ? '<i class="mark lock" aria-hidden="true"></i>' : ''}<span class="lv">${d.ilvl}</span></button>`;
   }
   /** A tile for a stack in the bag. */
   bagTile(b, ctx, key) {
@@ -288,19 +312,56 @@ export class Panels {
     return f ? TEMPERS.filter((t) => f[t.id]).map((t) => `<b class="${t.cls}">+${f[t.id]} ${t.name}</b>`).join(' · ') : '';
   }
 
-  /** A piece of gear in a detail pane: what it is, every line it gives, and the piece it would replace. */
-  gearDetail(item, foot, worn = false) {
-    const g = this.game, s = g.player.sheet, d = describe(item), R = rarityOf(item), b = baseOf(item);
-    const cannot = !canUse(s.cls, item), now = !worn && s.equip[b.slot];
-    const versus = now ? (() => { const w = describe(now); return `<div class="versus"><small>Worn now</small><strong style="color:${w.color}">${esc(w.name)}</strong><small>${[...w.implicit, ...w.affixes].map(line).join(' · ')}</small></div>`; })() : '';
-    return `<div class="detail-head"><span class="tile" style="--rc:${R.color}">${gearIcon(b)}</span>
+  /**
+   * The body of an item's card, in sections under a ruled line each: what it is (with its level in a badge), a relic's
+   * power, what it gives (a row a stat, with a mark), a talent it lends, and, when asked, what wearing it would change.
+   */
+  itemCard(item, versus = '') {
+    const s = this.game.player.sheet, d = describe(item), R = rarityOf(item), b = baseOf(item);
+    return `<div class="detail-head"><span class="tile${item.relic ? ' relic' : ''}" style="--rc:${R.color}">${gearIcon(b)}</span>
         <div><strong class="name" style="color:${d.color}">${esc(d.name)}</strong>
-        <small><span style="color:${d.color}">${d.rarity}</span> ${SLOT_NAME[d.slot].toLowerCase()}${d.family ? ` · ${FAMILIES[d.family].name}` : ''} · Level <b class="c-num">${d.ilvl}</b></small></div></div>
-      <ul class="lines">${[...d.implicit, ...d.affixes].map((t) => `<li>${line(t)}</li>`).join('')}</ul>
-      ${d.power ? `<p class="power">${esc(d.power)}</p>` : ''}
-      ${cannot ? '<p class="c-bad">Not for your class.</p>' : ''}
-      ${versus}
+        <small><span style="color:${d.color}">${d.rarity}</span> ${SLOT_NAME[d.slot].toLowerCase()}${d.family ? ` · ${FAMILIES[d.family].name}` : ''}${item.relic ? ` · ${esc(d.base)}` : ''}</small></div>
+        <span class="lv-badge" aria-label="Level ${d.ilvl}"><small>Level</small><b>${d.ilvl}</b></span></div>
+      ${d.relic ? `<section class="item-sec relic-power"><h4 class="sec-label">${TOOL_ICONS.relic}Relic power</h4><p>${esc(d.relic)}</p></section>` : ''}
+      <section class="item-sec"><h4 class="sec-label">Gives</h4><ul class="stat-rows">${d.rows.map((r) => statRow(r.stat, r.v, r.bad)).join('')}</ul></section>
+      ${d.lends ? `<section class="item-sec lends"><h4 class="sec-label">${TOOL_ICONS.lend}Lends a talent</h4><p><b class="c-key">${esc(d.lends.name)}${d.lends.ranks > 1 ? ` +${d.lends.ranks}` : ''}</b> ${esc(d.lends.desc)}</p></section>` : ''}
+      ${!canUse(s.cls, item) ? `<p class="item-note c-bad">${TOOL_ICONS.warn}Not for your class.</p>` : ''}
+      ${versus}`;
+  }
+
+  /** A piece of gear in a detail pane: its card, what wearing it would change, and under them what can be done with it. */
+  gearDetail(item, foot, worn = false) {
+    const s = this.game.player.sheet, b = baseOf(item);
+    const now = !worn && s.equip[b.slot];
+    let versus = '';
+    if (!worn && canUse(s.cls, item)) {
+      // not the two pieces line by line, but what the surveyor's own numbers would do (the six that matter most, in order)
+      const c = compare(s, item), amount = (l) => `${l.up ? '+' : '−'}${Math.abs(l.by) >= 10 || l.pct ? Math.round(Math.abs(l.by)) : Math.round(Math.abs(l.by) * 10) / 10}${l.pct ? '%' : ''}`;
+      const shown = c.lines.length > 6 ? c.lines.slice(0, 5) : c.lines, more = c.lines.length - shown.length;        // (six cells: the sixth says how many are left out)
+      const lost = now && now.relic ? `You lose ${esc(describe(now).name)}’s power.` : now && now.power ? 'You lose the talent it lends.' : '';
+      versus = `<section class="item-sec versus"><h4 class="sec-label">${TOOL_ICONS.swap}If worn${now ? ` <span class="quiet">in place of <b style="color:${describe(now).color}">${esc(describe(now).name)}</b></span>` : ''}</h4>
+        ${shown.length ? `<ul class="stat-rows">${shown.map((l) => statRow(l.stat, amount(l), !l.up)).join('')}${more > 0 ? `<li class="more quiet">and ${more} more</li>` : ''}</ul>` : '<p class="quiet">No change to your numbers.</p>'}
+        ${lost ? `<p class="item-note c-bad">${TOOL_ICONS.warn}${lost}</p>` : ''}</section>`;
+    }
+    // (the words may scroll if a window is very short; what can be done with the piece stays in reach under them)
+    return `<div class="detail-body item-card">${this.itemCard(item, versus)}</div>
       <div class="detail-foot">${foot}</div>`;
+  }
+
+  /** What can be done to a piece from the Gear tab: hone it (with what that costs), lock it, take it apart. key: 'worn:<slot>' or 'gear:<uid>'. */
+  gearTools(item, key) {
+    const s = this.game.player.sheet, worn = key.startsWith('worn:'), c = honeCost(item), bar = honeBar(s, item);
+    const hone = `<div class="hone-row"><span class="hone-to">${bar ? `<span class="quiet">${esc(bar)}</span>` : `Hone to <b class="c-num">${item.ilvl + 1}</b><span class="cost">${TOOL_ICONS.parts}<b class="c-parts">${c.parts}</b></span><span class="cost coin"><b class="c-coin">${c.glint}</b></span>`}</span>
+      <button type="button" class="btn small" data-act="hone" data-arg="${key}" ${bar ? 'disabled' : ''} aria-label="Hone to level ${item.ilvl + 1} for ${c.parts} parts and ${c.glint} glint" data-tip="${esc(bar || `Raises it to level ${item.ilvl + 1}, as if it had dropped a level higher: ${c.parts} parts and ${c.glint} glint.`)}">${TOOL_ICONS.hone}Hone</button></div>`;
+    if (worn) {
+      const slot = key.slice(5), full = s.gear.length >= BAG_GEAR;
+      return `<div class="gear-tools">${hone}<div class="tool-row worn-row"><span class="tag">Worn</span>${slot === 'weapon' ? '' : `<button type="button" class="btn small" data-act="unequip" data-arg="${slot}" ${full ? 'disabled' : ''} data-tip="${full ? 'Your pack is full.' : 'Takes it off, into your pack.'}">${TOOL_ICONS.swap}Take off</button>`}</div></div>`;
+    }
+    const n = salvageYield(item);
+    return `<div class="gear-tools">${hone}<div class="tool-row">
+      <button type="button" class="btn small" data-act="lock" data-arg="${item.uid}" aria-pressed="${!!item.lock}" aria-label="${item.lock ? 'Locked. Unlock it' : 'Lock it'}" data-tip="${item.lock ? 'Locked: it cannot be salvaged or sold. Press to let it go.' : 'Lock it, so it is never salvaged or sold by mistake.'}">${item.lock ? TOOL_ICONS.lock : TOOL_ICONS.open}${item.lock ? 'Locked' : 'Lock'}</button>
+      <button type="button" class="btn small" data-act="salvage" data-arg="${item.uid}" ${item.lock ? 'disabled' : ''} aria-label="Salvage for ${n} parts" data-tip="${item.lock ? 'Locked. Unlock it first.' : `Takes it apart for ${n} parts. Parts hone the pieces you keep.`}">${TOOL_ICONS.parts}Salvage <b class="c-parts">+${n}</b></button>
+      <button type="button" class="btn primary" data-act="equip" data-arg="${item.uid}" ${canUse(s.cls, item) ? '' : 'disabled'}>Equip</button></div></div>`;
   }
 
   /** The detail pane of a grid: whatever is selected there, with the button that acts on it. */
@@ -319,12 +380,12 @@ export class Panels {
       if (first) first.setAttribute('aria-pressed', 'true');
     }
     if (!it) return `<p class="quiet">${ctx === 'food' ? 'Nothing to feed it. It eats what creatures drop.' : ctx === 'shop' ? 'Select a piece to see it.' : 'Nothing carried yet. Creatures, pods and contracts pay in gear.'}</p>`;
-    if (kind === 'worn') return this.gearDetail(it, `<span class="coin">Worth ${describe(it).value}</span><span class="tag">Worn</span>`, true);
+    if (kind === 'worn') return this.gearDetail(it, ctx === 'gear' ? this.gearTools(it, key) : '<span class="tag">Worn</span>', true);
     if (kind === 'gear') {
       const v = describe(it).value;
       return this.gearDetail(it, ctx === 'shop'
-        ? `<span class="quiet">Yours</span><button type="button" class="btn primary" data-act="sellgear" data-arg="${it.uid}">Sell · ${v}</button>`
-        : `<span class="coin">Sells for ${v}</span><button type="button" class="btn primary" data-act="equip" data-arg="${it.uid}" ${canUse(s.cls, it) ? '' : 'disabled'}>Equip</button>`);
+        ? `<span class="quiet">${it.lock ? 'Locked: unlock it in the Gear tab' : 'Yours'}</span><button type="button" class="btn primary" data-act="sellgear" data-arg="${it.uid}" ${it.lock ? 'disabled' : ''}>Sell · ${v}</button>`
+        : this.gearTools(it, key));
     }
     if (kind === 'stock') {
       const price = itemPrice(it), full = s.gear.length >= BAG_GEAR;
@@ -349,11 +410,7 @@ export class Panels {
 
   /** One piece of gear as a card (the contract report's prize). */
   gearCard(item) {
-    const d = describe(item);
-    return `<div class="gear"><strong style="color:${d.color}">${esc(d.name)}</strong>
-      <small><span style="color:${d.color}">${d.rarity}</span> ${d.slot} · Level <b class="c-num">${d.ilvl}</b></small>
-      <small class="line">${[...d.implicit, ...d.affixes].map(line).join(' · ')}</small>
-      ${d.power ? `<small class="power">${esc(d.power)}</small>` : ''}</div>`;
+    return `<div class="gear item-card">${this.itemCard(item)}</div>`;
   }
 
   // ------------------------------------------------------------ the menu's tabs
@@ -402,19 +459,28 @@ export class Panels {
 
   gear() {
     const s = this.game.player.sheet;
-    const worn = GEAR_SLOTS.map(([slot, name]) => {
-      const it = s.equip[slot];
-      if (!it) return `<div class="worn-tile empty"><span class="worn-icon">${GEAR_ICONS[slot === 'weapon' ? CLASSES[s.cls].family : slot]}</span><span class="worn-words"><small>${name}</small><strong>Empty</strong></span></div>`;
+    // the ten slots round the figure, as on a paper doll: what is held and carried down one side, what is worn down the other
+    const worn = GEAR_SLOTS.map(([slot, name], i) => {
+      const it = s.equip[slot], kind = slot.replace(/\d$/, ''), at = `grid-column:${i < 5 ? 1 : 3};grid-row:${(i % 5) + 2}`;
+      if (!it) return `<div class="worn-tile empty" style="${at}" data-tip="${name}: empty" aria-label="${name}: empty"><span class="worn-icon">${GEAR_ICONS[kind === 'weapon' || kind === 'offhand' ? CLASSES[s.cls].family : kind] || ''}</span><small>${name}</small></div>`;
       const d = describe(it);
-      return `<button type="button" class="worn-tile" style="--rc:${d.color}" data-act="pick" data-ctx="gear" data-key="worn:${slot}" aria-pressed="${this.picked.gear === 'worn:' + slot}"
-        aria-label="${name}: ${esc(d.name)}, ${d.rarity}" data-tip="${name} · ${esc(d.name)}"><span class="worn-icon">${gearIcon(baseOf(it))}</span><span class="worn-words"><small>${name}</small><strong style="color:${d.color}">${esc(d.name)}</strong></span></button>`;
+      return `<button type="button" class="worn-tile${it.relic ? ' relic' : ''}" style="--rc:${d.color};${at}" data-act="pick" data-ctx="gear" data-key="worn:${slot}" aria-pressed="${this.picked.gear === 'worn:' + slot}"
+        aria-label="${name}: ${esc(d.name)}, ${d.rarity}, level ${d.ilvl}" data-tip="${name} · ${esc(d.name)} · level ${d.ilvl}"><span class="worn-icon">${gearIcon(baseOf(it))}</span><span class="lv">${d.ilvl}</span></button>`;
     }).join('');
-    const carried = s.gear.map((it) => this.gearTile(it, 'gear', 'gear:' + it.uid)).join('') + this.blanks(BAG_GEAR - s.gear.length);
+    // in order: by slot, then the rarer first, then the higher level (the tiles are found by the piece's own number, so order is free)
+    const order = { weapon: 0, offhand: 1, unit: 2, mod: 3, visor: 4, frame: 5, grips: 6, greaves: 7, boots: 8 };
+    const sorted = [...s.gear].sort((x, y) => order[baseOf(x).slot] - order[baseOf(y).slot] || y.rarity - x.rarity || y.ilvl - x.ilvl || x.uid - y.uid);
+    const carried = sorted.map((it) => this.gearTile(it, 'gear', 'gear:' + it.uid)).join('') + this.blanks(BAG_GEAR - s.gear.length);
+    const spare = this.game.loot.spare();
+    const spareParts = spare.reduce((n, it) => n + salvageYield(it), 0);
     const bag = s.bag.map((b) => this.bagTile(b, 'gear', 'bag:' + b.id)).join('') + this.blanks(Math.max(0, 10 - s.bag.length));
     const html = `<div class="gearview">
-      <section class="gear-worn" aria-label="Worn">${this.heroFigure()}<div class="worn-col"><h3 class="label">Worn</h3>${worn}</div></section>
+      <section class="gear-worn doll" aria-label="Worn"><h3 class="label">Worn</h3>${this.heroFigure()}${worn}</section>
       <div class="gear-grids">
-        <section><h3 class="label">Carried <span class="quiet">${s.gear.length} of ${BAG_GEAR}</span></h3><div class="tiles">${carried}</div></section>
+        <section><div class="carried-head"><h3 class="label">Carried <span class="quiet">${s.gear.length} of ${BAG_GEAR}</span></h3>
+          <span class="parts" data-tip="Parts: what salvaged gear comes apart into. Honing a piece spends them.">Parts <b class="c-parts">${s.parts || 0}</b></span>
+          <button type="button" class="btn small" data-act="salvagespare" ${spare.length ? '' : 'disabled'} data-tip="${spare.length ? `Takes apart the ${spare.length} standard and tuned ${spare.length === 1 ? 'piece' : 'pieces'} that are not plainly better than what you wear, for ${spareParts} parts. Locked pieces are left alone.` : 'Nothing spare: every standard or tuned piece is locked, or better than what you wear.'}">Salvage spare${spare.length ? ` <b class="c-num">${spare.length}</b>` : ''}</button></div>
+          <div class="tiles">${carried}</div></section>
         <section><h3 class="label">Supplies and materials</h3><div class="tiles">${bag}</div></section>
       </div>
       <aside class="detail" data-for="gear" aria-label="Selected" aria-live="polite"></aside>
@@ -512,13 +578,30 @@ export class Panels {
         ${T.rank ? `<div class="threat-head"><h3 class="label">This time</h3>${this.threatRow(o, true)}</div>${T.list.length ? `<ul class="conds">${T.list.map((c) => `<li><b>${esc(c.name)}</b>${esc(c.text)}</li>`).join('')}</ul>` : ''}` : ''}
         ${boon}
         <div class="contract-pay"><h3 class="label">Pays</h3>
-          <div class="stats pay"><div><span>Experience</span><b class="c-xp">${o.xp}</b></div><div><span>Glint</span><b class="c-coin">${o.glint}</b></div>${a ? `<div><span>Time</span><b>${time}</b></div><div><span>Felled</span><b class="c-foe">${a.kills}</b></div>` : '<div><span>Also</span><b>Gear</b></div>'}</div>
+          <div class="stats pay"><div><span>Experience</span><b class="c-xp">${o.xp}</b></div><div><span>Glint</span><b class="c-coin">${o.glint}</b></div>${a ? `<div><span>Time</span><b>${time}</b></div><div><span>Felled</span><b class="c-foe">${a.kills}</b></div>` : this.alsoPays(o)}</div>
           ${a ? '' : '<button type="button" class="btn" data-act="abandon">Hand it back</button>'}</div>
       </section>
       ${elder ? `<aside class="contract-elder" aria-label="The elder">${this.stage('elder:' + B.boss, esc(elder.name) + '.')}
         <div class="who-card"><strong class="c-foe">${esc(elder.name)}</strong><small>${esc(elder.epithet || 'An elder')}</small>
-          <div class="who-level"><span class="quiet">${a ? 'Holds the last island' : 'Waits on the last island'}</span><span class="${a && a.done ? 'c-good' : 'c-foe'}">${a && a.done ? 'Down' : 'Standing'}</span></div></div></aside>` : ''}
+          <div class="who-level"><span class="quiet">${a ? 'Holds the last island' : 'Waits on the last island'}</span><span class="${a && a.done ? 'c-good' : 'c-foe'}">${a && a.done ? 'Down' : 'Standing'}</span></div>
+          ${this.relicRow(B.boss, o)}</div></aside>` : ''}
     </div>`;
+  }
+
+  /** The fourth thing a contract pays: gear, and on a hunt the chance that the elder leaves one of its relics. */
+  alsoPays(o) {
+    const B = biomeById(o.biome), s = this.game.player.sheet;
+    if (o.goal !== 'hunt' || !B.boss || !relicsOf(B.boss).length || o.first) return '<div><span>Also</span><b>Gear</b></div>';
+    const chance = Math.round(relicChance(o.threat || 0, s.relicDry || 0) * 100);
+    return `<div data-tip="The chance its elder leaves a relic. It rises with the place’s threat, and after every elder that leaves none."><span>Relic chance</span><b class="c-relic">${chance}%</b></div>`;
+  }
+
+  /** The relics an elder carries, by name: found ones marked, each saying what it does when pointed at or pressed. */
+  relicRow(elder, o) {
+    const s = this.game.player.sheet, list = relicsOf(elder);
+    if (!list.length || (o && o.first)) return '';
+    return `<div class="relic-row"><span class="label">Carries</span>${list.map((r) => `<button type="button" class="chip relic-chip${s.relics && s.relics[r.id] ? ' found' : ''}" data-act="note"
+      data-tip="${esc(r.name)} (${SLOT_NAME[r.slot].toLowerCase()})${s.relics && s.relics[r.id] ? ', found' : ''}: ${esc(r.text)}" title="${esc(r.text)}">${esc(r.name)}</button>`).join('')}</div>`;
   }
 
   /** The controls, in three short columns. */
@@ -535,7 +618,7 @@ export class Panels {
     ];
     const note = (title, text) => `<div class="card"><strong>${title}</strong><small>${text}</small></div>`;
     return `<div class="guideview"><div class="guide-cols">${cols.join('')}</div>
-      <div class="guide-notes">${note('Loot', 'Walk over it to pick it up.')}${note('Supply pods', 'They open once their island is quiet.')}${note('Threat', 'A place is harder each time you go back, and pays more. Lose there and it eases.')}${note('Side islands', 'Marks pay extra. A beacon maps the rest. A crystal lends a boon.')}${note('Your lumen', 'Feed it what creatures drop. What it eats decides its shape.')}</div></div>`;
+      <div class="guide-notes">${note('Loot', 'Walk over it. Pods open once their island is quiet.')}${note('Relics and parts', 'Elders carry relics, likelier at higher threat. Salvage spare gear for parts and hone what you keep.')}${note('Threat', 'A place is harder each time you go back, and pays more. Lose there and it eases.')}${note('Side islands', 'Marks pay extra. A beacon maps the rest. A crystal lends a boon.')}${note('Your lumen', 'Feed it what creatures drop. What it eats decides its shape.')}</div></div>`;
   }
 
   // ------------------------------------------------------------ the two windows opened by talking
@@ -559,7 +642,7 @@ export class Panels {
         <section><h3 class="label">Made from materials</h3>${made}</section>
       </div>
       <div class="shop-grids">
-        <section><h3 class="label">For sale</h3><div class="tiles">${g.missions.stock.map((it, i) => this.gearTile(it, 'shop', 'stock:' + i)).join('')}${this.blanks(5 - g.missions.stock.length)}</div></section>
+        <section><h3 class="label">For sale</h3><div class="tiles">${g.missions.stock.map((it, i) => this.gearTile(it, 'shop', 'stock:' + i)).join('')}${this.blanks(8 - g.missions.stock.length)}</div></section>
         <section><h3 class="label">Your gear <span class="quiet">${s.gear.length} of ${BAG_GEAR}</span></h3><div class="tiles">${s.gear.map((it) => this.gearTile(it, 'shop', 'gear:' + it.uid)).join('')}${this.blanks(BAG_GEAR - s.gear.length)}</div></section>
         <section><h3 class="label">Your bag <button type="button" class="btn small" data-act="sellmats" ${mats ? '' : 'disabled'}>Sell all materials · ${mats}</button></h3><div class="tiles">${s.bag.map((b) => this.bagTile(b, 'shop', 'bag:' + b.id)).join('')}${this.blanks(Math.max(0, 10 - s.bag.length))}</div></section>
       </div>
@@ -580,7 +663,7 @@ export class Panels {
           <small><b class="c-goal-${o.goal}">${GOALS[o.goal].name}</b>${elder ? `: <b class="c-foe">${esc(elder.name)}</b>` : ''}</small>
           ${elder && elderPic(B.boss) ? `<img class="elder-chip" src="${elderPic(B.boss)}" alt="" />` : ''}</div>
         ${this.threatRow(o)}
-        <div class="stats pay"><div><span>Experience</span><b class="c-xp">${o.xp}</b></div><div><span>Glint</span><b class="c-coin">${o.glint}</b></div><div><span>Islands</span><b>${o.rooms}</b></div><div><span>Also</span><b>Gear</b></div></div>
+        <div class="stats pay"><div><span>Experience</span><b class="c-xp">${o.xp}</b></div><div><span>Glint</span><b class="c-coin">${o.glint}</b></div><div><span>Islands</span><b>${o.rooms}</b></div>${this.alsoPays(o)}</div>
         ${taken === o ? '<button type="button" class="btn" data-act="abandon">Hand it back</button>' : `<button type="button" class="btn${taken ? '' : ' primary'}" data-act="accept" data-arg="${i}" aria-label="Take ${esc(o.name)}">Take it</button>`}</div>`;
     };
     return `<div class="boardview">${ms.offers.map(card).join('')}</div>`;

@@ -2,6 +2,7 @@
 // the ones a figure carries and wears (glsl/held.js), so a tile always shows the
 // very thing that is in the hand, on the shoulders or on the back.
 //   eExtra   the piece: 0..5 what is held (kit * 2 + look), 6..7 a frame (look 0, 1), 8..9 a unit (look 1, 2)
+//            10.. the newer pieces, 10 + wornMap's piece (glsl/held.js): an off-hand, a visor, grips, greaves, boots, a mod
 //   eSpare   the people of whoever will wear it (a frame is drawn as their own clothes: 0 the scout unit's shell)
 // Pencils: A what the wearer wears, B their accent.
 
@@ -36,6 +37,11 @@ float entMap(vec3 p, out float mat) {
     mat = lit < solid ? 1.0 : 0.0;
     return min(solid, lit);
   }
+  if (gPiece > 9.5) {
+    float lit, solid = wornMap(p, gPiece - 10.0, lit);
+    mat = lit < solid ? 9.0 : 8.0;
+    return min(solid, lit);
+  }
   if (gPiece < 7.5) {
     // a frame: the wearer's own top (a body, two short sleeves, a collar), and over it whatever the frame adds
     float body = sdTaper(p, vec3(0.0, -0.2, 0.0), vec3(0.0, 0.07, 0.0), 0.168, 0.15);
@@ -58,6 +64,7 @@ void entSurf(vec3 p, float mat, inout Surf s) {
   int m = int(mat + 0.5);
   if (m < 2) { heldSurf(gKit, gLook, m == 1, s); return; }
   if (m == 5) { frameSurf(p - vec3(0.0, 0.03, 0.0), 1.0, s); return; }
+  if (m > 7) { wornSurf(p, gPiece - 10.0, m == 9, s); return; }
   if (m > 5) { unitSurf(vec3(p.x, p.y, -p.z), gPiece - 7.0, m == 7, s); return; }
   bool shell = eSpare < 0.5;
   if (m == 3) { s.albedo = eColB; s.cover = 0.86; return; }

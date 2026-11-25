@@ -20,6 +20,7 @@ ${HELD_GLSL}
 vec3 hHip, hChest, hHead, hHandL, hHandR, hFootL, hFootR, hBlade, hSide;
 float kind;      // which people this figure is of (eExtra): 0 scout unit, 1 human, 2 veiled, 3 karn, 4 lynd
 float hKit, hLook, hFrame, hUnit;      // what is in the hand and which of its shapes; the frame worn; the unit on the back
+float hOff, hGrip, hBoot;              // the off-hand (0 none, 1 ward, 2 cell, 3 lens), the grips and the boots worn (0 none, then look + 1)
 
 void entPose() {
   float w = ePose.x, act = ePose.y, at = ePose.z, mv = ePose.w;
@@ -29,6 +30,9 @@ void entPose() {
   float kf = fract(eSpare + 0.01), wr = eExtra - kind;
   hKit = floor(eSpare + 0.01); hLook = step(0.5, kf);
   hFrame = floor(wr * 10.0 + 0.05); hUnit = floor((wr - hFrame * 0.1) * 100.0 + 0.5);
+  // eLook.w, past the hero and hover flags: in fours, the off-hand + 4 x (grips + 3 x boots) (systems/player.js)
+  float worn = floor(eLook.w / 4.0 + 0.01), rest = floor(worn / 4.0 + 0.01);
+  hOff = worn - rest * 4.0; hBoot = floor(rest / 3.0 + 0.01); hGrip = rest - hBoot * 3.0;
   float s = sin(w), c = cos(w);
   float idle = sin(uTime * 2.0 + eLook.x * 6.28);
   // Walk and run are two different cycles. A walk rises as the legs pass under the
@@ -125,6 +129,20 @@ void entPose() {
 }
 
 // How the peoples differ in build (kind: 0 scout unit, 1 human, 2 veiled, 3 karn, 4 lynd).
+// The off-hand's own space (glsl/held.js wornMap): a ward strapped to the outside of the left forearm, facing out and
+// forward; a cell clipped at the left hip; a lens held up over the left hand, bobbing a little. Returns the point, and
+// how much the shape was shrunk (a distance in it is multiplied by this).
+vec3 offLocal(vec3 p, float wide, out float k) {
+  k = 1.0;
+  if (hOff < 1.5) {
+    vec3 n = normalize(vec3(-0.78, 0.08, 0.62)), r = normalize(cross(vec3(0.0, 1.0, 0.0), n)), u = cross(n, r);
+    vec3 q = p - hHandL - vec3(-0.07, 0.07, 0.0);
+    return vec3(dot(q, r), dot(q, u), dot(q, n));
+  }
+  if (hOff < 2.5) { k = 0.8; return (p - hHip - vec3(-0.2 * wide, 0.03, 0.05)) / k; }
+  k = 0.75;
+  return (p - hHandL - vec3(-0.02, 0.21 + 0.02 * sin(uTime * 2.2 + eLook.x * 6.0), 0.07)) / k;
+}
 float kWide() { return kind > 2.5 && kind < 3.5 ? 1.36 : (kind > 1.5 && kind < 2.5 ? 0.86 : (kind > 3.5 ? 0.9 : 1.0)); }
 
 float entMap(vec3 p, out float mat) {
@@ -213,6 +231,8 @@ float entMap(vec3 p, out float mat) {
 
   // what is in the hand, the frame over the clothes, the unit on the back (glsl/held.js)
   heldMap(p, hHandR, hBlade, hSide, hKit, hLook, wood, glow);
+  float offLit = 1e3, off = 1e3;
+  if (hOff > 0.5) { float k; vec3 oq = offLocal(p, wide, k); off = wornMap(oq, hOff - 1.0, offLit) * k; offLit *= k; }
   float worn = frameMap(p - hChest, wide, hFrame);
   float packLit, pack = unitMap(p - hChest - vec3(0.0, 0.0, kind < 0.5 ? -0.275 : -0.2 * max(wide, 1.0)), hUnit, packLit);
 
@@ -265,6 +285,8 @@ float entMap(vec3 p, out float mat) {
   if (worn < d) { d = worn; mat = 15.0; }
   if (pack < d) { d = pack; mat = 16.0; }
   if (packLit < d) { d = packLit; mat = 17.0; }
+  if (off < d) { d = off; mat = 18.0; }
+  if (offLit < d) { d = offLit; mat = 19.0; }
   return d;
 }
 
@@ -300,8 +322,9 @@ void entSurf(vec3 p, float mat, inout Surf s) {
   bool unit = kind < 0.5, human = kind > 0.5 && kind < 1.5, veiled = kind > 1.5 && kind < 2.5, karn = kind > 2.5 && kind < 3.5, lynd = kind > 3.5;
   vec3 f = p - hHead;
   if (m == 12) {
-    // hands: a unit's are dark grips, the veiled wear gloves, a karn's are its hide
-    if (unit || veiled) { s.albedo = P_CHARCOAL; s.cover = 0.85; }
+    // hands: a unit's are dark grips, the veiled wear gloves, a karn's are its hide; grips worn over any of them
+    if (hGrip > 1.5) { s.albedo = P_SLATE; s.cover = 0.82; s.ink = penLine(dot(p - (length(p - hHandL) < length(p - hHandR) ? hHandL : hHandR), vec3(0.0, 1.0, 0.0)) + 0.02) * 0.7; }
+    else if (hGrip > 0.5 || unit || veiled) { s.albedo = P_CHARCOAL; s.cover = 0.85; }
     else if (karn) { s.albedo = eColC; s.cover = 0.74; }
     else skinTone(s);
   } else if (m == 0) {
@@ -405,7 +428,14 @@ void entSurf(vec3 p, float mat, inout Surf s) {
     }
   }
   else if (m == 4) {
-    if (unit) {
+    if (hBoot > 0.5 && !lynd) {
+      // boots worn: trail boots are leather with a pale sole; mag boots slate plate with a band of the accent
+      bool mag = hBoot > 1.5;
+      s.albedo = mag ? P_SLATE : P_UMBER; s.cover = mag ? 0.82 : 0.86;
+      if (p.y < 0.035) { s.albedo = mag ? P_CHARCOAL : P_CREAM; s.cover = mag ? 0.85 : 0.14; }
+      if (mag && abs(p.y - 0.085) < 0.016) { s.albedo = eColB; s.cover = 0.86; }
+      s.ink = max(penLine(p.y - 0.035), penLine(p.y - 0.13) * 0.7) * 0.8;
+    } else if (unit) {
       // armoured boots: white, a sole in the corps' colour, a line where the cuff ends
       s.albedo = P_SKY; s.cover = 0.12;
       if (p.y < 0.05) { s.albedo = eColA; s.cover = 0.86; }
@@ -483,6 +513,7 @@ void entSurf(vec3 p, float mat, inout Surf s) {
     s.cover = mix(s.cover, 0.12, max(tail, inner));
     s.ink = step(0.7, vnoise(vec2(p.y * 34.0, p.x * 18.0 + p.z * 18.0))) * 0.4 * (1.0 - inner);
   }
+  else if (m == 18 || m == 19) { float k; wornSurf(offLocal(p, kWide(), k), hOff - 1.0, m == 19, s); }
   else if (m == 15) frameSurf(p - hChest, kWide(), s);
   else if (m == 16 || m == 17) unitSurf(p - hChest - vec3(0.0, 0.0, unit ? -0.275 : -0.2 * max(kWide(), 1.0)), hUnit, m == 17, s);
   else heldSurf(hKit, hLook, true, s);          // the light of what is in the hand

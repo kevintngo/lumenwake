@@ -18,12 +18,13 @@
 
 import { CLASSES } from '../content/classes.js';
 import { PEOPLES } from '../content/peoples.js';
-import { BASES, RARITIES, AFFIXES } from '../content/gear.js';
+import { BASES, RARITIES, AFFIXES, SLOTS_OF } from '../content/gear.js';
 import { ITEMS } from '../content/items.js';
 import { TALENTS } from '../content/talents.js';
 import { LUMENS } from '../content/companions.js';
 import { biomeById } from '../content/themes.js';
 import { THREAT_MAX } from '../content/threat.js';
+import { RELICS, RELIC_RARITY } from '../content/relics.js';
 import { newPlayerSheet, BAG_GEAR } from '../sim/stats.js';
 import { issue } from '../sim/items.js';
 
@@ -36,13 +37,23 @@ const num = (v, lo, hi, or = lo) => (Number.isFinite(+v) ? Math.min(hi, Math.max
 const AFFIX_IDS = new Set(AFFIXES.map((a) => a.id));
 
 /** A piece of gear as the game knows gear, or null if it is not one. */
-function mendItem(it) {
+function mendPiece(it) {
   if (!it || typeof it !== 'object' || !BASES[it.base]) return null;
   return {
     uid: int(it.uid, 1, 2 ** 31, 1), base: it.base, rarity: int(it.rarity, 0, RARITIES.length - 1), ilvl: int(it.ilvl, 1, 999, 1),
     affixes: (Array.isArray(it.affixes) ? it.affixes : []).filter((a) => a && AFFIX_IDS.has(a.id) && Number.isFinite(+a.value)).map((a) => ({ id: a.id, value: +a.value })),
     power: it.power && TALENTS[it.power.id] ? { id: it.power.id, ranks: int(it.power.ranks, 1, 9, 1) } : null,
   };
+}
+/** A piece as kept: what mendPiece makes of it, and what only some pieces carry (a relic's power, a lock). */
+function mendItem(raw) {
+  const it = mendPiece(raw);
+  if (!it) return null;
+  const relic = raw.relic && RELICS[raw.relic] && RELICS[raw.relic].slot === BASES[it.base].slot ? raw.relic : null;
+  if (relic) { it.relic = relic; it.rarity = RELIC_RARITY; it.power = null; }
+  else if (it.rarity >= RELIC_RARITY) it.rarity = RELIC_RARITY - 1;        // (a relic's colour without a relic's power: a prime piece)
+  if (raw.lock) it.lock = true;
+  return it;
 }
 
 /** A surveyor's record put right: every field the game reads is there and is something it knows. Null if there is nothing to mend. */
@@ -59,10 +70,10 @@ export function mendHero(raw) {
   s.talents = {};
   for (const id in r.talents || {}) if (TALENTS[id]) s.talents[id] = int(r.talents[id], 0, TALENTS[id].max || 1, 0);
   for (const a in s.base) s.base[a] = int(r.base && r.base[a], 0, 999, s.base[a]);
-  s.gear = (Array.isArray(r.gear) ? r.gear : []).map(mendItem).filter(Boolean).slice(0, BAG_GEAR);
+  s.gear = (Array.isArray(r.gear) ? r.gear : []).map(mendItem).filter(Boolean).slice(0, BAG_GEAR + 10);        // (relics are carried over the limit)
   for (const slot of Object.keys(s.equip)) {
     const it = mendItem(r.equip && r.equip[slot]);
-    if (it && BASES[it.base].slot === slot && (!BASES[it.base].family || BASES[it.base].family === family)) s.equip[slot] = it;
+    if (it && SLOTS_OF(BASES[it.base].slot).includes(slot) && (!BASES[it.base].family || BASES[it.base].family === family)) s.equip[slot] = it;
     else if (r.equip && r.equip[slot] === null && slot !== 'weapon') s.equip[slot] = null;       // (taken off on purpose; a surveyor always has a weapon)
   }
   s.bag = (Array.isArray(r.bag) ? r.bag : []).filter((b) => b && ITEMS[b.id] && +b.n > 0).map((b) => ({ id: b.id, n: int(b.n, 1, 9999, 1) }));
@@ -71,6 +82,8 @@ export function mendHero(raw) {
   s.board = int(r.board, 0, 1e9, 0); s.missions = int(r.missions, 0, 1e9, 0);
   s.first = !!r.first && !s.missions;
   for (const id in r.threat || {}) if (biomeById(id) && biomeById(id).mission) s.threat[id] = int(r.threat[id], 0, THREAT_MAX, 0);
+  s.parts = int(r.parts, 0, 1e9, 0); s.relicDry = int(r.relicDry, 0, 99, 0);
+  for (const id in r.relics || {}) if (RELICS[id]) s.relics[id] = int(r.relics[id], 0, 1e6, 0);
   const id = typeof raw.id === 'string' && /^[a-z0-9]{4,24}$/.test(raw.id) ? raw.id : newId();
   return {
     id, version: VERSION, name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 24) : 'Surveyor',

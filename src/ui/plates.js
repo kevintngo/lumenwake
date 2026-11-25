@@ -32,7 +32,7 @@ export class Plates {
     this.watch = ['toast', 'log', 'target', 'tracker'].map((id) => document.getElementById(id));
 
     const bus = game.bus;
-    bus.on('damage', (d) => this.float(d.target, String(d.amount), d.target.kind === 'player' ? 'hurt' : d.crit ? 'crit' : ''));
+    bus.on('damage', (d) => this.float(d.target, String(d.amount), d.target.kind === 'player' ? 'hurt' : d.soft ? 'rot' : d.crit ? 'crit' : ''));
     bus.on('miss', (d) => this.float(d.target, d.text, 'miss'));
     bus.on('xp', (d) => { const p = game.player; this.floatAt(p.x, p.y + 2.5, p.z, `+${d.amount} xp`, 'xp'); });
     bus.on('heal', (d) => { if (!d.focus) this.floatAt(d.entity.x, d.entity.y + 2.1, d.entity.z, 'Mended', 'heal'); });

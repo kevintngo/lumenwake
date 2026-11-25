@@ -96,7 +96,8 @@ const SOUNDS = {
     }
   },
 
-  damage: spatial((k, { target, crit }) => {
+  damage: spatial((k, { target, crit, soft }) => {
+    if (soft) return;                 // (rot eating at something makes no sound of its own)
     const v = rand(0.92, 1.1);
     if (target && target.kind === 'player') {
       k.tone({ freq: 125 * v, to: 52, decay: 0.32, gain: 0.24 });
@@ -271,6 +272,7 @@ const SOUNDS = {
     k.noise({ freq: 2400, q: 1.5, attack: 0.002, at: 0.07, decay: 0.05, gain: 0.05 });
   },
   'drop:rare'(k, { rarity }) {
+    if (rarity >= 4) return;          // (a relic has its own figure when it is picked up)
     [0, 7, 12].concat(rarity >= 3 ? [16] : []).forEach((step, i) => k.bell(k.key(step, 67), { bus: 'chime', at: i * 0.1, decay: 1.5, gain: 0.06 }));
   },
 
@@ -363,6 +365,23 @@ const SOUNDS = {
 
   'ui:click'(k) {
     k.tone({ type: 'triangle', freq: 620, to: 480, glide: 0.03, attack: 0.002, decay: 0.07, gain: 0.06 });
+  },
+
+  // ---- relics, salvage and honing
+  'relic:ring'(k, { heavy }) {
+    k.tone({ freq: heavy ? 120 : 160, to: 70, attack: 0.005, decay: heavy ? 0.4 : 0.22, gain: heavy ? 0.11 : 0.07 });
+    k.bell(k.key(heavy ? 7 : 4, 62), { bus: 'chime', decay: 0.7, gain: 0.03 });
+  },
+  'relic:found'(k) {
+    [0, 4, 7, 11, 14].forEach((step, i) => k.bell(k.key(step, 62), { bus: 'chime', at: i * 0.13, decay: 2.0, gain: 0.055 }));
+  },
+  salvage(k) {
+    k.noise({ freq: 1800, to: 700, q: 1.6, attack: 0.002, decay: 0.09, gain: 0.05 });
+    k.bell(k.key(0, 74), { at: 0.05, decay: 0.3, gain: 0.04 });
+  },
+  hone(k) {
+    k.tone({ type: 'triangle', freq: 300, to: 520, glide: 0.18, attack: 0.01, decay: 0.2, gain: 0.07 });
+    [7, 12].forEach((step, i) => k.bell(k.key(step, 67), { bus: 'chime', at: 0.12 + i * 0.1, decay: 0.9, gain: 0.045 }));
   },
 
   trade(k) {

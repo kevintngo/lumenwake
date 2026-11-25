@@ -11,7 +11,8 @@ import { BOONS } from '../content/sites.js';
 import { newLumen, lumenMods } from './lumen.js';
 import { CLASSES } from '../content/classes.js';
 import { rank } from '../content/talents.js';
-import { itemMods, baseOf } from './items.js';
+import { itemMods, baseOf, targetSlot } from './items.js';
+import { GEAR_SLOTS } from '../content/gear.js';
 
 export const ATTRIBUTES = [
   { id: 'might', name: 'Might', hint: 'Hits harder.' },
@@ -22,7 +23,7 @@ export const ATTRIBUTES = [
 
 export const xpToNext = (level) => Math.round(36 * Math.pow(level, 1.55));
 export const POINTS_PER_LEVEL = 3;
-export const BAG_GEAR = 20;       // pieces of gear the hero can carry besides what is worn
+export const BAG_GEAR = 24;       // pieces of gear the hero can carry besides what is worn
 
 /** A new surveyor of a class: its attributes, an empty pack, the weapon it is issued (see sim/items.js). */
 export function newPlayerSheet(cls = 'vanguard') {
@@ -32,11 +33,14 @@ export function newPlayerSheet(cls = 'vanguard') {
     bonus: {},            // talent ranks lent by gear (filled by derive)
     base: { ...CLASSES[cls].attrs },
     gear: [],             // carried gear (item instances)
-    equip: { weapon: null, frame: null, unit: null },
+    equip: Object.fromEntries(GEAR_SLOTS.map(([slot]) => [slot, null])),       // the ten slots (content/gear.js)
     bag: [{ id: 'tonic', n: 3 }, { id: 'draught', n: 1 }, { id: 'wisp_ember', n: 2 }, { id: 'crag_shard', n: 2 }, { id: 'puff_spore', n: 2 }],       // (a first few things to feed the lumen)
     lumen: newLumen(),    // the light at the shoulder (content/companions.js)
     board: 0, missions: 0,
     threat: {},           // how each place answers being surveyed again: biome id -> rank (content/threat.js)
+    parts: 0,             // what salvaged gear comes apart into; honing spends it (sim/items.js)
+    relics: {},           // the relics found so far: id -> how many (content/relics.js)
+    relicDry: 0,          // elders felled since one last left a relic
   };
 }
 
@@ -95,6 +99,9 @@ export function derive(player) {
   };
   player.attr = a;
   player.stats = st;
+  // the relics worn (sim/systems/relics.js reads this)
+  player.relic = {};
+  for (const slot in s.equip) if (s.equip[slot] && s.equip[slot].relic) player.relic[s.equip[slot].relic] = true;
   player.level = L;
   // the names the rest of the rules read
   Object.assign(player, {
@@ -105,6 +112,34 @@ export function derive(player) {
   player.family = s.equip.weapon ? baseOf(s.equip.weapon).family : CLASSES[s.cls].family;
   player.hp = Math.min(player.hp ?? st.maxHp, st.maxHp);
   player.focus = Math.min(player.focus ?? st.maxFocus, st.maxFocus);
+}
+
+// The numbers a comparison is made in: how each reads, and how small a change is worth showing.
+const SHOWN = [
+  ['attack', 'Attack', 1, 0.1], ['attackSpeed', 'Attacks a second', 1, 0.01], ['crit', 'Critical chance', 100, 0.5], ['critDamage', 'Critical damage', 100, 0.5],
+  ['power', 'Technique power', 100, 0.5], ['maxHp', 'Health', 1, 1], ['defense', 'Armor', 1, 0.1], ['maxFocus', 'Focus', 1, 1], ['hpRegen', 'Health a second', 1, 0.05],
+  ['focusRegen', 'Focus a second', 1, 0.05], ['speed', 'Movement speed', 100, 0.5], ['dodge', 'Dodge', 100, 0.5], ['find', 'Glint found', 100, 0.5], ['lifeOnKill', 'Health on a kill', 1, 0.1],
+];
+/**
+ * What wearing `item` in place of what is in its slot would change. Returns { lines, verdict }: every derived number
+ * that moves ({ name, by, pct, up }), and 1 if the piece is plainly better (nothing lost, something gained), -1 if
+ * plainly worse, 0 if it is a trade. What a relic's power or a prime's lent talent is worth is not in the numbers.
+ */
+export function compare(sheet, item) {
+  const slot = targetSlot(sheet, item);
+  const stats = (equip) => { const pl = { sheet: { ...sheet, equip }, hp: 1e9, focus: 1e9 }; derive(pl); return pl.stats; };
+  const now = stats(sheet.equip), then = stats({ ...sheet.equip, [slot]: item });
+  const lines = [];
+  for (const [key, name, times, least] of SHOWN) {
+    const by = (then[key] - now[key]) * times;
+    if (Math.abs(by) >= least) lines.push({ stat: key, name, by, pct: times === 100, up: by > 0 });
+  }
+  const adept = sheet.cls === 'adept';
+  const hits = (s) => s.attack * s.attackSpeed * (1 + s.crit * (s.critDamage - 1)) * (adept ? s.power : Math.pow(s.power, 0.35));
+  const lasts = (s) => s.maxHp * (1 + s.defense / 30) / s.ward / (1 - s.dodge);
+  const a = hits(then) / hits(now), b = lasts(then) / lasts(now);
+  const verdict = a >= 0.995 && b >= 0.995 && (a > 1.01 || b > 1.01) ? 1 : a <= 1.005 && b <= 1.005 && (a < 0.99 || b < 0.99) ? -1 : 0;
+  return { lines, verdict };
 }
 
 export function scaleMonster(def, level, elite) {
