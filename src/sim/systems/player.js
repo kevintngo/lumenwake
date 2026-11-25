@@ -7,6 +7,7 @@ import { GAME, WORLD } from '../../config.js';
 import { damp, dampAngle } from '../../core/math.js';
 import { yawFromDir, dirFromYaw } from '../entities.js';
 import { FAMILIES } from '../../content/classes.js';
+import { BASES } from '../../content/gear.js';
 
 const SWING = 0.42, HIT_AT = 0.45;
 const CADENCE = 10.4;      // radians of stride a second: about 1.65 full cycles
@@ -37,8 +38,11 @@ export class PlayerSystem {
     p.attackCd -= dt;
     p.chainT = (p.chainT || 0) - dt;
     const fam = FAMILIES[p.family] || FAMILIES.blade, REACH = fam.range;
-    // what the picture needs to know: which weapon is in the hand, and which step of the chain it is on
-    p.kit = fam.kit + 0.2 * (p.action === 1 ? p.chain || 0 : 0);
+    // what the picture needs to know: which weapon is in the hand and which of its family's shapes it is, which
+    // step of the chain it is on, and what is worn: the frame, the unit on the back (gfx/glsl/held.js reads these)
+    const worn = p.sheet.equip || {}, look = (slot) => (worn[slot] && BASES[worn[slot].base] ? BASES[worn[slot].base].look || 0 : 0);
+    p.kit = fam.kit + 0.1 * (p.action === 1 ? p.chain || 0 : 0) + 0.5 * look('weapon');
+    p.extra = (p.build ?? Math.round(p.extra)) + 0.1 * look('frame') + 0.01 * look('unit');
 
     const wet = w.waterDepth(p.x, p.z) > 0.18;
     const speed = GAME.PLAYER_SPEED * (wet ? 0.62 : 1) * (p.speedMul || 1);

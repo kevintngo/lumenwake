@@ -66,6 +66,7 @@ export class Game {
     this.stop = 0;           // seconds the world is still held for a blow that landed (see hold)
     this.low = false;        // the hero's health is low
     this.paused = true;      // until the title screen is dismissed
+    this.halt = false;       // a menu is holding the game still (the pause menu, the tabbed menu): see frame()
     this.time = 0;
     this.saveTimer = 8;
 
@@ -149,14 +150,18 @@ export class Game {
     // While a blow is held, the world all but stops; the camera, the page and the interface do not.
     let dt = real;
     if (this.stop > 0) { this.stop -= real; dt = real * HOLD_RATE; }
+    // A menu that holds the game (ui/pause.js sets `halt`): the hands and the rules wait, and so do the clock,
+    // the dust and the director. The camera, the page and the interface below carry on, so the picture is still drawn.
+    const held = !!this.halt;
+    if (held) dt = 0;
     this.time += dt;
     const cine = this.cinema;
-    if (cine.blocking) this.controls.release(); else this.controls.update(dt);
-    const pace = cine.pace;
+    if (cine.blocking || held) this.controls.release(); else this.controls.update(dt);
+    const pace = held ? 0 : cine.pace;
     if (pace > 0) for (const s of this.sim) s.update(dt * pace);
-    this.tutorial.update(dt);
+    this.tutorial.update(dt);                        // (held: no time passes for it, but a step done inside a menu is still seen)
     this.fx.update(pace > 0 ? dt * pace : dt);      // dust still settles while the world is held; it slows when the world does
-    cine.update(real);
+    if (!held) cine.update(real);
     const w = this.world;        // (a system may have taken the hero to another zone)
     this.entities.sweep();
     this.bus.emit('frame', real);
@@ -220,7 +225,7 @@ export class Game {
   choosePeople(id) {
     const p = this.player, people = PEOPLES[id] || PEOPLES.human, cls = CLASSES[p.sheet.cls];
     p.sheet.people = id;
-    p.extra = people.index; p.scale = people.scale; p.height = 1.6 * people.scale;
+    p.build = p.extra = people.index; p.scale = people.scale; p.height = 1.6 * people.scale;      // (extra also carries what is worn: systems/player.js)
     p.seed = people.look ?? 0.62;          // one face for the hero, the same every visit
     // a unit's crest and scarf are in its class colour; the others wear the colour with a pale trim
     p.colors = pencils([cls.color, people.index === 0 ? cls.color : [236, 228, 210], people.hair[0]]);

@@ -29,7 +29,7 @@ export class Input {
     // or a panel or the title is up; only then are they kept from the game.
     const inUi = (e) => e.code !== 'Escape' && (
       (e.target instanceof Element && e.target.closest('button, a, [role="dialog"]')) ||
-      (e.code === 'Tab' && document.querySelector('#panels .panel, body.titled')));
+      (e.code === 'Tab' && document.querySelector('#panels .win, #pause:not([hidden]), body.titled')));
     addEventListener('keydown', (e) => {
       if (typing(e) || e.metaKey || e.ctrlKey || inUi(e)) return;
       if (!this.keys.has(e.code)) this.pressed.add(e.code);

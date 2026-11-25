@@ -1,7 +1,14 @@
 // Interface root: the always-on HUD (status, target, hotbar, minimap frame,
-// log, toasts), the title screen, and the two sub-modules for world plates and
-// panels. Reads game state each frame and listens to the event bus; the game
-// never calls into the UI.
+// log, toasts), the select screen, and the sub-modules for world plates, the
+// windows (panels.js), the pause menu (pause.js) and the settings behind it
+// (settings.js). Reads game state each frame and listens to the event bus; the
+// game never calls into the UI.
+//
+// What is open, and who has the keys: at most one window (the tabbed menu, the
+// shop or the board) and, over it, the pause menu. While any of them is up the
+// keys are theirs: a listener ahead of the game's own (see `keys` below) hands
+// each press to the top one and keeps it from the game. The pause menu and the
+// tabbed menu also hold the game still (`game.halt`).
 
 import { VIEWS } from '../config.js';
 import { xpToNext } from '../sim/stats.js';
@@ -20,16 +27,21 @@ import { SKILL_ICONS, MENU_ICONS, ACT_ICONS, itemIcon } from './icons.js';
 import { Plates } from './plates.js';
 import { Panels } from './panels.js';
 import { createStick, watchTouch } from './touch.js';
-import { createGuide } from './guide.js';
+import { createTutorUI } from './tutor.js';
 import { createCinemaUI } from './cinema.js';
+import { createSettings, boxOf } from './settings.js';
+import { createPause } from './pause.js';
 
 const $ = (id) => document.getElementById(id);
 const HOURS = [[5, 'Dawn'], [8, 'Morning'], [12, 'Midday'], [17, 'Afternoon'], [20, 'Dusk'], [24, 'Night']];
 
 export function createUI(game) {
   const bus = game.bus, p = game.player;
+  const store = createSettings(game);        // game.settings: read, and put into force, before anything is drawn
   const plates = new Plates(game, $('plates'), $('floaters'));
   const panels = new Panels(game, $('panels'));
+  const pause = createPause(game, store, { onChange: () => syncHold(), guide: () => panels.show('menu', 'guide') });
+  panels.onChange = () => syncHold();
   const el = {
     hpBar: $('hp-bar'), foBar: $('fo-bar'), xpBar: $('xp-bar'),
     lvl: $('lvl'), glint: $('glint'), hpFill: $('hp-fill'), hpText: $('hp-text'), foFill: $('fo-fill'), foText: $('fo-text'), xpFill: $('xp-fill'),
@@ -48,8 +60,8 @@ export function createUI(game) {
   const scale = (key, node, v) => { v = Math.max(0, Math.min(1, v)).toFixed(3); if (last[key] !== v) { last[key] = v; node.style.transform = `scaleX(${v})`; } };
 
   // ---- hotbar: four skills, then two drinks. On a touch screen the same buttons
-  // sit in an arc under the right thumb, joined by an attack button and a
-  // next-target button (the stylesheet does the moving).
+  // sit in an arc under the right thumb, joined by an attack button, a jump
+  // button and a next-target button (the stylesheet does the moving).
   const slots = [];
   for (let i = 0; i < 4; i++) slots.push(makeSlot('', String(i + 1), '', () => game.skills.cast(i), `s${i}`));
   // the bar shows the abilities of the class being played
@@ -57,7 +69,7 @@ export function createUI(game) {
     const b = slots[i].el, old = b.querySelector('svg');
     if (old) old.remove();
     b.insertAdjacentHTML('afterbegin', SKILL_ICONS[k.icon] || '');
-    b.title = k.name;
+    b.title = `${k.name} (${k.key})`;
     b.setAttribute('aria-label', `${k.name}, key ${k.key}`);
   });
   dressBar();
@@ -70,6 +82,7 @@ export function createUI(game) {
     return slot;
   });
   const act = makeSlot(ACT_ICONS.attack + ACT_ICONS.talk, 'F', 'Attack', () => game.controls.act(), 'act touch-only');
+  makeSlot(ACT_ICONS.jump, 'Space', 'Jump', () => { if (game.controls.jump) game.controls.jump(); }, 'jump touch-only');
   makeSlot(ACT_ICONS.next, 'Tab', 'Next target', () => game.controls.cycleTarget(), 'next touch-only');
   // held down, the attack button carries the fight on to the next creature
   act.el.addEventListener('pointerdown', (e) => {
@@ -80,7 +93,7 @@ export function createUI(game) {
 
   function makeSlot(icon, key, title, onClick, cls) {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = `slot ${cls}`; b.title = title;
+    b.type = 'button'; b.className = `slot ${cls}`; b.title = title ? `${title} (${key})` : '';
     b.setAttribute('aria-label', `${title}, key ${key}`);
     b.innerHTML = `${icon}<span class="cool"></span><span class="key">${key}</span>`;
     // A finger acts the moment it lands (and a second finger still counts while the
@@ -106,20 +119,16 @@ export function createUI(game) {
   bus.on('skill', (d) => flashSlot(slots[game.skills.list.findIndex((s) => s.id === d.id)]));
   bus.on('drink', (d) => flashSlot(drinks.find((s) => s.item === d.item)));
 
-  // ---- menu
-  const sound = { on: true };
+  // ---- menu buttons: three open the menu at their tab, the fourth opens the pause menu
   for (const b of el.menu.querySelectorAll('button')) {
     const id = b.dataset.open;
-    b.innerHTML = MENU_ICONS[id];
-    b.addEventListener('click', (e) => { bus.emit('ui:toggle', id); if (e.detail) b.blur(); });
+    b.innerHTML = MENU_ICONS[id === 'bag' ? 'gear' : id];
+    b.addEventListener('click', (e) => { if (id === 'menu') pause.show(); else bus.emit('ui:toggle', id); if (e.detail) b.blur(); });
   }
+  // (two things the keys ask for that are settings now: M is the mute switch, V opens the camera's buttons)
   bus.on('ui:toggle', (id) => {
-    if (id !== 'sound') return;
-    sound.on = !sound.on;
-    const sb = el.menu.querySelector('[data-open="sound"]');
-    sb.innerHTML = MENU_ICONS[sound.on ? 'sound' : 'muted'];
-    sb.setAttribute('aria-pressed', String(sound.on));
-    bus.emit('sound', sound.on);
+    if (id === 'sound') { store.set('mute', !store.values.mute); log(store.values.mute ? 'Sound <b class="c-bad">off</b>' : 'Sound <b class="c-good">on</b>'); }
+    else if (id === 'view') pause.show('settings', 'controls');
   });
 
   // ---- log and toast (text fades in and out; it never bounces or zooms)
@@ -154,19 +163,17 @@ export function createUI(game) {
   });
   bus.on('equip', (d) => log(`Now using <b style="color:${describe(d.item).color}">${describe(d.item).name}</b>.`));
   // (with cinematics off there are no cards, so the same things are said in a slip)
-  const plain = game.cinema.quiet;
-  bus.on('boss:arrive', (m) => { if (plain) toast(m.name, 'It holds this island.', 3.2); });
+  bus.on('boss:arrive', (m) => { if (game.cinema.quiet) toast(m.name, 'It holds this island.', 3.2); });
   bus.on('boss:fell', (m) => log(`<b class="c-foe">${m.name}</b> is down.`));
   bus.on('boss:enrage', (m) => log(`<b class="c-foe">${m.name}</b> is wounded, and faster for it.`));
   bus.on('talent', (d) => log(`Talent taken: <b class="c-key">${d.name}</b>.`));
-  bus.on('levelup', (d) => { toast(`Level ${d.level}`, 'A talent to choose and points to spend, in the Character sheet.', 3.6); el.menu.querySelector('[data-open="character"]').classList.add('alert'); });
-  bus.on('ui:toggle', (id) => { if (id === 'character') el.menu.querySelector('[data-open="character"]').classList.remove('alert'); });
+  bus.on('levelup', (d) => toast(`Level ${d.level}`, game.touch ? 'A talent to choose.' : 'A talent to choose: press C.', 3.6));
   bus.on('trade', (d) => { if (d.total) log(`Sold materials for <b class="c-coin">${d.total} glint</b>`); });
   bus.on('monster:died', (m) => { if (m.elite) log(`You felled an <b class="c-foe">${m.name}</b>.`); });
   bus.on('xp', (d) => { if (d.amount >= 40) log(`<b class="c-xp">+${d.amount} experience</b>`); });
   // ---- the mission, said as it happens
-  bus.on('mission:taken', (o) => { if (o) toast(o.name, 'Contract taken. Step onto the pad in the gate room to go down.', 4); panels.refresh(); });
-  bus.on('mission:begin', (d) => { if (plain) toast(d.offer.name, `${d.biome.name} · ${GOALS[d.offer.goal].name}`, 4); });
+  bus.on('mission:taken', (o) => { if (o) toast(o.name, 'Taken. Step onto the pad at the south gate.', 4); });
+  bus.on('mission:begin', (d) => { if (game.cinema.quiet) toast(d.offer.name, `${d.biome.name} · ${GOALS[d.offer.goal].name}`, 4); });
   bus.on('room:wave', (d) => { if (d.wave > 0) log('More of them.'); });
   bus.on('room:clear', (d) => { if (d.kind !== 'boss') log(d.kind === 'cache' ? '<b class="c-good">Clear.</b>' : '<b class="c-good">Island clear.</b> The gate is down.'); });
   bus.on('pod:open', (d) => { if (d.core) toast('A survey core', game.missions.track(), 3); });
@@ -175,11 +182,15 @@ export function createUI(game) {
   bus.on('mission:done', () => toast('Contract done', 'Lifting out…', 2.6));
   // ---- back in town: the contract's report, with a picture of the place and what it paid
   const rep = { box: $('report'), art: $('report-art'), kind: $('report-kind'), name: $('report-name'), line: $('report-line'), stats: $('report-stats'), prize: $('report-prize'), ok: $('report-ok') };
-  const closeReport = () => { rep.box.hidden = true; };
+  const closeReport = () => {
+    if (rep.box.hidden) return;
+    rep.box.hidden = true;
+    if (rep.box.contains(document.activeElement)) document.activeElement.blur();      // the keys go back to the game
+    bus.emit('report:closed');        // (however it was closed: Continue, its corner button, Escape, a window opening over it)
+  };
   rep.ok.addEventListener('click', closeReport);
+  $('report-x').addEventListener('click', closeReport);
   bus.on('ui:close', closeReport);
-  // Esc: lets go of the target, and closes whatever is open
-  bus.on('ui:escape', () => { game.controls.clearTarget(); bus.emit('ui:close'); });
   bus.on('mission:begin', closeReport);
   bus.on('mission:report', (r) => {
     const B = biomeById(r.offer.biome), time = `${Math.floor(r.time / 60)}:${String(Math.floor(r.time % 60)).padStart(2, '0')}`;
@@ -187,11 +198,11 @@ export function createUI(game) {
     rep.box.classList.toggle('lost', !r.won);
     rep.kind.textContent = r.won ? 'Paid' : 'Lifted out';
     rep.name.textContent = r.offer.name;
-    rep.line.innerHTML = `<b class="c-place">${B.name}</b> · <b class="c-goal-${r.offer.goal}">${GOALS[r.offer.goal].name}</b>${r.won ? '' : ' · <span class="c-bad">not paid: the board still has it</span>'}`;
-    if (r.won && r.markNeed) rep.line.innerHTML += ` · Survey marks <b class="c-num">${r.marks}</b> of <b class="c-num">${r.markNeed}</b>`;
+    rep.line.innerHTML = `<b class="c-place">${B.name}</b> · <b class="c-goal-${r.offer.goal}">${GOALS[r.offer.goal].name}</b>${r.won ? '' : ' · <span class="c-bad">Not paid: it is still on the board</span>'}`;
+    if (r.won && r.markNeed) rep.line.innerHTML += ` · Marks <b class="c-num">${r.marks}</b> of <b class="c-num">${r.markNeed}</b>`;
     const stat = (label, value, cls) => `<div><small>${label}</small><b class="${cls}">${value}</b></div>`;
     rep.stats.innerHTML = stat('Time', time, 'c-ink') + stat('Felled', r.kills, 'c-foe') + stat('Experience', '+' + r.xp, 'c-xp') + stat('Glint', '+' + r.glint, 'c-coin');
-    rep.prize.innerHTML = r.prize ? `<div class="label">On top of the pay</div>${panels.gearCard(r.prize)}` : '';
+    rep.prize.innerHTML = r.prize ? `<div class="label">Also paid</div>${panels.gearCard(r.prize)}` : '';
     rep.box.hidden = false;
     rep.ok.focus({ preventScroll: true });
   });
@@ -231,27 +242,29 @@ export function createUI(game) {
   // ---- layout: the picture fills the canvas's box (the window, or the top of an
   // upright phone), and the minimap frame tells the renderer where to draw the map
   function placeMap() {
-    const r = el.ring.getBoundingClientRect(), c = game.canvas.getBoundingClientRect();
+    const r = boxOf(el.ring), c = game.canvas.getBoundingClientRect();
     const shown = !document.body.classList.contains('titled') && !document.body.classList.contains('cine');   // no map behind the title card, or in a cinematic
     // a small map shows about as much country as a big one
     game.renderer.minimap.rect = [r.left - c.left + r.width / 2, r.top - c.top + r.height / 2, shown ? r.width / 2 - 3 : 0, 0.62 * Math.max(1, 150 / Math.max(r.width, 1))];
   }
-  function layout() { game.resize(); placeMap(); fitLog(); }
+  function layout() {
+    document.body.classList.toggle('compact', !!game.touch || innerWidth < 900 || innerHeight < 640);      // a narrow, short or touch screen: windows fill it and scroll
+    game.resize(); placeMap(); fitLog();
+  }
   addEventListener('resize', layout);
   if (window.ResizeObserver) new ResizeObserver(layout).observe(game.canvas);
 
   // ---- touch: the stick, and the finger layout
   createStick(game, $('ui'));
   watchTouch(game, () => {
-    $('keys-hint').textContent = 'Tap to move and fight  ·  the stick walks  ·  drag the picture to turn the view';
+    $('keys-hint').textContent = 'The stick walks  ·  tap to fight or talk';
     panels.refresh();
     layout();
   });
+  bus.on('settings', (d) => { if (!d.key || d.key === 'text') layout(); });        // lettering of another size: the map's frame has moved
 
   // ---- the character select: the hero stands in the middle of the picture and changes as you choose.
   // One of the peoples down the left, a class down the right; Begin starts the journey.
-  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  game.reducedMotion = calm;
   const art = (name) => `./static/art/${name}.webp`;
   const peopleRoot = $('people-pick'), pickRoot = $('class-pick'), summary = $('select-summary');
   peopleRoot.innerHTML = PEOPLE_ORDER.map((id) => `<button type="button" class="pick people-tile" role="radio" data-people="${id}" aria-checked="false">
@@ -267,8 +280,9 @@ export function createUI(game) {
     set('pkind', $('pkind'), 'textContent', `${PEOPLES[who].name} ${CLASSES[s.cls].name}`);
     $('pname').className = 'c-' + s.cls;
   };
-  peopleRoot.addEventListener('click', (e) => { const b = e.target.closest('[data-people]'); if (b) game.choosePeople(b.dataset.people); });
-  pickRoot.addEventListener('click', (e) => { const b = e.target.closest('[data-class]'); if (b) game.chooseClass(b.dataset.class); });
+  // (only while choosing: once the journey has begun the select screen is put away, see Begin below)
+  peopleRoot.addEventListener('click', (e) => { const b = e.target.closest('[data-people]'); if (b && !game.started) game.choosePeople(b.dataset.people); });
+  pickRoot.addEventListener('click', (e) => { const b = e.target.closest('[data-class]'); if (b && !game.started) game.chooseClass(b.dataset.class); });
   // arrow keys move within a group, as they do between radio buttons
   for (const root of [peopleRoot, pickRoot]) root.addEventListener('keydown', (e) => {
     const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
@@ -282,8 +296,14 @@ export function createUI(game) {
   showChoice();
   $('btn-begin').disabled = false;
   $('btn-begin').addEventListener('click', () => {
+    if (game.started) return;
     document.body.classList.remove('titled');
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();      // the keys go to the game now, not to the card that was clicked
+    // The select screen is put away for good: it fades out, but until now it stayed on top of the page, unseen,
+    // and took every click meant for whatever was under its three boxes (a window's close button, for one).
+    const title = $('title');
+    title.inert = true;
+    setTimeout(() => { title.hidden = true; }, 1000);
     game.camera.rail = null;
     p.yaw = Math.PI;
     game.begin();
@@ -299,7 +319,7 @@ export function createUI(game) {
   // While choosing, the camera stands in front of the hero, the square and the hall behind them, and sways a little.
   // On a wide screen the hero is in the middle between the two columns; on a narrow one, in the strip above them.
   const selectView = (t) => {
-    const y = p.y, sway = calm ? 0 : Math.sin(t * 0.22) * 0.22, wide = innerWidth > 900 && innerWidth > innerHeight;
+    const y = p.y, sway = game.reducedMotion ? 0 : Math.sin(t * 0.22) * 0.22, wide = innerWidth > 900 && innerWidth > innerHeight;
     const D = wide ? 5.6 : 8.4, a = 0.18 + sway;
     return { pos: [p.x + Math.sin(a) * D, y + (wide ? 1.25 : 1.5), p.z + Math.cos(a) * D], look: [p.x, y + (wide ? 0.72 : -0.75), p.z], lens: (wide ? 32 : 30) * Math.PI / 180, mix: 1 };
   };
@@ -313,12 +333,57 @@ export function createUI(game) {
 
   createCinemaUI(game, layout);
 
-  // ---- the guide: first steps and tips (a new journey starts with them)
-  createGuide(game, toast, log);
+  // ---- the first steps: the card, the marker and the ring round a control (app/tutorial.js decides what they say)
+  createTutorUI(game, toast, log);
+
+  // ---- what is open, and who has the keys
+  const reportOpen = () => !rep.box.hidden;
+  /** The pause menu and the tabbed menu hold the game while they are up. */
+  function syncHold() { game.halt = pause.open || panels.holding; }
+  /** Escape: one step back out of whatever is open; with nothing open, let go of the target, or else pause. */
+  function escape() {
+    if (pause.open) pause.back();
+    else if (panels.kind) panels.close();
+    else if (reportOpen()) closeReport();
+    else if (game.started && !game.cinema.blocking) {
+      hush();
+      const c = game.controls, had = c.clearTarget ? c.clearTarget() : !!p.target && ((p.target = null), (p.pursue = false), true);
+      if (!had) pause.show();
+    }
+  }
+  bus.on('ui:escape', escape);
+  bus.on('cine:begin', (d) => { if (d.blocking) { pause.hide(); panels.close(); } });
+  /** Tab stays inside the window that is open. True if the focus had to be moved by hand. */
+  function trap(e, box) {
+    const items = [...box.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')].filter((x) => !x.disabled && x.tabIndex >= 0 && x.getClientRects().length);
+    const at = document.activeElement, first = items[0], last = items[items.length - 1];
+    if (!first) return true;
+    if (!box.contains(at) || at === box) { (e.shiftKey ? last : first).focus(); return true; }
+    if (e.shiftKey ? at === first : at === last) { (e.shiftKey ? last : first).focus(); return true; }
+    return false;
+  }
+  // Ahead of the game's own key listener (core/input.js): while a window or the pause menu is up, every press is
+  // theirs and the game does not hear it. (The game is held under two of them, so they could not be told by it.)
+  addEventListener('keydown', (e) => {
+    if (!game.started || game.cinema.blocking) return;
+    const typing = e.target instanceof Element && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName);
+    const box = pause.open ? pause.el : panels.kind ? panels.el : null;
+    if (!box) {
+      if (reportOpen() && e.code === 'Escape') { closeReport(); e.preventDefault(); e.stopImmediatePropagation(); }
+      // H is the interface's own key: the Guide
+      else if (e.code === 'KeyH' && !e.repeat && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) bus.emit('ui:toggle', 'help');
+      return;
+    }
+    e.stopImmediatePropagation();
+    if (e.repeat && (e.code === 'Escape' || /^Key/.test(e.code))) { if (!typing) e.preventDefault(); return; }      // a key held down acts once
+    if ((pause.open ? pause.key(e) : panels.key(e)) || (e.code === 'Tab' && trap(e, box))) e.preventDefault();
+  }, true);
 
   // ---- per-frame refresh
   bus.on('frame', (dt) => {
     const s = p.sheet;
+    const due = s.picks > 0 || s.points > 0;          // something to choose in the Character tab: a mark on its button
+    if (last.due !== due) { last.due = due; el.menu.querySelector('[data-open="character"]').classList.toggle('alert', due); }
     set('lvl', el.lvl, 'textContent', String(s.level));
     set('glint', el.glint, 'textContent', String(s.glint));
     scale('hp', el.hpFill, p.hp / p.maxHp);
@@ -354,6 +419,7 @@ export function createUI(game) {
     if (last.zoneKind !== !!ms.active) { last.zoneKind = !!ms.active; el.zone.className = ms.active ? 'c-ink' : 'c-place'; el.clock.className = ms.active ? 'c-place' : 'dim'; }
     set('clock', el.clock, 'textContent', ms.active ? game.biome.name : 'Aloft');
     set('boonHid', el.boon, 'hidden', !s.boon);
+    if (last.boonOn !== !!s.boon) { last.boonOn = !!s.boon; document.body.classList.toggle('has-boon', !!s.boon); }      // (an upright phone drops the place's second word to make room for it)
     if (s.boon) { set('boonT', el.boon, 'textContent', BOONS[s.boon].name); set('boonTip', el.boon, 'title', BOONS[s.boon].desc); }
 
     const line = ms.track();
@@ -384,5 +450,6 @@ export function createUI(game) {
     plates.update(dt);
   });
 
-  return { toast, log, panels, plates };
+  layout();
+  return { toast, log, panels, plates, pause, settings: store };
 }

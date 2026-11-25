@@ -37,8 +37,11 @@ export function createZone(spec, nav) {
     }
     for (const l of links) {
       const px = x - l.ax, pz = z - l.az;
-      const t = clamp(px * l.ux + pz * l.uz, l.tmin, l.tmax);
-      const d = Math.hypot(px - l.ux * t, pz - l.uz * t) - l.w / 2;
+      const along = px * l.ux + pz * l.uz, t = clamp(along, l.tmin, l.tmax);
+      let d = Math.hypot(px - l.ux * t, pz - l.uz * t) - l.w / 2;
+      // where a bridge is broken its end is cut square, not rounded: two round ends would close the gap between them
+      const past = Math.max(l.tmin > 0 ? l.tmin - along : -1, l.tmax < l.len ? along - l.tmax : -1);
+      if (past > 0) d = Math.hypot(past, Math.max(Math.abs(px * l.uz - pz * l.ux) - l.w / 2, 0));
       if (d < best) {
         best = d; nearRoom = null; nearLink = l;
         const k = clamp((t - l.t0) / Math.max(0.01, l.t1 - l.t0), 0, 1);
@@ -85,7 +88,7 @@ export function createZone(spec, nav) {
   }
   for (const l of links) {
     const across = Math.atan2(l.uz, -l.ux) + Math.PI / 2;
-    if (l.gate) {
+    if (l.gate && l.part !== 2) {
       const t = l.t0 + 1.2;
       const g = build('gate', l.ax + l.ux * t, l.az + l.uz * t, { rot: -l.ang, link: l, role: 'gate', scale: l.w / 4.6 });
       l.gateKey = g.key;

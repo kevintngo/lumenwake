@@ -20,11 +20,11 @@ export class Fx {
     this.lights = [];      // short-lived point lights { x, y, z, r, color, life }
     this.ambientTimer = 0;
     this.emitters = [];    // things that keep throwing off particles for a while: { left, every, next, fn }
-    this.T = Object.fromEntries(['mote', 'leaf', 'spark', 'burst', 'slash', 'ring', 'orb', 'puff', 'heal', 'mark', 'click', 'beam', 'ripple', 'zone', 'lane', 'cloud'].map((id) => [id, fxType(id)]));
+    this.T = Object.fromEntries(['mote', 'leaf', 'spark', 'burst', 'slash', 'ring', 'halo', 'orb', 'puff', 'heal', 'mark', 'click', 'beam', 'ripple', 'zone', 'lane', 'cloud'].map((id) => [id, fxType(id)]));
     this.wire(game.bus);
   }
 
-  /** Low-level spawn. o: { size, life, color, alpha, vx, vy, vz, grow, gravity, drag, rot, spin, ground, aspect, follow, dy } */
+  /** Low-level spawn. o: { size, life, color, alpha, vx, vy, vz, grow, gravity, drag, rot, spin, ground (laid on the ground), flat (level, in the air), aspect, follow, dy } */
   spawn(type, x, y, z, o = {}) {
     if (this.live.length >= MAX) return null;
     const p = this.pool.pop() || {};
@@ -35,7 +35,7 @@ export class Fx {
     p.color = o.color || WHITE; p.alpha = o.alpha ?? 1;
     p.gravity = o.gravity || 0; p.drag = o.drag || 0;
     p.rot = o.rot || 0; p.spin = o.spin || 0;
-    p.ground = o.ground ? 1 : 0; p.aspect = o.aspect || 1;
+    p.ground = o.flat ? 2 : o.ground ? 1 : 0; p.aspect = o.aspect || 1;
     p.follow = o.follow || null; p.dy = o.dy || 0; p.hold = o.hold || false; p.trail = !!o.trail;
     p.seed = Math.random(); p.sway = o.sway || 0;
     this.live.push(p);
@@ -99,6 +99,7 @@ export class Fx {
     for (const l of this.lights) { l.life -= dt; if (l.life > 0) this.lights[lw++] = l; }
     this.lights.length = lw;
     this.ambient(dt);
+    this.pads(dt);
   }
 
   /** Packs live particles for the FX pass. */
@@ -191,6 +192,33 @@ export class Fx {
       this.spawn('mote', x, y + 2 + Math.random() * 5, z, { size: 0.06, life: 5, color: WHITE, alpha: 1, vx: wx * 0.6, vy: -0.9, vz: wz * 0.6, sway: 0.4 });
     } else if (Math.random() < 0.6) {
       this.spawn('mote', x, y + 0.3 + Math.random() * 2.2, z, { size: 0.045, life: 4, color: DUST, alpha: 0.7, vx: wx * 0.35, vy: 0.08, vz: wz * 0.35, sway: 0.3 });
+    }
+  }
+
+  /**
+   * A pad that takes the hero somewhere (down to a contract, or home from one) keeps lifting rings of light off
+   * itself, so it reads from across the square as the place to go: slow and faint while it is cold, quick and
+   * bright, with a ring closing on its middle and sparks going up, once it will take them.
+   */
+  pads(dt) {
+    const g = this.game, p = g.player, ms = g.missions;
+    if (dt <= 0 || this.live.length > MAX - 60) return;
+    for (const s of g.world.structures) {
+      if (s.role !== 'deploy' && s.role !== 'leave') continue;
+      if (Math.hypot(s.x - p.x, s.z - p.z) > 75) continue;
+      s.fxT = (s.fxT || 0) - dt;
+      if (s.fxT > 0) continue;
+      const ready = s.role === 'deploy' ? !!ms.pending : !!(ms.active && ms.met());
+      const color = s.role === 'leave' ? FLAME : SKY, y = g.world.surface(s.x, s.z) + 0.3;
+      s.fxT = ready ? 0.5 : 1.4;
+      s.fxN = (s.fxN || 0) + 1;
+      this.spawn('halo', s.x, y, s.z, { size: 1.9, grow: ready ? -0.2 : -0.12, life: ready ? 2.0 : 2.6, color, alpha: ready ? 1 : 0.6, vy: ready ? 1.3 : 0.6, flat: true });
+      if (!ready) continue;
+      if (s.fxN % 2 === 0) this.spawn('halo', s.x, y - 0.05, s.z, { size: 3.4, grow: -1.2, life: 1.2, color, ground: true });
+      for (let k = 0; k < 2; k++) {
+        const a = Math.random() * 6.283, r = 0.4 + Math.random() * 1.3;
+        this.spawn('spark', s.x + Math.cos(a) * r, y + 0.1, s.z + Math.sin(a) * r, { size: 0.15, life: 0.9 + Math.random() * 0.5, color, vy: 1.6 + Math.random() * 1.2, drag: 0.4 });
+      }
     }
   }
 

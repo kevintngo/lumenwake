@@ -7,19 +7,28 @@
 //   4 lynd         slight: tall ears, a tail, a short cape
 // Hair style and skin differ from one figure to the next (by its seed).
 // Pencils: A what is worn, B the accent (scarf, hood, cape, plate), C hair, fur or hide.
-// What is in the hand (eSpare) is the same for all of them: see entMap.
+// What is in the hand (eSpare), the frame over the clothes and the unit on the back (the fraction of eExtra)
+// are the same shapes for all of them, and the same ones the interface draws on its gear tiles: glsl/held.js.
 
 import { registerArchetype } from '../passes/entities.js';
+import { HELD_GLSL } from '../glsl/held.js';
 
 registerArchetype({
   id: 'humanoid', boundY: 0.8, boundR: 1.08, steps: 60,
   glsl: /* glsl */ `
-vec3 hHip, hChest, hHead, hHandL, hHandR, hFootL, hFootR, hBlade;
+${HELD_GLSL}
+vec3 hHip, hChest, hHead, hHandL, hHandR, hFootL, hFootR, hBlade, hSide;
 float kind;      // which people this figure is of (eExtra): 0 scout unit, 1 human, 2 veiled, 3 karn, 4 lynd
+float hKit, hLook, hFrame, hUnit;      // what is in the hand and which of its shapes; the frame worn; the unit on the back
 
 void entPose() {
   float w = ePose.x, act = ePose.y, at = ePose.z, mv = ePose.w;
   kind = floor(eExtra + 0.5);
+  // eSpare: the kit in the hand, + 0.1 for each step along a chain of blows, + 0.5 for the kit's second look.
+  // eExtra, past the people: + 0.1 for a heavy frame, + 0.01 or 0.02 for the unit on the back.
+  float kf = fract(eSpare + 0.01), wr = eExtra - kind;
+  hKit = floor(eSpare + 0.01); hLook = step(0.5, kf);
+  hFrame = floor(wr * 10.0 + 0.05); hUnit = floor((wr - hFrame * 0.1) * 100.0 + 0.5);
   float s = sin(w), c = cos(w);
   float idle = sin(uTime * 2.0 + eLook.x * 6.28);
   // Walk and run are two different cycles. A walk rises as the legs pass under the
@@ -59,7 +68,7 @@ void entPose() {
     float ang = mix(mix(0.4, 2.2, wind), -1.1, cut);
     float lift = wind * (1.0 - cut);
     // the chain: the second cut comes back the other way, the third comes down from overhead
-    float link = fract(eSpare + 0.01) * 5.0;
+    float link = floor((kf - 0.5 * hLook) * 10.0 + 0.2);
     if (link > 0.5 && link < 1.5) ang = 0.9 - ang;
     vec3 strike = hChest + vec3(sin(ang) * 0.46, 0.12 + 0.28 * lift, cos(ang) * 0.46);
     vec3 edge = normalize(vec3(sin(ang), 0.25 + 0.6 * lift, cos(ang)));
@@ -98,7 +107,21 @@ void entPose() {
     hHandL = hChest + vec3(-0.33, -0.06 + 0.22 * up, 0.02);
     hHandR = hChest + vec3(0.33, -0.06 + 0.2 * up, 0.04);
     hChest.z += 0.04 * up; hHead.y += 0.02 * up;
+  } else if (act > 6.5 && act < 7.5) {
+    // at ease, sitting for a portrait: breathing, the weight going from one foot to the other, and now and
+    // then what is in the hand brought up and looked over
+    float br = sin(uTime * 1.9), sh = sin(uTime * 0.7 + 1.0);
+    hHip += vec3(0.016 * sh, 0.004 * br, 0.0);
+    hChest += vec3(0.024 * sh, 0.014 * br, 0.0);
+    hHead += vec3(0.03 * sh, 0.017 * br, 0.0);
+    hHandL += vec3(0.022 * sh - 0.012 * br, 0.012 * br, 0.0);
+    hHandR += vec3(0.022 * sh + 0.012 * br, 0.012 * br, 0.0);
+    float every = fract(uTime / 7.0);
+    float show = smoothstep(0.0, 0.1, every) * smoothstep(0.34, 0.22, every);
+    hHandR = mix(hHandR, hChest + vec3(0.27, 0.02, 0.2), show);
+    hBlade = normalize(mix(hBlade, vec3(-0.12, 0.96, 0.25), show));
   }
+  hSide = normalize(cross(hBlade, vec3(0.0, 1.0, 0.0)) + vec3(1e-3, 0.0, 0.0));
 }
 
 // How the peoples differ in build (kind: 0 scout unit, 1 human, 2 veiled, 3 karn, 4 lynd).
@@ -188,23 +211,10 @@ float entMap(vec3 p, out float mat) {
     accent = max(accent, -(p.y - hChest.y + 0.12));
   }
 
-  // what is in the hand (eSpare: 0 an arc blade, 1 a pulse rifle, 2 a focus rod, 3 nothing)
-  float kit = floor(eSpare + 0.01);
-  if (kit < 0.5) {
-    // a short grip with a collar, and a bar of light out of it
-    glow = sdCapsule(p, hHandR + hBlade * 0.14, hHandR + hBlade * 0.98, 0.04);
-    wood = min(sdCapsule(p, hHandR - hBlade * 0.1, hHandR + hBlade * 0.09, 0.034),
-               sdCapsule(p, hHandR + hBlade * 0.09, hHandR + hBlade * 0.12, 0.052));
-  } else if (kit < 1.5) {
-    // a long body held along the aim, a grip under it, a light at the muzzle
-    wood = min(sdCapsule(p, hHandR - hBlade * 0.22, hHandR + hBlade * 0.5, 0.05),
-               sdCapsule(p, hHandR + hBlade * 0.12, hHandR + hBlade * 0.12 - vec3(0.0, 0.13, 0.0), 0.032));
-    glow = length(p - hHandR - hBlade * 0.58) - 0.05;
-  } else if (kit < 2.5) {
-    // a thin staff with a ball of light at its head
-    wood = sdCapsule(p, hHandR - hBlade * 0.32, hHandR + hBlade * 0.74, 0.022);
-    glow = length(p - hHandR - hBlade * 0.86) - 0.09;
-  }
+  // what is in the hand, the frame over the clothes, the unit on the back (glsl/held.js)
+  heldMap(p, hHandR, hBlade, hSide, hKit, hLook, wood, glow);
+  float worn = frameMap(p - hChest, wide, hFrame);
+  float packLit, pack = unitMap(p - hChest - vec3(0.0, 0.0, kind < 0.5 ? -0.275 : -0.2 * max(wide, 1.0)), hUnit, packLit);
 
   if (skin < d) { d = skin; mat = 0.0; }
   if (dark < d) { d = dark; mat = 13.0; }
@@ -252,6 +262,9 @@ float entMap(vec3 p, out float mat) {
   if (plate < d) { d = plate; mat = 9.0; }
   if (bone < d) { d = bone; mat = 11.0; }
   if (fur < d) { d = fur; mat = 14.0; }
+  if (worn < d) { d = worn; mat = 15.0; }
+  if (pack < d) { d = pack; mat = 16.0; }
+  if (packLit < d) { d = packLit; mat = 17.0; }
   return d;
 }
 
@@ -424,7 +437,7 @@ void entSurf(vec3 p, float mat, inout Surf s) {
       else s.ink = penLine(length(vec2(p.x - hHip.x, p.y - hHip.y - 0.07)) - 0.03) * step(0.0, p.z - hHip.z) * 0.8;                                    // the belt's round buckle
     }
   } else if (m == 6) { s.albedo = P_STONE; s.cover = 0.6; }                     // the headset
-  else if (m == 7) { s.albedo = P_CHARCOAL; s.cover = 0.85; }
+  else if (m == 7) heldSurf(hKit, hLook, false, s);
   else if (m == 9) {
     if (unit) { s.albedo = P_SKY; s.cover = 0.1; s.wrap = 0.25; s.ink = penLine(abs(p.y - hChest.y - 0.085) - 0.06) * 0.6; }
     else if (karn) { s.albedo = eColB; s.cover = 0.86; s.ink = penLine(length(p - hChest - vec3(-0.26, 0.12, 0.0)) - 0.1) * 0.7; }      // the shoulder plate
@@ -470,14 +483,9 @@ void entSurf(vec3 p, float mat, inout Surf s) {
     s.cover = mix(s.cover, 0.12, max(tail, inner));
     s.ink = step(0.7, vnoise(vec2(p.y * 34.0, p.x * 18.0 + p.z * 18.0))) * 0.4 * (1.0 - inner);
   }
-  else if (eSpare > 0.99) { s.albedo = mix(P_SKY, P_TEAL, 0.45); s.cover = 0.22; s.glow = 0.85; s.soft = 1.0; }     // a muzzle light, the head of a rod
-  else {
-    // the blade: light is bare paper, so only its edge is drawn, in blue
-    vec3 a = hHandR + hBlade * 0.14;
-    float r = length(p - a - hBlade * clamp(dot(p - a, hBlade), 0.0, 0.84)) / 0.04;
-    float rim = smoothstep(0.55, 0.95, r);
-    s.albedo = mix(P_SKY, P_TEAL, 0.55); s.cover = 0.9 * rim; s.glow = 1.0 - rim; s.soft = 1.0;
-  }
+  else if (m == 15) frameSurf(p - hChest, kWide(), s);
+  else if (m == 16 || m == 17) unitSurf(p - hChest - vec3(0.0, 0.0, unit ? -0.275 : -0.2 * max(kWide(), 1.0)), hUnit, m == 17, s);
+  else heldSurf(hKit, hLook, true, s);          // the light of what is in the hand
 }
 `,
 });

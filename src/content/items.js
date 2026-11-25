@@ -16,7 +16,7 @@ export const ITEMS = {
   crag_shard: { name: 'Crag Shard', kind: 'mat', value: 18, drop: 3, color: [150, 142, 132], desc: 'Hums when struck.' },
   snap_claw: { name: 'Snap Claw', kind: 'mat', value: 8, drop: 1, color: [226, 176, 52], desc: 'Mind your fingers.' },
 
-  core: { name: 'Survey Core', kind: 'mat', value: 30, drop: 3, color: [136, 180, 216], desc: 'What the survey came down for. The ship pays for these.' },
+  core: { name: 'Survey Core', kind: 'mat', value: 30, drop: 3, color: [136, 180, 216], desc: 'What the survey came for. The ship pays for it.' },
 
 };
 

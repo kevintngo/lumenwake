@@ -9,7 +9,7 @@
 // A contract is small data: { seed, biome, rooms, goal, tier, name, xp, glint }.
 // Everything else about the place is made from it (world/layout.js, world/zone.js).
 
-import { hubSpec, missionSpec, rimAt } from '../../world/layout.js';
+import { hubSpec, missionSpec, firstSpec, rimAt } from '../../world/layout.js';
 import { BIOMES, MISSION_BIOMES, biomeById } from '../../content/themes.js';
 import { mulberry32 } from '../../core/rng.js';
 import { derive } from '../stats.js';
@@ -26,6 +26,8 @@ export const GOALS = {
   recover: { name: 'Recover the cores', brief: 'Survey cores went down in supply pods. Find them and bring them out.' },
   hunt: { name: 'Bring down the elder', brief: 'Something old holds the last island. Put it down.' },
 };
+/** A new surveyor's first contract (world/layout.js firstSpec): short, laid out by hand, an easier elder at the end. */
+export const FIRST = { seed: 4099, biome: 'glasswood', goal: 'hunt', tier: 1, rooms: 2, name: 'First Light', xp: 90, glint: 60, first: true };
 const NAMES_A = ['Quiet', 'Long', 'Broken', 'High', 'Pale', 'Far', 'Hollow', 'Bright', 'Last', 'Low', 'Wide', 'Thin'];
 const NAMES_B = ['Stair', 'Reach', 'Chain', 'Crossing', 'Ledge', 'Span', 'Garden', 'Shelf', 'Rise', 'Hollow', 'Walk', 'Crown'];
 
@@ -69,6 +71,7 @@ export class Missions {
         glint: Math.round((22 + rooms * 9) * (1 + 0.25 * (tier - 1))),
       };
     });
+    if (s.first) this.offers[0] = { ...FIRST };          // until it has been run, the first card on the board is First Light
   }
 
   accept(i) {
@@ -81,9 +84,9 @@ export class Missions {
   // ---------------------------------------------------------------- going down
   deploy() {
     const g = this.game, offer = this.pending;
-    const spec = missionSpec(offer);
+    const spec = offer.first ? firstSpec(offer) : missionSpec(offer);
     const rnd = mulberry32((offer.seed ^ 0x2545f491) >>> 0);
-    let need = planEncounters(spec, biomeById(offer.biome), offer, rnd);
+    let need = spec.laid ? 0 : planEncounters(spec, biomeById(offer.biome), offer, rnd);          // (a laid-out place brings its own creatures)
     seedSim(offer.seed);          // the fights of a contract roll the same way each time it is run
     g.enter(spec);
     const pods = g.world.structures.filter((s) => s.role === 'pod');
@@ -154,6 +157,8 @@ export class Missions {
       else {
         rs.state = 'clear';
         this.openGates(i);
+        // on First Light the first island always gives up a better weapon, so there is something to put on
+        if (this.active.offer.first && i === 1) g.loot.dropGear(w.rooms[i].x, w.surface(w.rooms[i].x, w.rooms[i].z), w.rooms[i].z, rollItem({ ilvl: 2, cls: p.sheet.cls, family: CLASSES[p.sheet.cls].family, slot: 'weapon', rarity: 1 }));
         g.bus.emit('room:clear', { room: i, kind: w.rooms[i].kind });
         if (w.rooms[i].kind === 'boss') { this.seal(i, false); this.finish(); }
       }
@@ -207,6 +212,7 @@ export class Missions {
       const m = g.spawner.spawnMonster(id, x, z, level + (boss ? 1 : 0));
       m.room = i;
       if (boss) m.yaw = Math.atan2(-(p.x - x), p.z - z);        // it wakes facing whoever woke it
+      if (boss && this.active.offer.first) { m.maxHp = m.hp = Math.round(m.maxHp * 0.4); m.atk *= 0.7; }      // the first elder is a gentler one
       m.ai.provoked = true;          // they came for the hero
       rs.alive.push(m);
       g.bus.emit('spawn:in', { x, y: w.surface(x, z), z, r: m.radius });
@@ -279,6 +285,7 @@ export class Missions {
     this.arrive();
     if (won) {
       s.board = (s.board || 0) + 1; s.missions = (s.missions || 0) + 1;
+      if (a.offer.first) { s.first = false; g.loot.add('wisp_ember', 6); }       // and enough for the lumen's first change comes home with it
       s.glint += this.report.glint;
       // every contract pays one piece of gear on top: at least tuned, better from a hunt
       const prize = rollItem({ ilvl: a.offer.tier, cls: s.cls, family: CLASSES[s.cls].family, rarity: Math.min(3, (a.offer.goal === 'hunt' ? 2 : 1) + (all ? 1 : 0)), luck: 0.4 });      // always something this class can use

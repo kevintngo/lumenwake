@@ -7,6 +7,7 @@
 // To give a new area its music and ambience, add one row to AREAS.
 
 const LEVELS = { master: 1, sfx: 1, music: 0.5, ambience: 0.55 }; // the mix: music sits well under effects (turned down from 0.6 after a first listen)
+const BASE_LEVELS = { ...LEVELS };  // ...as designed: the player's own levels (the 'volume' event) scale these
 const SPARE = 0.86;       // every area's piano speaks this much as often as its row says: a little less music everywhere
 const MAX_VOICES = { sfx: 24, chime: 16, music: 48, ambience: 16 }; // a sound past its cap is skipped
 const HEARING = 30;        // world units beyond which monster sounds are silent
@@ -444,6 +445,26 @@ const SOUNDS = {
     k.bell(k.key(3, 74), { bus: 'chime', decay: 0.7, gain: 0.05 });
     k.bell(k.key(5, 74), { bus: 'chime', at: 0.1, decay: 1, gain: 0.05 });
   },
+
+  // off the ground: a soft, short breath of air going up
+  jump(k, { entity }) {
+    if (entity && entity.kind !== 'player') return;
+    const v = rand(0.94, 1.08);
+    k.noise({ freq: 520 * v, to: 1500 * v, glide: 0.14, q: 0.8, attack: 0.03, decay: 0.16, gain: 0.05 });
+  },
+
+  // and back on it: a soft thud, a little dust
+  landed: spatial((k) => {
+    const v = rand(0.92, 1.08);
+    k.tone({ freq: 96 * v, to: 54, attack: 0.004, decay: 0.16, gain: 0.07 });
+    k.noise({ filter: 'lowpass', freq: 520 * v, to: 220, attack: 0.004, decay: 0.12, gain: 0.04 });
+  }),
+
+  // off an edge: a short tone falling away
+  fell(k) {
+    k.tone({ type: 'triangle', cutoff: 1400, freq: 520, to: 150, glide: 0.5, attack: 0.02, hold: 0.1, decay: 0.45, gain: 0.07 });
+    k.noise({ freq: 1300, to: 380, glide: 0.5, q: 0.7, attack: 0.06, decay: 0.45, gain: 0.035 });
+  },
 };
 
 /** Wraps a sound so it fades with distance from the player (silent past HEARING). */
@@ -595,6 +616,25 @@ const ANSWER_STEP = 0.5;   // seconds: the hero is lifted out 2.6 s after a cont
 export function createAudio(game) {
   let kit = null, music = null, ambience = null;
   let soundOn = true, volume = 1, lastTick = 0, warned = false;
+  // The player's own levels (the Sound settings: ui/settings.js), each 0..1, on top of the mix in LEVELS.
+  const own = { master: 1, music: 1, sfx: 1, ambience: 1 };
+  const unit = (v, was) => (Number.isFinite(+v) ? clamp(+v, 0, 1) : was);
+  function hearSettings(v) {
+    if (!v) return;
+    for (const name in own) own[name] = unit(v[name], own[name]);
+    volume = own.master;
+    if ('mute' in v) soundOn = !v.mute;
+  }
+  hearSettings(game.settings);       // (what was chosen on an earlier visit)
+  /** Moves the mixer to the player's levels, smoothly. The music reads LEVELS.music itself each time it mixes. */
+  function setLevels(seconds = 0.12) {
+    LEVELS.music = BASE_LEVELS.music * own.music;
+    if (!kit) return;
+    const now = kit.ctx.currentTime, to = (bus, level) => bus.node.gain.setTargetAtTime(level, now, seconds / 3);
+    to(kit.buses.sfx, BASE_LEVELS.sfx * own.sfx); to(kit.buses.chime, BASE_LEVELS.sfx * own.sfx);
+    to(kit.buses.amb, BASE_LEVELS.ambience * own.ambience); to(kit.buses.air, BASE_LEVELS.ambience * own.ambience);
+    setMaster(seconds);
+  }
   const nextFree = new Map(); // per event: when its next repeat may start
 
   // Audio must never break the game loop: report the first problem and carry on.
@@ -615,7 +655,7 @@ export function createAudio(game) {
       kit = fresh; // only once everything is built
       // what the music listens for itself: where the hero is, and the moments it answers
       for (const [type, hear] of Object.entries(music.hears)) bus.on(type, (payload) => safely(() => hear(payload ?? {})));
-      setMaster(0.4);
+      setLevels(0.4);
     }
     wake();
   }
@@ -661,6 +701,8 @@ export function createAudio(game) {
   const bus = game.bus;
   bus.on('begin', () => safely(boot));
   bus.on('sound', (on) => { soundOn = !!on; safely(setMaster); });
+  // { master, music, sfx, ambience }, each 0..1: the Sound settings
+  bus.on('volume', (v) => { hearSettings(v); safely(setLevels); });
   bus.on('frame', () => safely(tick));
   for (const type of Object.keys(SOUNDS)) bus.on(type, (payload) => trigger(type, payload));
   if (typeof addEventListener === 'function') {

@@ -11,6 +11,8 @@
 //    would cross any slip or an older number steps up over it;
 //  - the HUD is drawn over this layer (see ui.css), so nothing here can cover it.
 
+import { boxOf } from './settings.js';
+
 const GAP = 4;            // px kept clear between two slips
 const RISE = 44;          // px a number climbs
 // letter heights of the numbers (ui.css: .fl and its kinds), [desktop, touch], to size them without measuring
@@ -63,10 +65,10 @@ export class Plates {
     hud.length = 0;
     const add = (el) => {
       if (el.hidden) return;
-      const r = el.getBoundingClientRect();
+      const r = boxOf(el);
       if (r.width > 2 && r.height > 2) hud.push({ l: r.left, t: r.top, r: r.right, b: r.bottom, hud: true });
     };
-    for (const el of document.querySelectorAll('#ui > section:not(#log), #ui > nav, #log p, #toast.show, #place, body.touch #hotbar .slot')) add(el);
+    for (const el of document.querySelectorAll('#ui > section:not(#log), #hero > section, #hero > nav, #log p, #toast.show, #place, body.touch #hotbar .slot')) add(el);
   }
 
   update(dt) {

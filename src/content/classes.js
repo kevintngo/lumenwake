@@ -8,21 +8,21 @@ export const SLOT_UNLOCK = [1, 2, 3, 5];      // the level at which each bar slo
 export const CLASSES = {
   vanguard: {
     name: 'Vanguard', family: 'blade',
-    blurb: 'Fights up close with an arc blade. Tough, steady, and hits everything in reach.',
+    blurb: 'Up close with an arc blade.',
     attrs: { might: 7, grace: 5, vigor: 7, mind: 3 },
     abilities: ['cleave', 'step', 'slam', 'mend'],
     color: [214, 70, 52],
   },
   ranger: {
     name: 'Ranger', family: 'rifle',
-    blurb: 'Keeps its distance with a pulse rifle. Quick, precise, hard to pin down.',
+    blurb: 'At range with a pulse rifle.',
     attrs: { might: 5, grace: 8, vigor: 5, mind: 4 },
     abilities: ['volley', 'step', 'bolt', 'mend'],
     color: [232, 164, 48],
   },
   adept: {
     name: 'Adept', family: 'wand',
-    blurb: 'Bends light through a focus rod. Frail, but its techniques reach the whole field.',
+    blurb: 'Techniques through a focus rod.',
     attrs: { might: 3, grace: 5, vigor: 5, mind: 9 },
     abilities: ['bolt', 'nova', 'mend', 'step'],
     color: [70, 150, 150],

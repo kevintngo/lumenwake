@@ -21,12 +21,14 @@ import { EntityPass, ARCHETYPES } from './passes/entities.js';
 import { FxPass } from './passes/fx.js';
 import { PostChain } from './passes/post.js';
 import { Minimap } from './passes/minimap.js';
+import { FigurePass } from './passes/figure.js';
 import './archetypes/humanoid.js';
 import './archetypes/critters.js';
 import './archetypes/craft.js';
 import './archetypes/colossi.js';
 import './archetypes/wilds.js';
 import './archetypes/lumen.js';
+import './archetypes/gear.js';
 
 export class Renderer {
   /** opts.lite: start on the lighter settings (phones and tablets). */
@@ -204,6 +206,31 @@ export class Renderer {
     } else if (off > 0.012 && P.still > 0.3) {
       P.b = copy(cam); P.mix = 0; P.fade = 0.45;                   // at rest: settle onto the page's exact slant
     }
+  }
+
+  /**
+   * Figures alone on nothing, seen by a camera of their own: the hero turning in the menu, a lumen, the
+   * drawing on a gear tile. Nothing of the frame the player sees is disturbed.
+   * spec: { width, height (pixels), dpr, camera, env, time, batches }. Returns the picture's bytes
+   * (RGBA, straight alpha, top row first), which are this pass's own: copy them before the next call.
+   */
+  figure(spec) {
+    if (!this.figurePass) {
+      this.figurePass = new FigurePass(this.gl);
+      this.noLights = { pos: new Float32Array(RENDER.MAX_LIGHTS * 4), col: new Float32Array(RENDER.MAX_LIGHTS * 3) };
+    }
+    const fp = this.figurePass, c = spec.camera;
+    const keep = { frame: this.frame, pencil: this.pencil, paperAnchor: this.paperAnchor, paper: this.paper };
+    fp.size(spec.width, spec.height);
+    this.frame = {
+      camera: c, env: spec.env, focus: [0, 0, 0], time: spec.time, timeTwos: Math.floor(spec.time * 12) / 12, far: 600,
+      reveal: [0, 0, 0, 0], lightPos: this.noLights.pos, lightCol: this.noLights.col, lightCount: 0,
+    };
+    this.pencil = new Float32Array([2 * c.tan[1] / spec.height, 4.6 * spec.dpr, Math.floor(spec.time * 6), spec.dpr]);
+    this.paperAnchor = new Float32Array(3);
+    this.paper = { a: { right: c.right, up: c.up, fwd: c.fwd }, b: null, mix: 0 };
+    try { return fp.render(this.entityPass, this.frame, spec.batches, this.frameFn, this.vao); }
+    finally { Object.assign(this, keep); }
   }
 
   /**

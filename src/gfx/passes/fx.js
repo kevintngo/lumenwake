@@ -28,7 +28,7 @@ const FX_VS = /* glsl */ `
 layout(location = 0) in vec4 iPosSize;
 layout(location = 1) in vec4 iParams;   // type, life, seed, rotation
 layout(location = 2) in vec4 iColor;
-layout(location = 3) in vec4 iMore;     // ground-aligned?, aspect, lifetime in seconds, -
+layout(location = 3) in vec4 iMore;     // how it lies (0 facing the eye, 1 laid on the ground, 2 level in the air), aspect, lifetime in seconds, -
 uniform mat4 uViewProj;
 uniform vec3 uCamPos, uCamRight, uCamUp;
 uniform float uFar;
@@ -42,7 +42,7 @@ void main() {
   // A mark lying on the ground may be longer than it is wide (a lane): aspect stretches it along
   // its own y. Its quad is drawn a little oversize, because the mark is then laid on the real
   // ground under each pixel (see the fragment shader), which may rise or fall under a flat quad.
-  vec2 c = rot2(iParams.w) * (corner * (iMore.x > 0.5 ? vec2(1.35, 1.35 * iMore.y) : vec2(1.0)));
+  vec2 c = rot2(iParams.w) * (corner * (iMore.x > 0.5 && iMore.x < 1.5 ? vec2(1.35, 1.35 * iMore.y) : vec2(1.0)));
   vec3 wp = iMore.x > 0.5
     ? iPosSize.xyz + vec3(c.x, 0.0, c.y) * iPosSize.w
     : iPosSize.xyz + (uCamRight * c.x + uCamUp * c.y * iMore.y) * iPosSize.w;
@@ -87,7 +87,7 @@ void main() {
   float sceneT = texture(uGbuf, gl_FragCoord.xy * uInvRes).z;
   float soft = saturate((sceneT - vT) * 1.6 + 0.7);
   vec2 uv = vUv;
-  if (vMore.x > 0.5) {
+  if (vMore.x > 0.5 && vMore.x < 1.5) {
     // a mark on the ground is drawn on the ground itself: find the point of the world under this
     // pixel and ask where that lies in the mark, so it follows slopes and never sinks or floats
     vec3 at = uCamPos + normalize(vWorld - uCamPos) * sceneT;
@@ -174,6 +174,18 @@ vec4 fx_ring(vec2 uv, float life, float seed, vec4 col) {
   float front = mix(0.25, 0.92, 1.0 - (1.0 - life) * (1.0 - life));
   float a = pen(wobbly(uv, seed) - front) + pen(wobbly(uv, seed + 0.37) - front * 0.94) * 0.6;
   return mark(col.rgb * 0.82, saturate(a) * step(life, 0.9) * min(col.a, 1.0));
+}`);
+
+registerFx('halo', /* glsl */ `
+vec4 fx_halo(vec2 uv, float life, float seed, vec4 col) {
+  // a ring of light off a pad: a band of bare paper between two pen lines, in arcs that step round
+  float r = wobbly(uv, seed);
+  float ang = atan(uv.y, uv.x) + floor(uTime * 6.0) * (seed > 0.5 ? 0.21 : -0.21);
+  float arc = step(0.2, abs(fract(ang / 6.2832 * 6.0 + seed) - 0.5) * 2.0);
+  float show = smoothstep(0.0, 0.12, life) * smoothstep(1.0, 0.6, life) * min(col.a, 1.0);
+  float band = body(abs(r - 0.86) - 0.05) * arc;
+  float lines = max(pen(r - 0.91), pen(r - 0.81)) * arc;
+  return over(mark(col.rgb * 0.8, lines * show), mark(mix(FX_PAPER, col.rgb, 0.45), band * show * 0.9));
 }`);
 
 registerFx('orb', /* glsl */ `

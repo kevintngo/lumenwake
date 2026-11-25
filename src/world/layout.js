@@ -100,6 +100,28 @@ export function missionSpec(offer) {
   return { id: 'm' + offer.seed, biome: offer.biome, seed: offer.seed, rooms, links, start: { x: 0, z: 0, yaw: Math.atan2(rooms[1].x, rooms[1].z) }, offer };
 }
 
+/**
+ * The first contract, "First Light": not rolled but laid out, so a new surveyor meets one thing at a time.
+ * A quiet island to learn to fight on (three sproutlings, a supply pod); a bridge with a gap to jump; a
+ * second island with a mixed pack, a second wave and a survey mark; and the elder's island.
+ */
+export function firstSpec(offer) {
+  const rnd = mulberry32(offer.seed >>> 0);
+  const mk = (i, x, z, r, h, kind, rag, more) => Object.assign(room(i, x, z, r, h, kind, rag, rnd), { main: true, sites: [] }, more);
+  const rooms = [
+    mk(0, 0, 0, 8.5, 10, 'start', 0.05, {}),
+    mk(1, 2, 31, 12.5, 10, 'fight', 0.07, { waves: [['sproutling', 'sproutling', 'sproutling']], pods: 1 }),
+    mk(2, 24, 62, 13.5, 11, 'fight', 0.07, { waves: [['puffcap', 'hound', 'hound'], ['mite', 'mite', 'sproutling']], pods: 1, sites: ['mark'] }),
+    mk(3, 44, 115, 27, 11, 'boss', 0.05, { waves: [['@matron']] }),
+  ];
+  const links = [
+    { a: 0, b: 1, w: 4.6, gate: true },
+    { a: 1, b: 2, w: 4.6, gate: true, gap: 2.2 },          // the first jump
+    { a: 2, b: 3, w: 4.6, gate: true },
+  ];
+  return { id: 'first', biome: offer.biome, seed: offer.seed, rooms, links, start: { x: 0, z: 0, yaw: Math.atan2(rooms[1].x, rooms[1].z) }, offer, laid: true };
+}
+
 const mainRooms = (rooms) => rooms.filter((r) => r.main || r.kind === 'start');
 
 /** Room for a new room at (x, z) with radius r, reached from `from`? */

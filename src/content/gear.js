@@ -2,7 +2,8 @@
 // An item in a bag is small data ({ base, rarity, ilvl, affixes, power }, see
 // sim/items.js); everything it means is looked up here.
 //
-//   base    what the thing is: its slot, its family (weapons), and what it always gives ("implicit")
+//   base    what the thing is: its slot, its family (weapons), what it always gives ("implicit"), and its `look`:
+//           which of the shapes for its kind it is, in the hand or on the body and on its tile (gfx/glsl/held.js)
 //   rarity  how many affixes it carries; the top one also carries a power
 //   affix   one rolled line: a stat, how it is applied, and the range it rolls in at item level 1
 //
@@ -19,17 +20,18 @@ export const RARITIES = [
 ];
 
 export const BASES = {
-  saber: { name: 'Arc Saber', slot: 'weapon', family: 'blade', implicit: [{ stat: 'attack', op: 'flat', value: 6, grow: 1.5 }] },
-  glaive: { name: 'Split Glaive', slot: 'weapon', family: 'blade', implicit: [{ stat: 'attack', op: 'flat', value: 8, grow: 1.9 }, { stat: 'attackSpeed', op: 'inc', value: -0.1 }] },
-  rifle: { name: 'Pulse Rifle', slot: 'weapon', family: 'rifle', implicit: [{ stat: 'attack', op: 'flat', value: 5, grow: 1.3 }] },
-  carbine: { name: 'Needle Carbine', slot: 'weapon', family: 'rifle', implicit: [{ stat: 'attack', op: 'flat', value: 4, grow: 1.1 }, { stat: 'attackSpeed', op: 'inc', value: 0.12 }] },
-  rod: { name: 'Focus Rod', slot: 'weapon', family: 'wand', implicit: [{ stat: 'attack', op: 'flat', value: 4, grow: 1.0 }, { stat: 'power', op: 'inc', value: 0.08, grow: 0.006 }] },
-  prism: { name: 'Prism Staff', slot: 'weapon', family: 'wand', implicit: [{ stat: 'attack', op: 'flat', value: 3, grow: 0.8 }, { stat: 'power', op: 'inc', value: 0.14, grow: 0.008 }] },
-  scout: { name: 'Scout Frame', slot: 'frame', implicit: [{ stat: 'defense', op: 'flat', value: 2, grow: 0.6 }, { stat: 'speed', op: 'inc', value: 0.04 }] },
-  bulwark: { name: 'Bulwark Frame', slot: 'frame', implicit: [{ stat: 'defense', op: 'flat', value: 4, grow: 1.0 }, { stat: 'maxHp', op: 'inc', value: 0.05 }] },
-  core: { name: 'Core Unit', slot: 'unit', implicit: [{ stat: 'maxFocus', op: 'flat', value: 8, grow: 1.4 }] },
-  drive: { name: 'Drive Unit', slot: 'unit', implicit: [{ stat: 'hpRegen', op: 'flat', value: 0.5, grow: 0.12 }] },
+  saber: { look: 0, name: 'Arc Saber', slot: 'weapon', family: 'blade', implicit: [{ stat: 'attack', op: 'flat', value: 6, grow: 1.5 }] },
+  glaive: { look: 1, name: 'Split Glaive', slot: 'weapon', family: 'blade', implicit: [{ stat: 'attack', op: 'flat', value: 8, grow: 1.9 }, { stat: 'attackSpeed', op: 'inc', value: -0.1 }] },
+  rifle: { look: 0, name: 'Pulse Rifle', slot: 'weapon', family: 'rifle', implicit: [{ stat: 'attack', op: 'flat', value: 5, grow: 1.3 }] },
+  carbine: { look: 1, name: 'Needle Carbine', slot: 'weapon', family: 'rifle', implicit: [{ stat: 'attack', op: 'flat', value: 4, grow: 1.1 }, { stat: 'attackSpeed', op: 'inc', value: 0.12 }] },
+  rod: { look: 0, name: 'Focus Rod', slot: 'weapon', family: 'wand', implicit: [{ stat: 'attack', op: 'flat', value: 4, grow: 1.0 }, { stat: 'power', op: 'inc', value: 0.08, grow: 0.006 }] },
+  prism: { look: 1, name: 'Prism Staff', slot: 'weapon', family: 'wand', implicit: [{ stat: 'attack', op: 'flat', value: 3, grow: 0.8 }, { stat: 'power', op: 'inc', value: 0.14, grow: 0.008 }] },
+  scout: { look: 0, name: 'Scout Frame', slot: 'frame', implicit: [{ stat: 'defense', op: 'flat', value: 2, grow: 0.6 }, { stat: 'speed', op: 'inc', value: 0.04 }] },
+  bulwark: { look: 1, name: 'Bulwark Frame', slot: 'frame', implicit: [{ stat: 'defense', op: 'flat', value: 4, grow: 1.0 }, { stat: 'maxHp', op: 'inc', value: 0.05 }] },
+  core: { look: 1, name: 'Core Unit', slot: 'unit', implicit: [{ stat: 'maxFocus', op: 'flat', value: 8, grow: 1.4 }] },
+  drive: { look: 2, name: 'Drive Unit', slot: 'unit', implicit: [{ stat: 'hpRegen', op: 'flat', value: 0.5, grow: 0.12 }] },
 };
+for (const id in BASES) BASES[id].id = id;
 
 // word: what the affix is called in an item's name (the first rolled names the item, the second follows "of")
 export const AFFIXES = [
