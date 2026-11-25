@@ -22,7 +22,9 @@ export class Combat {
     if (!target || target.dead) return;
     const crit = canCrit && rand() < p.crit;
     let amount = (p.attack * mult + flat) * (0.9 + rand() * 0.2) * (crit ? (p.critDamage || 1.65) : 1) * g.relics.more(target);
+    this.indirect = indirect;
     this.damage(target, Math.max(1, Math.round(amount)), p, crit);
+    this.indirect = false;
     if (!indirect) g.relics.landedOn(target);
   }
 
@@ -61,7 +63,7 @@ export class Combat {
     target.hp = Math.max(0, target.hp - amount);
     target.flash = soft ? Math.max(target.flash || 0, 0.4) : 1;
     if (!soft && target.action !== 1 && target.action !== 5 && !(target.ai && target.ai.state === 'special')) { target.action = 3; target.actionT = 0; target.actionDur = 0.22; }
-    g.bus.emit('damage', { target, amount, crit, source, soft });
+    g.bus.emit('damage', { target, amount, crit, source, soft, indirect: !!this.indirect });
     if (target.kind === 'monster') {
       const ai = target.ai;
       ai.target = g.player; ai.provoked = true;

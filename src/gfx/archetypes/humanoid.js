@@ -143,6 +143,11 @@ vec3 offLocal(vec3 p, float wide, out float k) {
   k = 0.75;
   return (p - hHandL - vec3(-0.02, 0.21 + 0.02 * sin(uTime * 2.2 + eLook.x * 6.0), 0.07)) / k;
 }
+#define ENT_EDGE_GLOW
+vec4 entEdgeGlow(float mat) {
+  if (mat > 7.5 && mat < 8.5) return hKit < 0.5 ? vec4(SABER_COL, 0.9) : hKit > 1.5 ? vec4(mix(P_SKY, P_TEAL, 0.5), 0.6) : vec4(0.0);
+  return vec4(0.0);
+}
 float kWide() { return kind > 2.5 && kind < 3.5 ? 1.36 : (kind > 1.5 && kind < 2.5 ? 0.86 : (kind > 3.5 ? 0.9 : 1.0)); }
 
 float entMap(vec3 p, out float mat) {
@@ -467,7 +472,7 @@ void entSurf(vec3 p, float mat, inout Surf s) {
       else s.ink = penLine(length(vec2(p.x - hHip.x, p.y - hHip.y - 0.07)) - 0.03) * step(0.0, p.z - hHip.z) * 0.8;                                    // the belt's round buckle
     }
   } else if (m == 6) { s.albedo = P_STONE; s.cover = 0.6; }                     // the headset
-  else if (m == 7) heldSurf(hKit, hLook, false, s);
+  else if (m == 7) heldSurf(hKit, hLook, false, s, dot(p - hHandR, hBlade));
   else if (m == 9) {
     if (unit) { s.albedo = P_SKY; s.cover = 0.1; s.wrap = 0.25; s.ink = penLine(abs(p.y - hChest.y - 0.085) - 0.06) * 0.6; }
     else if (karn) { s.albedo = eColB; s.cover = 0.86; s.ink = penLine(length(p - hChest - vec3(-0.26, 0.12, 0.0)) - 0.1) * 0.7; }      // the shoulder plate
@@ -516,7 +521,7 @@ void entSurf(vec3 p, float mat, inout Surf s) {
   else if (m == 18 || m == 19) { float k; wornSurf(offLocal(p, kWide(), k), hOff - 1.0, m == 19, s); }
   else if (m == 15) frameSurf(p - hChest, kWide(), s);
   else if (m == 16 || m == 17) unitSurf(p - hChest - vec3(0.0, 0.0, unit ? -0.275 : -0.2 * max(kWide(), 1.0)), hUnit, m == 17, s);
-  else heldSurf(hKit, hLook, true, s);          // the light of what is in the hand
+  else heldSurf(hKit, hLook, true, s, dot(p - hHandR, hBlade));          // the light of what is in the hand
 }
 `,
 });

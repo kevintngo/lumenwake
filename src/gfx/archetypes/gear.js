@@ -14,11 +14,15 @@ registerArchetype({
   glsl: /* glsl */ `
 ${HELD_GLSL}
 const float STOUT = 1.8;
+#define ENT_EDGE_GLOW
+float gKitG = 0.0;
+vec4 entEdgeGlow(float mat) { return mat > 0.5 && mat < 1.5 && gKitG < 0.5 ? vec4(SABER_COL, 0.9) : vec4(0.0); }
 float gPiece, gKit, gLook;
 vec3 gHand, gDir, gSide;
 void entPose() {
   gPiece = floor(eExtra + 0.5);
   gKit = floor(gPiece * 0.5 + 0.01); gLook = gPiece - gKit * 2.0;
+  gKitG = gPiece < 5.5 ? gKit : 9.0;
   // held things lie across the tile from the lower left to the upper right, turned a little toward the eye
   gDir = normalize(vec3(0.62, 0.76, 0.12)); gSide = normalize(vec3(-0.76, 0.62, 0.0));
   // (the middle of each, measured along it from the grip)
@@ -62,7 +66,7 @@ float entMap(vec3 p, out float mat) {
 }
 void entSurf(vec3 p, float mat, inout Surf s) {
   int m = int(mat + 0.5);
-  if (m < 2) { heldSurf(gKit, gLook, m == 1, s); return; }
+  if (m < 2) { heldSurf(gKit, gLook, m == 1, s, dot(p - gHand, gDir)); return; }
   if (m == 5) { frameSurf(p - vec3(0.0, 0.03, 0.0), 1.0, s); return; }
   if (m > 7) { wornSurf(p, gPiece - 10.0, m == 9, s); return; }
   if (m > 5) { unitSurf(vec3(p.x, p.y, -p.z), gPiece - 7.0, m == 7, s); return; }

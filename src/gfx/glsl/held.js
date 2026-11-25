@@ -4,7 +4,8 @@
 // hand, on the shoulders or on the back.
 //
 // Every base in content/gear.js has a `look`: which of its family's shapes it is.
-//   blade   0 arc saber: a grip and one bar of light      1 split glaive: a haft, a yoke, two bars
+//   blade   0 arc saber: a metal hilt and one blade of light   1 split glaive: a haft, a yoke, two straight blades side by side
+//           (a blade of light is white at its heart and its colour at the edge, with a glow round it in place of a pen line)
 //   rifle   0 pulse rifle: a long body, a muzzle light    1 needle carbine: a stock, a short body, a thin barrel
 //   rod     0 focus rod: a staff, a ball of light         1 prism staff: a longer staff, a cut prism
 //   frame   0 scout: the wearer's own clothes             1 bulwark: pauldrons, a plate front and back
@@ -16,22 +17,27 @@
 //   mod     0 signal chip: a square chip with a lit core   1 coil ring: a ring with a lit stone
 
 export const HELD_GLSL = /* glsl */ `
+const vec3 SABER_COL = vec3(0.32, 0.74, 1.0);     // the colour a blade of light burns
+
 // The thing in the hand. hand: the grip. dir: the way it points. side: across it (both unit).
 // kit: 0 blade, 1 rifle, 2 rod. Gives the distance to its solid parts and to its light.
 void heldMap(vec3 p, vec3 hand, vec3 dir, vec3 side, float kit, float look, out float solid, out float lit) {
   solid = 1e3; lit = 1e3;
   if (kit < 0.5) {
     if (look < 0.5) {
-      // a short grip with a collar, and a bar of light out of it
-      lit = sdCapsule(p, hand + dir * 0.14, hand + dir * 0.98, 0.04);
-      solid = min(sdCapsule(p, hand - dir * 0.1, hand + dir * 0.09, 0.034),
-                  sdCapsule(p, hand + dir * 0.09, hand + dir * 0.12, 0.052));
+      // a metal hilt (a pommel, a ridged grip, a wider emitter at its head) and a long blade of light out of it
+      lit = sdCapsule(p, hand + dir * 0.17, hand + dir * 1.04, 0.043);
+      solid = min(sdCapsule(p, hand - dir * 0.12, hand + dir * 0.1, 0.031),
+                  sdCapsule(p, hand + dir * 0.1, hand + dir * 0.15, 0.043));
+      solid = min(solid, sdCapsule(p, hand - dir * 0.15, hand - dir * 0.12, 0.037));
     } else {
-      // a longer haft, a yoke across its head, and two bars of light that close toward their tips
+      // a longer haft, a yoke across its head with an emitter at each end, and two straight blades of light side by side
       solid = min(sdCapsule(p, hand - dir * 0.2, hand + dir * 0.15, 0.03),
-                  sdCapsule(p, hand + dir * 0.16 - side * 0.125, hand + dir * 0.16 + side * 0.125, 0.036));
-      lit = min(sdCapsule(p, hand + dir * 0.22 - side * 0.115, hand + dir * 0.94 - side * 0.07, 0.03),
-                sdCapsule(p, hand + dir * 0.22 + side * 0.115, hand + dir * 0.94 + side * 0.07, 0.03));
+                  sdCapsule(p, hand + dir * 0.16 - side * 0.11, hand + dir * 0.16 + side * 0.11, 0.034));
+      solid = min(solid, min(sdCapsule(p, hand + dir * 0.15 - side * 0.105, hand + dir * 0.21 - side * 0.105, 0.04),
+                             sdCapsule(p, hand + dir * 0.15 + side * 0.105, hand + dir * 0.21 + side * 0.105, 0.04)));
+      lit = min(sdCapsule(p, hand + dir * 0.22 - side * 0.105, hand + dir * 1.0 - side * 0.105, 0.034),
+                sdCapsule(p, hand + dir * 0.22 + side * 0.105, hand + dir * 1.0 + side * 0.105, 0.034));
     }
   } else if (kit < 1.5) {
     if (look < 0.5) {
@@ -64,10 +70,25 @@ void heldMap(vec3 p, vec3 hand, vec3 dir, vec3 side, float kit, float look, out 
   }
 }
 
-// How the thing in the hand is drawn. light: the point is on its light, not its solid parts.
-void heldSurf(float kit, float look, bool light, inout Surf s) {
-  if (!light) { s.albedo = P_CHARCOAL; s.cover = 0.85; return; }
-  if (kit < 0.5) { s.albedo = mix(P_SKY, P_TEAL, 0.55); s.cover = 0.9; s.soft = 1.0; return; }       // a bar of light: blue pencil, laid soft
+// How the thing in the hand is drawn. light: the point is on its light, not its solid parts. along: how far along it
+// from the grip (a blade's hilt is ridged where it is held).
+void heldSurf(float kit, float look, bool light, inout Surf s, float along) {
+  if (!light) {
+    s.albedo = P_CHARCOAL; s.cover = 0.85;
+    if (kit < 0.5 && look < 0.5) {
+      // the hilt: pale metal, dark ridges where the hand goes, a line where the emitter begins
+      s.albedo = P_STONE; s.cover = 0.5; s.wrap = 0.3;
+      if (along > -0.12 && along < 0.08 && fract(along * 26.0) < 0.42) { s.albedo = P_CHARCOAL; s.cover = 0.9; }
+      s.ink = max(penLine(along - 0.1), penLine(along + 0.12)) * 0.8;
+    }
+    return;
+  }
+  if (kit < 0.5) {
+    // a blade of light: white where it faces the eye, its colour toward its edges, flat and lit from within
+    float facing = abs(dot(gNormal, gRay)), core = smoothstep(0.32, 0.72, facing);
+    s.albedo = SABER_COL; s.cover = mix(0.96, 0.0, core); s.solid = 1.0; s.glow = core; s.ink = 0.0;
+    return;
+  }
   s.albedo = mix(P_SKY, P_TEAL, 0.45); s.cover = 0.22; s.glow = 0.85; s.soft = 1.0;                   // a muzzle light, the head of a rod
   if (kit > 1.5 && look > 0.5) { s.cover = 0.42; s.glow = 0.6; }                                     // a prism holds a little more colour
 }

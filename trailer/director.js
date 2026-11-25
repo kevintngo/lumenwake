@@ -18,6 +18,7 @@
   const { BASES } = await import('/src/content/gear.js');
   const { hubSpec } = await import('/src/world/layout.js');
   const { TOWN } = await import('/src/content/town.js');
+  const { CINEMATICS } = await import('/src/content/cinematics.js');
   const { createAudio } = await import('/src/audio/audio.js');
   const { EventBus } = await import('/src/core/events.js');
   const $ = (id) => document.getElementById(id);
@@ -42,6 +43,7 @@
     .np { font-size: 18px !important; } .np small { font-size: 15px !important; }
     .np.loot, .fl.xp { display: none !important; }      /* (what drops, and the experience it gives, would bury a fight in words) */
     body.nocard #cine-card { display: none !important; }
+    body.clean .np { display: none !important; }
     .fl { font-size: 30px !important; } .fl.crit { font-size: 40px !important; }
     #veil { position: fixed; inset: 0; z-index: 60; background: #070f2a; opacity: 0; pointer-events: none; }`;
   document.head.appendChild(css);
@@ -63,45 +65,45 @@
   cam.update = (dt, t, aspect, ground) => update(dt, [t[0] - Math.sin(cam.goal.yaw) * ahead, t[1], t[2] - Math.cos(cam.goal.yaw) * ahead], aspect, ground);
 
   // ---------------------------------------------------------------- the sound
-  // One audio/audio.js of its own, on a stand-in for the game: the same game in every way the effects need (where the
-  // hero and each creature are), but with the music told what to play by the film (`score`), so it is one piece from
-  // the first cut to the last instead of a new one at every cut. Everything the game announces while a shot is being
-  // filmed is passed on to it; nothing from the moments between shots is. Its context is offline, and advances one
-  // frame of sound for each frame of picture.
+  // Two things on one offline audio context, rendered one frame of sound for each frame of picture:
+  //   the score   trailer/score.js: the trailer's own piece, on the game's own instruments, written to the cuts
+  //   the effects the game's own audio/audio.js on a stand-in for the game (the same game in every way the effects
+  //               need, with its music turned off), hearing everything the game announces while a shot is filmed and
+  //               nothing from between shots. Its effects sit well under the score: blows and roars are there, but
+  //               the piece carries the film.
   const SR = 44100, FR = 1 / 60;
   let actx = null, filming = false, soundFrames = 0, rendering = null, buffer = null;
   const abus = new EventBus();
-  const score = { area: 'ember', boss: { kind: 'monster', boss: true, defId: 'warden', dead: false, enraged: false, ai: { state: 'chase' }, x: 0, z: 0 }, heat: 3 };
   const steady = new Proxy(p, { get: (t, k) => (k === 'hp' || k === 'maxHp' ? 100 : k === 'dead' ? false : t[k]) });
   const stand = new Proxy(g, {
     get(t, k) {
       if (k === 'bus') return abus;
-      if (k === 'biome') return { id: score.area };
-      if (k === 'monsters') return [...(score.boss && !score.boss.dead ? [score.boss] : []), ...Array.from({ length: score.heat }, () => ({ kind: 'monster', dead: false, ai: { state: 'chase' } }))];
       if (k === 'cinema') return { active: false, blocking: false };
       if (k === 'player') return steady;
-      if (k === 'settings') return { master: 1, music: 1, sfx: 1, ambience: 0.6 };
+      if (k === 'settings') return { master: 1, music: 0, sfx: 0.34, ambience: 0.3 };
       return t[k];
     },
   });
   const Offline = class extends OfflineAudioContext { get state() { return 'running'; } };
-  const LIMIT = 40;          // seconds of sound made room for (the film is shorter)
+  const LIMIT = 60;          // seconds of sound made room for (the film is shorter)
   window.AudioContext = function () { return (actx = new Offline(2, SR * LIMIT, SR)); };
   createAudio(stand);
   abus.emit('begin');
   window.AudioContext = undefined;
+  const { createScore } = await import('/trailer/score.js');
+  const music = await createScore(actx);
   g.bus.on('frame', () => { R.minimap.rect[2] = 0; });        // (no little map in the corner: the HUD is left out)
   const emit0 = g.bus.emit.bind(g.bus);
-  const QUIET = new Set(['frame', 'begin', 'zone', 'boss:arrive', 'boss:fell', 'boss:enrage', 'cine:begin', 'mission:report', 'mission:begin', 'mission:done', 'room:clear', 'levelup']);
+  const QUIET = new Set(['frame', 'begin', 'levelup', 'mission:report']);
   g.bus.emit = (type, d) => { const r = emit0(type, d); if (filming && !QUIET.has(type)) abus.emit(type, d); return r; };
   const suspendAt = (t) => new Promise((ok) => actx.suspend(t).then(ok));
   async function soundFrame() {
+    music.tick(soundFrames * FR);
     abus.emit('frame', FR);
     const reached = suspendAt(++soundFrames * FR);
     if (!rendering) rendering = actx.startRendering().then((b) => (buffer = b)); else actx.resume();
     await reached;
   }
-  const hush = (type, d) => { if (filming) abus.emit(type, d); };       // something the score is told by the film itself
 
   // ---------------------------------------------------------------- helpers
   const KINDS = ['weapon', 'offhand', 'unit', 'mod', 'mod', 'visor', 'frame', 'grips', 'greaves', 'boots'];
@@ -153,7 +155,7 @@
     cine.quiet = true;
     ms.deploy();
     ms.active.rooms.forEach((r, k) => { if (!(keepBoss && g.world.rooms[k].kind === 'boss')) r.state = 'clear'; });
-    for (const gate of g.world.gates) gate.shut = false;
+    for (const gate of g.world.gates) if (gate.shut) { gate.shut = false; g.bus.emit('world:changed', g.world.setState(gate.st, 1)); }      // every gate down, and drawn so
     clearWorld();
   };
   const home = () => {
@@ -217,57 +219,59 @@
     cap.style.opacity = o.toFixed(2);
   };
 
+  // ---------------------------------------------------------------- the character select, in a frame of its own
+  // A second copy of the game, never begun, so its select screen is the real one: the live hero in the middle and the
+  // five peoples under them. (Its clock is the trailer's too: record.mjs takes it away in every frame of the page.)
+  const sel = Object.assign(document.createElement('iframe'), { src: '/index.html?new' });
+  Object.assign(sel.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', border: '0', zIndex: 45, visibility: 'hidden' });
+  document.body.appendChild(sel);
+  for (let k = 0; k < 600 && !(sel.contentWindow && sel.contentWindow.__game); k++) await wait(50);
+  const sw = sel.contentWindow, sd = sw.document, sg = sw.__game;
+  await sd.fonts.ready;
+  sg.renderer.adapt = () => {}; sg.renderer.scale = 1; sg.resize(); sg.save = () => {};
+  const sst = sd.createElement('style');
+  sst.textContent = '.select-col.classes, .select-foot, #keys-hint { display: none !important; }';      // (the peoples, not the classes)
+  sd.head.appendChild(sst);
+  const selStep = () => { sg.frame(FR, 16.7); sw.__advance(1000 * FR); };
+  for (let k = 0; k < 90; k++) selStep();
+
   // ---------------------------------------------------------------- shots
   const shots = [];
   let mobs = [], boss = null, yaw0 = 0;
 
-  // 1. Straight in: a colossus of the Ember Shelf, and a surveyor whose third blow shakes the ground.
-  const ownStage = cine.frameStage.bind(cine);
+  // 1. Bars 1-2: arriving: the shuttle flying in over the field and landing, and walking into the square (the game's own
+  // opening cinematic, from the moment the shuttle comes into its second shot).
   shots.push({
-    id: 'warden', frames: 150, pre: 150,
+    id: 'arrival', frames: 300, pre: 0, cine: true,
     setup() {
-      // (closer and lower than the game stands for a giant: the colossus over the hero, its head near the top of the picture)
-      cine.frameStage = () => { cam.stage.lift = 3.4; cam.stage.pull = 1.5; cam.stage.wide = 0.14; };
       hero('vanguard', 'unit', ['quake', 'thorn', 'spore']);
-      contract('ember', 'hunt', 3, ['angry'], true);
-      boss = toElder(11);
-      boss.hp = boss.maxHp = Math.round(p.attack * 400);
-      mobs = [boss];
-      yaw0 = yawTo(boss, 0.42);
-      go(p.x, p.z, yaw0, 0.26, 12.5, p.yaw, 0);
-      g.controls.setTarget(boss, true);
+      home();
+      cine.quiet = false; cine.seen = {};
+      for (const sh of CINEMATICS.arrival.shots) sh.dip = 0;         // (straight cuts in the film: no fades through paper between its shots)
+      cine.play('arrival');
+      until(() => !cine.now || cine.now.t >= 8.15, 800);       // (from the shuttle flying in: it is in the very first frame)
+    },
+    tick() {},
+  });
+
+  // 2. Bar 3: about the town: past the market, the hall ahead, the crew about their rounds.
+  shots.push({
+    id: 'town', frames: 150, pre: 20,
+    setup() {
+      while (cine.now) cine.finish(true);
+      g.hour = 15.2;
+      yaw0 = 1.15;
+      go(-2.5, 7.5, yaw0, 0.22, 7.6, -1.9, 0.8);
     },
     tick(i) {
-      keep(0.7); boss.hp = Math.max(boss.hp, boss.maxHp * 0.6);
-      cam.goal.yaw = yawTo(boss, 0.62 - 0.22 * ease(Math.max(0, i) / 150));
-      cam.goal.pitch = 0.14; cam.goal.distance = 12.5 - 1.5 * ease(Math.max(0, i) / 150);
-      if (i < 12) { p.flash = 0; for (const m of g.monsters) m.flash = 0; }      // the first frame is the poster: no white flash on it
-      if (p.target !== boss) g.controls.setTarget(boss, true);
-      if (i === -60 || i === 40) cast(barSlot('cleave'), boss);
-      if (i === -20 || i === 96) cast(barSlot('slam'), boss);
+      p.moveTo = { x: -11.0, z: 1.8 };
+      cam.goal.yaw = yaw0 - 0.3 * ease(Math.max(0, i) / 150);
     },
-    after() { cine.frameStage = ownStage; },
-  });
-  caption(6, 138, 'Giant elders hold every island');
-
-  // 2. Under the islands: an elder wakes in the Underhalls, its lantern the only light. (The game's own cinematic.)
-  shots.push({
-    id: 'keeper', frames: 300, pre: 0,
-    setup() {
-      hero('ranger', 'human', ['rot', 'vigil', 'rush']);
-      contract('vault', 'hunt', 0, [], true);
-      cine.quiet = false; cine.seen = {};
-      const r = room('boss'), l = g.world.nav.links.find((k) => k.b === r.i);
-      go(r.x - l.ux * (r.r - 9), r.z - l.uz * (r.r - 9), Math.atan2(-l.ux, -l.uz), 0.3, 12, Math.atan2(l.ux, l.uz));
-      until(() => cine.now && /^elder/.test(cine.now.id), 300);
-      until(() => !cine.now || cine.now.t >= 4.05, 400);         // the last of its rising, then its voice and its name
-    },
-    tick() { keep(1); },
   });
 
-  // 3. Four places, a beat and a quarter each.
-  const place = (id, biome, cls, who, relics, foes, yaw, pitch, dist, act) => shots.push({
-    id, frames: 75, pre: 46,
+  // 3. Bars 4-5: two fights. A ranger's volley among glass trees; a vanguard's cut and slam on the Ember Shelf.
+  const fight = (id, biome, cls, who, relics, foes, yaw, pitch, dist, act, frames = 150) => shots.push({
+    id, frames, pre: 40,
     setup() {
       hero(cls, who, relics);
       contract(biome, 'sweep');
@@ -278,22 +282,61 @@
     },
     tick(i) {
       keep(0.7);
-      cam.goal.yaw = yaw0 + 0.16 * (Math.max(0, i) / 75);
+      cam.goal.yaw = yaw0 + 0.22 * (Math.max(0, i) / frames);
       if (!p.target && nearest(mobs)) g.controls.setTarget(nearest(mobs), true);
       act(i);
     },
   });
-  place('glass', 'glasswood', 'ranger', 'lynd', ['chill'], [['sproutling', 1.4, 5], ['puffcap', -1.6, 6.5], ['wisp', 0.2, 8], ['hound', 2.4, 7.5], ['sproutling', -2.6, 4.4]], 0.9, 0.3, 10.5,
-    (i) => { if (i === -30 || i === 20) cast(barSlot('volley'), nearest(mobs)); });
-  place('hush', 'hush', 'adept', 'veiled', ['wick', 'chill'], [['wisp', 1.2, 4.5], ['puffcap', -1.4, 5.2], ['wisp', 2.6, 6.8], ['mite', -2.4, 7]], 2.4, 0.34, 10,
-    (i) => { if (i === -16) cast(barSlot('nova')); if (i === 14 || i === 52) cast(barSlot('bolt'), nearest(mobs)); });
-  place('shatter', 'shatter', 'vanguard', 'karn', ['meteor', 'quake'], [['cragling', 1.6, 3.6], ['mite', -1.8, 3.2], ['watcher', 0.4, 6.5], ['cragling', -0.6, 5]], 0.646, 0.16, 9.5,
-    (i) => { if (i === -40) p.intent.jump = true; if (i === 4) cast(barSlot('cleave'), nearest(mobs)); if (i === 22) p.intent.jump = true; });
-  place('rime', 'rime', 'ranger', 'unit', ['rot'], [['cragling', 1.0, 6], ['strider', -2, 8], ['shellsnap', 2.6, 7], ['cragling', -1, 9.5]], 3.6, 0.28, 11,
-    (i) => { if (i === -30 || i === 30) cast(barSlot('volley'), nearest(mobs)); if (i === 6) cast(barSlot('bolt'), nearest(mobs)); });
-  caption(462, 738, 'Sky islands, dungeons, open space');
+  fight('glass', 'glasswood', 'ranger', 'lynd', ['chill'], [['sproutling', 1.4, 5], ['puffcap', -1.6, 6.5], ['wisp', 0.2, 8], ['hound', 2.4, 7.5], ['sproutling', -2.6, 4.4], ['bristlehog', 0.8, 9.5]], 0.9, 0.3, 10.5,
+    (i) => { if (i === -26 || i === 40 || i === 104) cast(barSlot('volley'), nearest(mobs)); });
+  fight('ember', 'ember', 'vanguard', 'karn', ['quake', 'thorn'], [['bristlehog', 1.2, 3.4], ['cragling', -1.4, 3.8], ['bristlehog', 2.2, 5.4], ['strider', -0.4, 6.2, true], ['cragling', -2.6, 5.6]], 2.3, 0.32, 10,
+    (i) => { if (i === -10) cast(barSlot('cleave'), nearest(mobs)); if (i === 54) cast(barSlot('slam')); if (i === 110) cast(barSlot('cleave'), nearest(mobs)); });
 
-  // 4. A relic's power: a pack goes up one creature after another.
+  // 4. Bars 6-8: the Spore Matron wakes in the Glasswood: rising out of the island, and its voice and its name
+  // (the game's own cinematic, from just before it rises, timed so its roar falls on the downbeat of bar 8).
+  shots.push({
+    id: 'matron', frames: 450, pre: 0, cine: true,
+    setup() {
+      hero('adept', 'veiled', ['wick', 'chill']);
+      contract('glasswood', 'hunt', 0, [], true);
+      cine.quiet = false; cine.seen = {};
+      const r = room('boss'), l = g.world.nav.links.find((k) => k.b === r.i);
+      go(r.x - l.ux * (r.r - 9), r.z - l.uz * (r.r - 9), Math.atan2(-l.ux, -l.uz), 0.3, 12, Math.atan2(l.ux, l.uz));
+      until(() => cine.now && /^elder/.test(cine.now.id), 300);
+      until(() => !cine.now || cine.now.t >= 1.35, 200);
+    },
+    tick() { keep(1); },
+  });
+
+  // 5. Bars 9-12: everywhere else. The Underhalls by brazier light, the Shatter under the ringed world, dusk in the
+  // Hush, the Rime Steps, and a relic's power going off through a pack.
+  shots.push({
+    id: 'halls', frames: 150, pre: 30,
+    setup() {
+      hero('ranger', 'human', ['rot', 'rush']);
+      contract('vault', 'sweep');
+      const b = room('fight', 1), l = g.world.nav.links.find((k) => k.b === b.i) || { ux: 0, uz: 1 };
+      yaw0 = Math.atan2(-l.ux, -l.uz);
+      go(b.x - l.ux * b.r * 0.55, b.z - l.uz * b.r * 0.55, yaw0, 0.26, 8, yaw0 + Math.PI, 1.4);
+      boss = { x: b.x + l.ux * b.r * 0.2, z: b.z + l.uz * b.r * 0.2 };
+      mobs = [];
+    },
+    tick(i) {
+      keep(0.8);
+      if (i < 56) p.moveTo = { x: boss.x, z: boss.z };
+      if (i === 30) mobs = [['delver', 1.4, 6], ['mite', -1.2, 5.4], ['wisp', 0.4, 8]].map(([k, rt, fw]) => spawn(k, rt, fw, 10));
+      if (i === 66) cast(barSlot('volley'), nearest(mobs));
+      if (i > 56 && !p.target && nearest(mobs)) g.controls.setTarget(nearest(mobs), true);
+      cam.goal.yaw = yaw0 + 0.15 * ease(Math.max(0, i) / 150);
+    },
+  });
+  fight('shatter', 'shatter', 'vanguard', 'karn', ['meteor', 'quake'], [['cragling', 1.6, 3.6], ['mite', -1.8, 3.2], ['watcher', 0.4, 6.5], ['cragling', -0.6, 5]], 0.646, 0.15, 9.5,
+    (i) => { if (i === 6) p.intent.jump = true; if (i === 70) cast(barSlot('cleave'), nearest(mobs)); if (i === 96) p.intent.jump = true; });
+  fight('hush', 'hush', 'adept', 'veiled', ['wick', 'chill'], [['wisp', 1.2, 4.5], ['puffcap', -1.4, 5.2], ['wisp', 2.6, 6.8], ['mite', -2.4, 7]], 2.4, 0.34, 10,
+    (i) => { if (i === -16) cast(barSlot('nova')); if (i === 14 || i === 52) cast(barSlot('bolt'), nearest(mobs)); }, 75);
+  fight('rime', 'rime', 'ranger', 'unit', ['rot'], [['cragling', 1.0, 6], ['strider', -2, 8], ['shellsnap', 2.6, 7], ['cragling', -1, 9.5]], 3.6, 0.28, 11,
+    (i) => { if (i === -30 || i === 30) cast(barSlot('volley'), nearest(mobs)); if (i === 6) cast(barSlot('bolt'), nearest(mobs)); }, 75);
+
   /** Nine creatures in rows in front of the hero, each felled by a blow or a burst, standing until struck. */
   const pack = (near) => {
     const list = [];
@@ -309,21 +352,18 @@
       const r = room('fight', 0);
       yaw0 = 5.2;
       go(r.x, r.z, yaw0, 0.42, 12, yaw0 + Math.PI, 2.2);
-      mobs = [];
       mobs = pack(2.6);
     },
     tick(i) {
       keep(0.8);
       cam.goal.yaw = yaw0 - 0.2 * ease(Math.max(0, i) / 150);
       if (i === 6) cast(barSlot('cleave'), mobs[1]);
-      if (i === 64) mobs = pack(2.2);                       // a second pack comes on, and goes the same way
+      if (i === 64) mobs = pack(2.2);
       if (i === 88) cast(barSlot('slam'));
-      if (i > 100 && !p.target && nearest(mobs)) g.controls.setTarget(nearest(mobs), true);
     },
   });
-  caption(756, 888, 'Elders drop relics with powers');
 
-  // 5. Ten slots: the surveyor in the Gear tab, turning, and a relic's card.
+  // 6. Bar 13: the Gear tab: ten slots round the surveyor, who turns.
   shots.push({
     id: 'gear', frames: 150, pre: 20,
     setup() {
@@ -331,90 +371,54 @@
       home();
       const pad = g.world.structures.find((s) => s.role === 'deploy');
       go(pad.x + 3, pad.z - 7, 0.4, 0.3, 10);
-      const it = items.rollItem({ relic: 'tide', ilvl: 11, cls: 'adept' }); it.lock = true; p.sheet.gear.push(it);
-      for (let k = 0; k < 7; k++) p.sheet.gear.push(items.rollItem({ ilvl: 9 + (k % 3), rarity: k % 4, cls: 'adept' }));
+      for (let k = 0; k < 9; k++) p.sheet.gear.push(items.rollItem({ ilvl: 9 + (k % 3), rarity: k % 4, cls: 'adept' }));
       g.bus.emit('ui:toggle', 'bag');
-      const t = document.querySelector('#panels .tile.relic[data-key^="gear:"]'); if (t) t.click();
       const pane = $('win-pane'); if (pane) pane.scrollTop = 0;
     },
-    tick(i) {
-      const pane = $('win-pane');
-      for (const k in g.portraits.stages) { const st = g.portraits.stages[k]; st.yaw = (st.yaw || 0) + 0.022; st.dirty = true; }
-      if (pane) { const d = document.querySelector('#panels .detail'), want = d ? d.offsetTop - 60 : 600; pane.scrollTop = Math.max(0, want * ease(Math.min(1, Math.max(0, (i - 60) / 70)))); }
-    },
+    tick() { for (const k in g.portraits.stages) { const st = g.portraits.stages[k]; st.yaw = (st.yaw || 0) + 0.024; st.dirty = true; } },
     after() { g.bus.emit('ui:close'); },
   });
-  caption(906, 1038, 'Ten gear slots', true);
 
-  // 6. A place that has been surveyed before: Unbound, at night, and what falls bursts.
+  // 7. Bar 14: the select screen: the five peoples, one after another on the live figure.
   shots.push({
-    id: 'threat', frames: 150, pre: 34,
-    setup() {
-      hero('adept', 'human', ['chill', 'wick']);
-      contract('glasswood', 'sweep', 5, ['dark', 'volatile', 'leaders']);
-      const r = room('fight', 1);
-      yaw0 = 1.9;
-      go(r.x, r.z, yaw0, 0.36, 11.5, yaw0 + Math.PI, 1.8);
-      mobs = [['hound', 1.6, 4.2, true], ['sproutling', -1.4, 4.4], ['wisp', 0.4, 6.2], ['bristlehog', -2.6, 6.4], ['sproutling', 2.8, 6.8], ['puffcap', -0.6, 8.2]].map(([k, rt, fw, e]) => spawn(k, rt, fw, 12, !!e));
-      for (const m of mobs) { g.missions.temper(m); if (!m.elite) m.hp = m.maxHp = Math.round(p.attack * 1.2); }
-    },
+    id: 'peoples', frames: 150, pre: 6,
+    setup() { sel.style.visibility = 'visible'; },
     tick(i) {
-      keep(0.75);
-      cam.goal.yaw = yaw0 + 0.18 * ease(Math.max(0, i) / 150);
-      if (i === -14) cast(barSlot('nova'));
-      if (i === 20 || i === 64 || i === 108) cast(barSlot('bolt'), nearest(mobs));
-      if (i === 84) cast(barSlot('step'), null);
-      if (!p.target && nearest(mobs)) g.controls.setTarget(nearest(mobs), true);
-      if (i === 0) { score.boss.enraged = true; hush('boss:enrage', score.boss); }
+      if (i >= 0 && i % 30 === 0) { const tiles = sd.querySelectorAll('#people-pick .pick'); const t = tiles[(i / 30) % tiles.length]; if (t) t.click(); }
+      selStep();
     },
-  });
-  caption(1056, 1188, 'Places get harder each time you return');
-
-  // 7. The Stone Warden comes down. (The game's own cinematic.)
-  shots.push({
-    id: 'felled', frames: 300, pre: 0,
-    setup() {
-      hero('vanguard', 'unit', ['quake', 'thorn', 'spore']);
-      contract('ember', 'hunt', 0, [], true);
-      cine.quiet = false; cine.seen = { 'elder:warden': true };
-      boss = toElder(10);
-      until(() => !cine.now, 400);
-      for (let k = 0; k < 40; k++) { keep(1); if (p.target !== boss) g.controls.setTarget(boss, true); sim(); }
-      boss.hp = 1; g.combat.strike(boss, 60);
-      until(() => cine.now && cine.now.id === 'felled', 120);
-      until(() => !cine.now || cine.now.t >= 0.75, 120);       // (in past the first of the slowed blow, which is all rock this close)
-    },
-    tick(i) {
-      keep(1);
-      if (i === 0) { score.boss.dead = true; score.heat = 0; hush('boss:fell', score.boss); }
-    },
+    after() { sel.style.visibility = 'hidden'; },
   });
 
-  // 8. Home: the town at evening, the lumen at the shoulder, and the pad that takes you down.
+  // 8. Bars 15-17: evening on the rim of the square. The surveyor walks across it toward the ringed world hanging over
+  // the hall, the lumen at their shoulder. The camera starts close behind them, then stops following: it drifts left
+  // and rises as they walk on away from it, so they grow small under the spire and the world over it, still in the
+  // picture as it fades.
   shots.push({
-    id: 'home', frames: 270, pre: 10,
+    id: 'evening', frames: 450, pre: 12, clean: true, after() { stats.derive(p); },
     setup() {
-      document.body.classList.add('nocard');
       hero('vanguard', 'unit', ['quake', 'thorn', 'spore']);
       home();
-      g.hour = 17.6;
-      const pad = g.world.structures.find((s) => s.role === 'deploy');
-      ms.refresh(); ms.accept(0);
-      yaw0 = 0.2;
-      go(pad.x - 1.5, pad.z - 9.5, yaw0 + Math.PI, 0.22, 8.5, 0.15, 0);
-      boss = pad;
+      g.hour = 18.15;
+      boss = { x: 13.2, z: 17.6 };                               // 22 m from the spire, toward the south-east
+      go(boss.x, boss.z, 0.64, 0.1, 6, Math.atan2(-0.6, -0.8));
     },
     tick(i) {
-      const t = Math.max(0, i) / 270;
-      if (i < 200) p.moveTo = { x: boss.x - 0.6, z: boss.z - 4.2 };
-      cam.goal.yaw = yaw0 + Math.PI + 0.55 * ease(t);
-      cam.goal.pitch = 0.22 + 0.2 * ease(t);
-      cam.goal.distance = 8.5 + 5 * ease(t);
-      if (i === 0) { score.area = 'town'; score.boss = null; hush('zone', {}); hush('mission:report', { won: true }); }
-      veil.style.opacity = String(Math.max(0, Math.min(1, (i - 236) / 30)).toFixed(3));
+      const t = Math.max(0, i) / 450, out = [-0.6, -0.8], back = [0.6, 0.8], right = [-out[1], out[0]];
+      // walking (not running) toward the ringed world: the stride follows the ground covered, so slower is a walk
+      p.speedMul = 0.3 * Math.min(1, Math.max(0, (i + 12) / 40)); p.target = null;
+      p.moveTo = { x: p.x + out[0] * 6, z: p.z + out[1] * 6 };
+      // the rail, fixed in the world (from where the walk began): a slow ease in and out, so it never jolts
+      const e = t * t * t * (t * (t * 6 - 15) + 10);
+      const H = boss, D = 3.4 + 4.6 * e, side = -0.5 - 2.6 * e, up = 1.35 + 3.4 * e;
+      const pos = [H.x + back[0] * D + right[0] * side, p.y + up, H.z + back[1] * D + right[1] * side];
+      // what it looks at: just past the hero at first, then out at the ringed world (tilting up toward its middle)
+      const k = Math.min(1, t * 1.1), lk = k * k * (3 - 2 * k), far = 30 + 32 * lk, lift = 5 + 7.5 * lk;
+      const look = [H.x + out[0] * far, p.y + lift, H.z + out[1] * far];
+      cam.rail = { pos, look, lens: (46 + 8 * e) * Math.PI / 180, mix: 1 };
+      veil.style.opacity = String(Math.max(0, Math.min(1, (i - 414) / 34)).toFixed(3));
     },
   });
-  caption(1584, 1740, 'Free to play in your browser');
 
   // ---------------------------------------------------------------- the clock
   const starts = [];
@@ -426,6 +430,8 @@
       if (k < 0 || i >= shot.frames) {
         if (shot && shot.after) shot.after();
         k++; shot = shots[k]; i = -shot.pre;
+        document.body.classList.toggle('nocard', !shot.cine);
+        document.body.classList.toggle('clean', !!shot.clean);
         filming = false;
         shot.setup();
         for (; i < 0; i++) { shot.tick(i); sim(); }

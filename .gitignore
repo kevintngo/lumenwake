@@ -4,3 +4,4 @@ dist/
 node_modules/
 trailer/out/
 trailer/*.mp4*
+tools/sfx/raw/

@@ -38,6 +38,8 @@ A mission game drawn by shaders. You arrive by shuttle at a floating town, Merid
 - **A lumen at your shoulder.** A small light that follows you, puts a bolt into whatever you are fighting, and stores up a burst (G). Feed it what creatures drop: three tempers grow with what it eats, and at levels 5 and 12 it takes a new shape by the strongest of them. Eight kinds in all, each with a burst of its own.
 - **A jump.** Space jumps. Some side islands have a bridge broken in the middle, some have no bridge at all but a row of stepping stones, and big islands may have a terrace with a supply pod on it: all of them need a jump. A blow that runs along the ground (a slam, a delver coming up) can be jumped too. Miss, and you are hauled back from the cloud a little worse for it.
 - **Things to find.** Side islands off the main way, and on them survey marks (each adds to the pay; all three make the prize a better piece), a beacon that puts everything left on the map, lit crystals that lend a boon until you are lifted out, and lost cargo with something sitting on it.
+- **Blades of light.** The vanguard's sabers and glaives burn white at the core and blue at the edge, with a glow round them in place of the pen line; they hum while drawn on a contract, sweep as they swing, sizzle where they cut and switch on as you go down.
+- **Sound.** Recorded and made effects (see Sound effects below) over a synthesized score: every area and every elder has a piece of its own.
 - **Pictures drawn by the game.** Every portrait and scene in the interface is a frame from the game's own renderer: the peoples and classes on the select screen, the crew when they speak, the elders on their bar and on hunt contracts, a view of each place on the board and the report. The hero's own portrait is taken while you play, so it is always who you chose. In the menu the hero and the lumen stand alive on nothing: they breathe, and turn when dragged (or with the arrow keys).
 - **One menu, and a pause menu.** Character, Gear, Lumen, Contract and Guide are tabs of one window that holds the game while it is open. Esc opens the pause menu: settings for display, sound, controls and accessibility (text size, reduced motion, high contrast, skip cinematics), kept between visits.
 - **Pads that show the way.** The pad that sends you down, and the one that lifts you out, keep lifting rings of light off themselves: slow and faint while cold, quick and bright once they will take you.
@@ -61,7 +63,11 @@ Progress is kept in the browser (see Saves above). Add `?new` to open one visit 
 
 ## Trailer
 
-`./trailer/make.sh` films a 30-second square gameplay trailer (1080 x 1080, 60 frames a second, for a timeline such as X) from the real game and writes `trailer/lumenwake-trailer-square.mp4` and `trailer/lumenwake-cover.jpg` (the first frame, which is also the poster). `trailer/director.js` is the shot list: it builds a surveyor, takes contracts, stages fights and plays the game's own cinematics, all through the game's systems. The sound is the game's own score and effects, rendered by its audio code into an offline Web Audio context one frame at a time beside the picture, so every blow lands on its frame. `trailer/record.mjs` drives headless Chrome with the page's clock taken away; `trailer/encode.swift` joins frames and sound with the system's AVFoundation. Needs Node 22+, Chrome and Xcode's `swiftc`; no ffmpeg.
+`./trailer/make.sh` films a 42.5-second square gameplay trailer (1080 x 1080, 60 frames a second, for a timeline such as X) from the real game and writes `trailer/lumenwake-trailer-square.mp4` and `trailer/lumenwake-cover.jpg`. It opens on the shuttle flying in under the ringed world, walks into the square and about the town, fights twice, plays the Spore Matron's waking, cuts through the other places, shows the Gear tab and the five peoples on the select screen, and ends with the surveyor walking across the square toward the ringed world at evening. `trailer/director.js` is the shot list, played through the game's own systems and cinematics. `trailer/score.js` is the trailer's own score, written to the cuts and played on the game's synthesized instruments; the game's effects are rendered under it at a lower level. Both are rendered into an offline Web Audio context one frame at a time beside the picture. `trailer/record.mjs` drives headless Chrome with the page's clock taken away; `trailer/encode.swift` joins frames and sound with the system's AVFoundation. Needs Node 22+, Chrome and Xcode's `swiftc`; no ffmpeg.
+
+## Sound effects
+
+Most effects are recordings in `static/sfx` (2 MB of short WAVs): CC0 recordings from Kenney's packs, and a few made with ElevenLabs where nothing free fitted. `static/sfx/SOURCES.md` lists them; `tools/sfx/` makes them again (`generate.mjs` for the ElevenLabs ones through fal, `build.mjs` to cut and level everything). `SAMPLED` in `src/audio/audio.js` says which file answers which event; the chimes tuned to the music, and anything without a file, are still synthesized.
 
 ## Controls
 
@@ -114,7 +120,7 @@ src/
   app/          the composition root: game loop, controls, camera view, effects,
                 the first steps' runner, the portraits and the gear tiles, saves
   ui/           HUD, windows, touch controls
-  audio/        synthesized sound and music
+  audio/        sound: recorded effects (static/sfx) and a synthesized score
   core/         events, input, maths, noise
 ```
 

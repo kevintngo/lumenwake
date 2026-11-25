@@ -68,6 +68,7 @@ uniform float uFar, uPixel;             // uPixel: world size of one pixel at di
 vec4 ePose, eLook;
 vec3 eColA, eColB, eColC;
 float eMove, eExtra, eSpare;
+vec3 gNormal = vec3(0.0, 1.0, 0.0), gRay = vec3(0.0, 0.0, 1.0);    // at the point being drawn (entSurf): its normal and the ray, in the figure's own space
 ${def.glsl}
 
 vec3 entNormal(vec3 p) {
@@ -97,14 +98,14 @@ void main() {
 
   entPose();
   float pix = uPixel / scale;                 // local size of a pixel per unit distance
-  float mat = 0.0, minD = 1e3, tEdge = t, inner = 0.0;
+  float mat = 0.0, minD = 1e3, tEdge = t, inner = 0.0, matEdge = 0.0;
   bool hit = false;
   // the contour: a bold line about a fiftieth of the figure's height, never thinner than the pen
   float w = max(OUTLINE_PX * pix * t, 0.03);
   for (int i = 0; i < ${def.steps || 56}; i++) {
     float d = entMap(lo + ld * t, mat);
     if (d < 0.5 * pix * t) { hit = true; break; }
-    if (d < minD) { minD = d; tEdge = t; }
+    if (d < minD) { minD = d; tEdge = t; matEdge = mat; }
     else if (minD < w * 0.6 && d > minD + w * 0.5) inner = max(inner, smoothstep(w * 0.6, w * 0.25, minD));   // a part in front of another
     t += d * 0.92;
     if (t > tEnd) break;
@@ -116,18 +117,27 @@ void main() {
   float again = hit ? 0.0 : smoothstep(1.85 * w, 1.65 * w, minD) * smoothstep(1.2 * w, 1.35 * w, minD)
     * step(0.76, vnoise(pe.xy * 1.6 + eLook.x * 9.0)) * 0.3 * (1.0 - CEL);
   float edge = max(max(contour, inner) * press, again);
-  if (!hit && edge < 0.02) discard;
+  // A part that gives light (an archetype that defines ENT_EDGE_GLOW says which, and in what colour) has no pen line
+  // round it: a soft band of its own colour instead, wider than the line, against whatever is behind the figure.
+  vec4 glowEdge = vec4(0.0);
+  float halo = 0.0;
+#ifdef ENT_EDGE_GLOW
+  if (!hit) { glowEdge = entEdgeGlow(matEdge); halo = glowEdge.a * pow(smoothstep(w * 3.6, w * 0.15, minD), 1.6); }
+#endif
+  if (!hit && edge < 0.02 && halo < 0.02) discard;
 
   float flags = eLook.w;
   bool hover = mod(flags, 4.0) >= 2.0;
   vec3 ink = hover ? P_VERMILION * 0.85 : INK_DARK;
   vec3 col = ink;
   float alpha = edge, tOut = tEdge, lineOut = edge;
+  if (!hit && glowEdge.a > 0.0) { col = glowEdge.rgb; alpha = halo; lineOut = 0.0; edge = 0.0; }
   if (hit) {
     vec3 p = lo + ld * t;
     vec3 n = entNormal(p);
     Surf s = newSurf();
     gPen = max(pix * t * 1.5 * uPencil.w, 0.006);     // inner pen lines: finer than the contour
+    gNormal = n; gRay = ld;
     entSurf(p, mat, s);
     mat2 back = transpose(R);
     vec3 N = vec3(back * n.xz, n.y).xzy;

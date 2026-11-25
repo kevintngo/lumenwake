@@ -65,7 +65,7 @@ export const CINEMATICS = {
       },
       { // and you walk into the square
         for: 5.4,
-        cam: { on: 'hero', axis: 'facing', from: { yaw: 0.55, pitch: 0.02, dist: 5.2, up: 0.9, aim: 1.15, lens: 38 }, to: { yaw: 2.75, pitch: 0.2, dist: 8.6, up: 1.0, aim: 1.7, lens: 36 }, ease: 'inOut' },
+        cam: { on: 'hero', axis: 'facing', from: { yaw: -0.55, pitch: 0.02, dist: 5.2, up: 0.9, aim: 1.15, lens: 38 }, to: { yaw: -2.75, pitch: 0.2, dist: 8.6, up: 1.0, aim: 1.7, lens: 36 }, ease: 'inOut' },      // (round the east side: on the west it went through a tree)
         act: [
           { who: 'hero', show: true },
           { who: 'hero', walk: { from: [0, 24.5], to: [0, 16] }, for: 4.6 },

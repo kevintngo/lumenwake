@@ -11,6 +11,7 @@ import { BASES } from '../../content/gear.js';
 import { RELICS } from '../../content/relics.js';
 
 const SWING = 0.42, HIT_AT = 0.45;
+const SABER_TRAIL = [0.42, 0.8, 1.0];        // the colour of a blade of light's sweep (gfx/glsl/held.js SABER_COL, a little paler)
 const CADENCE = 10.4;      // radians of stride a second: about 1.65 full cycles
 const out = { x: 0, z: 0 };
 
@@ -175,7 +176,7 @@ export class PlayerSystem {
     if (!fam.shot) {
       p.action = 1; p.actionT = 0; p.actionDur = SWING * (last ? 1.2 : 1);
       p.pending = () => {
-        g.bus.emit('swing', { entity: p, radius: last ? 2.35 : 1.75, heavy: last });
+        g.bus.emit('swing', { entity: p, radius: last ? 2.35 : 1.75, heavy: last, color: p.family === 'blade' ? SABER_TRAIL : undefined });      // (a blade of light leaves a trail of its own colour)
         const reach = fam.range + (last ? 0.45 : 0);
         if (last) {
           const [fx, fz] = dirFromYaw(p.yaw);

@@ -20,7 +20,7 @@ const EFFECTS = {
     p.action = 1; p.actionT = 0; p.actionDur = 0.46; p.attackCd = 0.5; p.chain = 0;
     const reach = a.reach * (1 + 0.2 * rank(p.sheet, 'wide')), force = a.mult * (1 + 0.25 * rank(p.sheet, 'rend'));
     p.pending = () => {
-      g.bus.emit('swing', { entity: p, radius: reach * 1.03, color: a.color, heavy: true });
+      g.bus.emit('swing', { entity: p, radius: reach * 1.03, color: p.family === 'blade' ? [0.42, 0.8, 1.0] : a.color, heavy: true });
       g.bus.emit('feel', { shake: 0.35 });
       for (const m of g.monsters) {
         if (m.dead) continue;

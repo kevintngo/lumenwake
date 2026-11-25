@@ -3,6 +3,11 @@
 // there, and a quiet outdoor ambience, all synthesized with the Web Audio API
 // (no files).
 //
+// Most effects are recordings now (static/sfx: CC0 recordings from Kenney's packs, and a few made with ElevenLabs where
+// none fitted; tools/sfx says which and how they are made). SAMPLED says which file answers which event, how loud and
+// how varied; an event SAMPLED does not answer is synthesized by SOUNDS, as are the chimes, which are tuned to the
+// music's key.
+//
 // To add a sound, add one entry to SOUNDS keyed by the bus event name. It is
 // called with the kit (tone, noise, piano, bell, key) and the event payload.
 // To give a new area its music and ambience, add one row to AREAS; to give a
@@ -498,6 +503,94 @@ function spatial(play, where = (payload) => payload) {
     k.level = level; // reset after every event by the dispatcher
     play(k, payload);
   };
+}
+
+// ---------------------------------------------------------- recordings
+// Which recording answers an event: (payload, game) => { name, gain, rate?, at?, where?, keep? } (or a list of them),
+// [] for silence, or null to leave the event to SOUNDS. `where` makes it fade with distance like a spatial sound;
+// `keep` plays the synthesized sound as well (a chime under a recording). Gains put a file (levelled in tools/sfx)
+// beside the synthesized effects; `rate` varies the pitch a little so a repeated blow is never the same twice.
+const any = (...names) => names[Math.floor(Math.random() * names.length)];
+const surface = (game) => { const id = game.biome && game.biome.id; return id === 'rime' ? 'snow' : id === 'town' || id === 'vault' || id === 'shatter' ? 'stone' : 'grass'; };
+const SKILL_SAMPLES = {
+  cleave: { name: 'swing-heavy', gain: 0.5, rate: 0.88 }, volley: { name: 'volley', gain: 0.22 }, bolt: { name: 'bolt', gain: 0.42 },
+  nova: { name: 'nova', gain: 0.5 }, mend: { name: 'mend', gain: 0.36 }, step: { name: 'dash', gain: 0.42 },
+};
+const SAMPLED = {
+  step({ entity, water }, game) {
+    if ((entity && entity.kind !== 'player') || water) return null;           // (wading keeps its splash)
+    const kind = surface(game), n = kind === 'snow' ? 3 : 4;
+    return { name: `step-${kind}-${1 + Math.floor(Math.random() * n)}`, gain: kind === 'stone' ? 0.24 : 0.3, rate: rand(0.92, 1.08) };
+  },
+  swing: ({ heavy }) => ({ name: heavy ? 'swing-heavy' : any('swing-1', 'swing-2', 'swing-3', 'swing-4'), gain: heavy ? 0.46 : 0.38, rate: rand(0.94, 1.08) }),
+  shoot: ({ family, heavy }) => (family === 'rifle'
+    ? { name: heavy ? 'rifle-heavy' : any('rifle-1', 'rifle-2', 'rifle-3'), gain: heavy ? 0.36 : 0.3, rate: rand(0.95, 1.06) }
+    : { name: any('rod-1', 'rod-2'), gain: heavy ? 0.4 : 0.32, rate: rand(0.94, 1.08) }),
+  damage({ target, crit, soft, source, indirect }) {
+    if (soft) return [];
+    if (target && target.kind === 'player') return { name: any('hurt-1', 'hurt-2'), gain: 0.4, rate: rand(0.9, 1.05) };
+    if (target && target.guard) return { name: 'guard', gain: 0.26, rate: rand(1.15, 1.3), where: target };
+    const big = crit || (target && target.hp <= 0);
+    const blow = { name: big ? any('crit-1', 'crit-2') : any('hit-1', 'hit-2', 'hit-3', 'hit-4'), gain: big ? 0.36 : 0.28, rate: rand(0.92, 1.08) * (target && target.def && target.def.giant ? 0.8 : 1), where: target };
+    // a blade of light in the hero's own hand sizzles where it cuts
+    if (source && source.kind === 'player' && source.family === 'blade' && !indirect) return [blow, { name: any('saber-hit-1', 'saber-hit-2', 'saber-hit-3'), gain: big ? 0.3 : 0.24, rate: rand(0.94, 1.08), where: target }];
+    return blow;
+  },
+  'monster:died': (m) => (m.def && m.def.fall ? null : { name: any('die-1', 'die-2', 'die-3'), gain: 0.24, rate: rand(0.9, 1.15) * (m.elite ? 0.8 : 1), at: 0.03, where: m }),
+  'monster:strike': (m) => (m.def && m.def.giant ? null : { name: any('claw-1', 'claw-2'), gain: 0.22, rate: rand(0.9, 1.12), where: m }),
+  slam: (d) => ({ name: d.heavy ? 'slam' : 'slam-2', gain: d.heavy ? 0.42 : 0.3, rate: rand(0.94, 1.04), where: d }),
+  'monster:shot': (m) => ({ name: 'zap', gain: 0.16, rate: rand(0.9, 1.1), where: m }),
+  'shot:hit': (d) => ({ name: any('shot-hit-1', 'shot-hit-2'), gain: 0.2, rate: rand(0.9, 1.1), where: d }),
+  'bolt:hit': (d) => ({ name: any('burst', 'burst-2'), gain: 0.28, rate: rand(0.95, 1.08), where: d }),
+  'hazard:cloud': (d) => ({ name: 'spores', gain: 0.2, rate: rand(0.9, 1.05), where: d }),
+  guard: (d) => ({ name: 'guard', gain: 0.24, where: d.entity }),
+  'charge:dust': (d) => ({ name: any('step-stone-1', 'step-stone-2'), gain: 0.3, rate: 0.6, where: d }),
+  'boss:step': (d) => ({ name: any('elder-step-1', 'elder-step-2'), gain: 0.5, rate: rand(0.92, 1.05), where: d.entity || d }),
+  'boss:rise': () => ({ name: 'rumble', gain: 0.45 }),
+  'cine:rumble': ({ power = 0.5 }) => ({ name: 'rumble', gain: 0.2 + 0.3 * power, rate: rand(0.9, 1.05) }),
+  'boss:roar': ({ entity }) => ({ name: 'elder-roar', gain: 0.55, where: entity }),
+  'boss:down': () => ({ name: 'elder-fall', gain: 0.6 }),
+  'gate:shut': (d) => ({ name: 'gate', gain: 0.28, where: d }),
+  'craft:pass': () => ({ name: 'shuttle-pass', gain: 0.5 }),
+  'craft:land': () => ({ name: 'shuttle-land', gain: 0.5 }),
+  'arrive:beam': () => ({ name: 'teleport', gain: 0.34, keep: true }),
+  travel: () => ({ name: 'teleport', gain: 0.3, keep: true }),
+  'player:respawn': () => ({ name: 'teleport', gain: 0.32, keep: true }),
+  'player:died': () => ({ name: 'hurt-2', gain: 0.5, rate: 0.7, keep: true }),
+  equip: () => ({ name: 'equip', gain: 0.34 }),
+  'lumen:bolt': () => ({ name: 'lumen-zap', gain: 0.22, rate: rand(0.95, 1.1) }),
+  'lumen:burst': () => ({ name: 'lumen-burst', gain: 0.42 }),
+  drink: () => ({ name: 'drink', gain: 0.4 }),
+  skill: ({ id }) => (SKILL_SAMPLES[id] ? { ...SKILL_SAMPLES[id], rate: (SKILL_SAMPLES[id].rate || 1) * rand(0.96, 1.04) } : null),
+  'relic:ring': (d) => (d.heavy ? { name: 'slam-2', gain: 0.28, where: d } : { name: 'burst-2', gain: 0.16, rate: 1.2, where: d }),
+  pickup: (d) => (d.rare ? null : d.item === 'glint' ? { name: any('coins-1', 'coins-2'), gain: 0.18, rate: rand(0.95, 1.1) } : { name: 'pickup', gain: 0.24, rate: rand(0.95, 1.1) }),
+  trade: () => ({ name: any('coins-1', 'coins-2'), gain: 0.3 }),
+  'bounty:claimed': () => ({ name: 'coins-1', gain: 0.3, keep: true }),
+  salvage: () => ({ name: 'salvage', gain: 0.28 }),
+  hone: () => ({ name: 'hone', gain: 0.38, keep: true }),
+  'ui:click': () => ({ name: 'click', gain: 0.32 }),
+  deny: () => ({ name: 'deny', gain: 0.3 }),
+  jump: ({ entity }) => (entity && entity.kind !== 'player' ? null : { name: any('jump-1', 'jump-2'), gain: 0.28, rate: rand(1.0, 1.2) }),
+  landed: (d) => ({ name: 'land', gain: 0.4, rate: 0.82, where: d }),
+  // going down to a contract with a blade of light: it is switched on
+  'mission:begin': (d, game) => (game.player && game.player.family === 'blade' ? { name: 'saber-ignite', gain: 0.4, at: 0.5 } : []),
+};
+// every file SAMPLED can ask for (static/sfx/<name>.wav)
+const SAMPLE_NAMES = ['step-grass-1', 'step-grass-2', 'step-grass-3', 'step-grass-4', 'step-stone-1', 'step-stone-2', 'step-stone-3', 'step-stone-4',
+  'step-snow-1', 'step-snow-2', 'step-snow-3', 'land', 'jump-1', 'jump-2', 'swing-1', 'swing-2', 'swing-3', 'swing-heavy',
+  'swing-4', 'saber-hum', 'saber-ignite', 'saber-hit-1', 'saber-hit-2', 'saber-hit-3', 'rifle-1', 'rifle-2', 'rifle-3', 'rifle-heavy', 'rod-1', 'rod-2', 'hit-1', 'hit-2', 'hit-3', 'hit-4', 'crit-1', 'crit-2', 'hurt-1', 'hurt-2',
+  'shot-hit-1', 'shot-hit-2', 'burst', 'burst-2', 'slam', 'slam-2', 'volley', 'bolt', 'nova', 'mend', 'dash', 'die-1', 'die-2', 'die-3',
+  'claw-1', 'claw-2', 'zap', 'spores', 'guard', 'elder-step-1', 'elder-step-2', 'elder-roar', 'elder-fall', 'rumble', 'shuttle-pass', 'shuttle-land',
+  'teleport', 'gate', 'lumen-zap', 'lumen-burst', 'drink', 'coins-1', 'coins-2', 'pickup', 'equip', 'hone', 'salvage', 'click', 'deny'];
+const SAMPLE_DIR = './static/sfx/';
+
+/** Fetches and decodes every recording into the kit (kit.samples). Resolves when all are in, or have failed. */
+function loadSamples(kit) {
+  return Promise.all(SAMPLE_NAMES.map((name) => fetch(SAMPLE_DIR + name + '.wav')
+    .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
+    .then((data) => kit.ctx.decodeAudioData(data))
+    .then((buffer) => { kit.samples.set(name, buffer); })
+    .catch(() => {})));        // a recording that cannot be had leaves its event to the synthesized sound
 }
 
 // ---------------------------------------------------------- music tables
@@ -1027,6 +1120,7 @@ const STANCES = {
 export function createAudio(game) {
   let kit = null, music = null, ambience = null;
   let soundOn = true, volume = 1, lastTick = 0, warned = false;
+  let ready = Promise.resolve();        // the recordings loading (boot)
   // The player's own levels (the Sound settings: ui/settings.js), each 0..1, on top of the mix in LEVELS.
   const own = { master: 1, music: 1, sfx: 1, ambience: 1 };
   const unit = (v, was) => (Number.isFinite(+v) ? clamp(+v, 0, 1) : was);
@@ -1064,6 +1158,7 @@ export function createAudio(game) {
       music = createMusic(fresh, game);
       ambience = createAmbience(fresh, game, music);
       kit = fresh; // only once everything is built
+      ready = loadSamples(fresh);
       // what the music listens for itself: where the hero is, and the moments it answers
       for (const [type, hear] of Object.entries(music.hears)) bus.on(type, (payload) => safely(() => hear(payload ?? {})));
       setLevels(0.4);
@@ -1093,9 +1188,49 @@ export function createAudio(game) {
     if (wait > MAX_STAGGER) return;
     nextFree.set(type, now + wait + (REPEAT_GAPS[type] ?? REPEAT_GAP));
     kit.delay = wait;
-    safely(() => SOUNDS[type](kit, payload ?? {}));
+    safely(() => {
+      // a recording, if one answers this event and is loaded; else (or as well, `keep`) the synthesized sound
+      const pick = SAMPLED[type] && kit.samples.size ? SAMPLED[type](payload ?? {}, game) : null;
+      let played = false, keep = !pick;
+      for (const o of pick ? [].concat(pick) : []) {
+        const level = o.where ? kit.nearness(o.where) : 1;
+        if (level <= 0.02) { played = true; continue; }
+        kit.level = level;
+        played = kit.sample({ ...o, at: o.at || 0 }) || played;
+        if (o.keep) keep = true;
+      }
+      kit.level = 1;
+      if (pick && !played && [].concat(pick).length) keep = true;          // (not loaded: the synthesized sound stands in)
+      if (keep && SOUNDS[type]) SOUNDS[type](kit, payload ?? {});
+    });
     kit.delay = 0;
     kit.level = 1;
+  }
+
+  // A blade of light hums while it is drawn on a contract (in town it is not lit for anyone to hear): quietly at rest,
+  // louder and a little higher as the hero moves, and swelling with each swing. One looped recording, never counted
+  // against the effects' voices.
+  let hum = null;
+  function humTick(now) {
+    const p = game.player, buffer = kit.samples.get('saber-hum');
+    const want = !!(buffer && p && !p.dead && p.family === 'blade' && game.missions && game.missions.active);
+    if (want && !hum) {
+      const src = kit.ctx.createBufferSource(), amp = kit.ctx.createGain();
+      src.buffer = buffer; src.loop = true; amp.gain.value = 0;
+      src.connect(amp).connect(kit.buses.sfx.node);
+      src.start(now);
+      hum = { src, amp };
+    } else if (!want && hum) {
+      const h = hum; hum = null;
+      h.amp.gain.setTargetAtTime(0, now, 0.15);
+      h.src.stop(now + 1);
+      h.src.onended = () => { h.src.disconnect(); h.amp.disconnect(); };
+    }
+    if (hum) {
+      const move = clamp(p.move || 0, 0, 1), swing = p.action === 1 ? 1 : 0;
+      hum.amp.gain.setTargetAtTime(0.06 + 0.05 * move + 0.09 * swing, now, swing ? 0.04 : 0.15);
+      hum.src.playbackRate.setTargetAtTime(1 + 0.05 * move + 0.14 * swing, now, swing ? 0.05 : 0.2);
+    }
   }
 
   function tick() {
@@ -1107,6 +1242,7 @@ export function createAudio(game) {
     lastTick = now;
     music.update(now, dt);
     ambience.update(now, dt);
+    humTick(now);
   }
 
   const bus = game.bus;
@@ -1115,7 +1251,7 @@ export function createAudio(game) {
   // { master, music, sfx, ambience }, each 0..1: the Sound settings
   bus.on('volume', (v) => { hearSettings(v); safely(setLevels); });
   bus.on('frame', () => safely(tick));
-  for (const type of Object.keys(SOUNDS)) bus.on(type, (payload) => trigger(type, payload));
+  for (const type of new Set([...Object.keys(SOUNDS), ...Object.keys(SAMPLED)])) bus.on(type, (payload) => trigger(type, payload));
   if (typeof addEventListener === 'function') {
     // phones only count some events as a gesture (a lifted finger, a click), so listen for them all
     for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(ev, wake, { passive: true });
@@ -1123,6 +1259,8 @@ export function createAudio(game) {
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => safely(() => setMaster(0.3)));
 
   return {
+    /** A promise that settles once the recordings are loaded (or have failed): the trailer waits on it. */
+    get ready() { return ready; },
     /** Master volume, 0..1. */
     setVolume(v) {
       const n = Number(v);
@@ -1313,6 +1451,24 @@ function createKit(ctx, game) {
     }
   }
 
+  /** A recording (static/sfx). o: name, gain, rate (playback speed, and so pitch), pan, bus, at | when. False if it is not loaded. */
+  function sample(o) {
+    const buffer = kit.samples.get(o.name), out = buses[o.bus] || buses.sfx, peak = (o.gain ?? 0.3) * kit.level;
+    if (!buffer) return false;
+    if (out.pool.n >= out.pool.max || !(peak > MIN_GAIN)) return true;
+    const t0 = startTime(o), rate = o.rate ?? 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = rate;
+    const amp = ctx.createGain();
+    amp.gain.value = peak;
+    const chain = [src, amp];
+    if (o.pan && ctx.createStereoPanner) { const panner = ctx.createStereoPanner(); panner.pan.value = o.pan; chain.push(panner); }
+    src.start(t0);
+    finish(src, chain, out, t0, t0 + buffer.duration / rate + 0.02);
+    return true;
+  }
+
   /** Soft bell: a sine with one inharmonic partial that fades sooner. o: gain, decay, bus, at. */
   function bell(freq, o = {}) {
     const gain = o.gain ?? 0.07, decay = o.decay ?? 0.6, base = { bus: o.bus, at: o.at, attack: 0.004 };
@@ -1321,7 +1477,8 @@ function createKit(ctx, game) {
   }
 
   const kit = {
-    ctx, master, buses, padFilter, noiseBuffer, waves, tone, noise, piano, bell,
+    ctx, master, buses, padFilter, noiseBuffer, waves, tone, noise, piano, bell, sample,
+    samples: new Map(),     // the recordings, by name, once loaded (loadSamples)
     level: 1,        // distance scale for the sound being triggered
     delay: 0,        // stagger for the sound being triggered
     root: AREAS.town.root,   // the music's current key root (MIDI)...
