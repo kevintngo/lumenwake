@@ -24,6 +24,7 @@ import { GOALS } from '../sim/systems/missions.js';
 import { PEOPLES } from '../content/peoples.js';
 import { CREATURES } from '../content/creatures.js';
 import { BOONS } from '../content/sites.js';
+import { THREAT_MAX, threatOf } from '../content/threat.js';
 import { LUMENS, TEMPERS, FOODS, LUMEN_STAGES, LUMEN_MAX, LUMEN_STEP } from '../content/companions.js';
 import { lumenLevel, lumenToNext, lumenStage, lumenMods, lumenTotal } from '../sim/lumen.js';
 import { SKILL_ICONS, MENU_ICONS, ATTR_ICONS, TEMPER_ICONS, GEAR_ICONS, itemIcon, gearIcon , setGearArt, setElderArt, elderPic } from './icons.js';
@@ -468,12 +469,23 @@ export class Panels {
     return this.withDetail(html, 'food');
   }
 
+  /**
+   * How dangerous a place has become, and what is different there this time (content/threat.js): the rank as
+   * pips and a word, and a chip for each condition in force. Nothing for a place not yet surveyed.
+   */
+  threatRow(o, bare = false) {
+    const T = threatOf(o);
+    if (!T.rank) return '';
+    const pips = Array.from({ length: THREAT_MAX }, (_, k) => `<i${k < T.rank ? ' class="on"' : ''}></i>`).join('');
+    return `<div class="threat" data-tip="Threat ${T.rank} of ${THREAT_MAX}. A place you have surveyed is more dangerous next time, and pays more."><span class="threat-pips" role="img" aria-label="Threat ${T.rank} of ${THREAT_MAX}">${pips}</span><b>${T.name}</b>${bare ? '' : T.list.map((c) => `<span class="chip" data-tip="${esc(c.name)}: ${esc(c.text)}" title="${esc(c.text)}">${esc(c.name)}</span>`).join('')}</div>`;
+  }
+
   /** The contract being run, or the one taken, or where to get one. */
   contract() {
     const g = this.game, ms = g.missions, a = ms.active, o = a ? a.offer : ms.pending, s = g.player.sheet, w = g.world;
     if (!o) return `<div class="contract-none"><img src="${art('place-town')}" alt="" />
       <div><h3>No contract</h3><p>Ilse, the dispatcher, has three. She stands before the hall.</p><p class="quiet">Contracts run: <b class="c-num">${s.missions || 0}</b></p></div></div>`;
-    const B = biomeById(o.biome), goal = GOALS[o.goal], elder = o.goal === 'hunt' && B.boss ? CREATURES[B.boss] : null;
+    const B = biomeById(o.biome), goal = GOALS[o.goal], elder = o.goal === 'hunt' && B.boss ? CREATURES[B.boss] : null, T = threatOf(o);
     const row = (name, now, of) => `<div class="prog${now >= of ? ' done' : ''}"><span>${name}</span><b class="c-num">${now} of ${of}</b><div class="bar"><i style="transform:scaleX(${(of ? Math.min(1, now / of) : 0).toFixed(3)})"></i></div></div>`;
     let rows = '';
     if (a) {
@@ -497,6 +509,7 @@ export class Panels {
       </header>
       <section class="contract-progress">
         ${rows ? `<h3 class="label">Progress</h3><div class="progs">${rows}</div>` : `<h3 class="label">The job</h3><p>${esc(goal.brief)}</p><p class="quiet">Step onto the pad at the south gate to go down.</p>`}
+        ${T.rank ? `<div class="threat-head"><h3 class="label">This time</h3>${this.threatRow(o, true)}</div>${T.list.length ? `<ul class="conds">${T.list.map((c) => `<li><b>${esc(c.name)}</b>${esc(c.text)}</li>`).join('')}</ul>` : ''}` : ''}
         ${boon}
         <div class="contract-pay"><h3 class="label">Pays</h3>
           <div class="stats pay"><div><span>Experience</span><b class="c-xp">${o.xp}</b></div><div><span>Glint</span><b class="c-coin">${o.glint}</b></div>${a ? `<div><span>Time</span><b>${time}</b></div><div><span>Felled</span><b class="c-foe">${a.kills}</b></div>` : '<div><span>Also</span><b>Gear</b></div>'}</div>
@@ -522,7 +535,7 @@ export class Panels {
     ];
     const note = (title, text) => `<div class="card"><strong>${title}</strong><small>${text}</small></div>`;
     return `<div class="guideview"><div class="guide-cols">${cols.join('')}</div>
-      <div class="guide-notes">${note('Loot', 'Walk over it to pick it up.')}${note('Supply pods', 'They open once their island is quiet.')}${note('Side islands', 'Marks pay extra. A beacon maps the rest. A crystal lends a boon.')}${note('Your lumen', 'Feed it what creatures drop. What it eats decides its shape.')}</div></div>`;
+      <div class="guide-notes">${note('Loot', 'Walk over it to pick it up.')}${note('Supply pods', 'They open once their island is quiet.')}${note('Threat', 'A place is harder each time you go back, and pays more. Lose there and it eases.')}${note('Side islands', 'Marks pay extra. A beacon maps the rest. A crystal lends a boon.')}${note('Your lumen', 'Feed it what creatures drop. What it eats decides its shape.')}</div></div>`;
   }
 
   // ------------------------------------------------------------ the two windows opened by talking
@@ -566,6 +579,7 @@ export class Panels {
           <small><b class="c-place">${esc(B.name)}</b></small>
           <small><b class="c-goal-${o.goal}">${GOALS[o.goal].name}</b>${elder ? `: <b class="c-foe">${esc(elder.name)}</b>` : ''}</small>
           ${elder && elderPic(B.boss) ? `<img class="elder-chip" src="${elderPic(B.boss)}" alt="" />` : ''}</div>
+        ${this.threatRow(o)}
         <div class="stats pay"><div><span>Experience</span><b class="c-xp">${o.xp}</b></div><div><span>Glint</span><b class="c-coin">${o.glint}</b></div><div><span>Islands</span><b>${o.rooms}</b></div><div><span>Also</span><b>Gear</b></div></div>
         ${taken === o ? '<button type="button" class="btn" data-act="abandon">Hand it back</button>' : `<button type="button" class="btn${taken ? '' : ' primary'}" data-act="accept" data-arg="${i}" aria-label="Take ${esc(o.name)}">Take it</button>`}</div>`;
     };

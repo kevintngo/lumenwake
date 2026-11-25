@@ -263,11 +263,11 @@ body.touch { position: fixed; inset: 0; overscroll-behavior: none; touch-action:
   -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 body.touch .touch-only { display: block; }
 
-/* the walking stick: a pen ring that comes to the thumb, and a paper knob */
+/* the walking stick: a ruled dial of the deck's blue that comes to the thumb, and a knob that lights when held */
 body.touch #stick { display: block; position: absolute; pointer-events: auto; touch-action: none; }
 #stick .base { position: absolute; width: calc(27 * var(--u)); height: calc(27 * var(--u)); border-radius: 50%;
-  border: 2px solid var(--pen); background: rgba(241, 235, 220, 0.42);
-  box-shadow: 0 0 0 3px rgba(241, 235, 220, 0.85), 0 0 0 4.4px rgba(98, 60, 30, 0.55), inset 0 0 0 1px rgba(98, 60, 30, 0.3); }
+  border: 2px solid var(--pen); background: rgba(20, 41, 95, 0.55);
+  box-shadow: 0 0 0 3px rgba(8, 15, 40, 0.5), inset 0 0 0 calc(1.1 * var(--u)) rgba(11, 22, 55, 0.5), inset 0 0 0 calc(1.1 * var(--u) + 1px) rgba(143, 216, 255, 0.3); }
 #stick .nub { position: absolute; left: 50%; top: 50%; width: calc(12 * var(--u)); height: calc(12 * var(--u));
   margin: calc(-6 * var(--u)) 0 0 calc(-6 * var(--u)); border-radius: 50%; background: var(--paper); border: 2px solid var(--pen);
   box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4.4px rgba(214, 70, 52, 0.5), 2px 3px 0 rgba(98, 60, 30, 0.18); }
@@ -311,8 +311,13 @@ body.touch .btn { min-height: 44px; padding: 8px 16px 10px; }
 @media (orientation: portrait) {
   body.touch { --u: clamp(3.4px, 1.026vw, 4.9px); --status-h: 86px; --below: calc(var(--view-h) + var(--status-h) + 14px); }
   body.touch:not(.titled) { --view-h: clamp(56.25vw, calc(var(--vh) - 60 * var(--u) - 176px - var(--sb)), 80vw); }
-  /* a pen rule closes the picture off from the page */
-  body.touch:not(.titled) #ui::before { content: ''; position: absolute; left: 0; right: 0; top: var(--view-h); border-top: 1.8px solid var(--pen); box-shadow: 0 3.4px 0 -1px rgba(98, 60, 30, 0.3); }
+  /* below the picture is the surveyor's deck: a deeper blue than the plates, faintly ruled, so the controls sit on the interface's own colour */
+  body.touch:not(.titled) { background: linear-gradient(rgba(143, 216, 255, 0.045) 1px, transparent 1px) 0 0 / 100% 24px, linear-gradient(90deg, rgba(143, 216, 255, 0.045) 1px, transparent 1px) 0 0 / 24px 100%, #0a1433; }
+  /* a ruled line closes the picture off from the deck */
+  body.touch:not(.titled) #ui::before { content: ''; position: absolute; left: 0; right: 0; top: var(--view-h); border-top: 1.8px solid var(--pen); box-shadow: 0 3.4px 0 -1px rgba(143, 216, 255, 0.28); }
+  body.touch .slot { box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4px rgba(143, 216, 255, 0.2), 0 0 0 2.5px rgba(5, 10, 28, 0.55), 2px 3px 0 rgba(0, 0, 0, 0.28); }
+  body.touch .slot.act { box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4.6px rgba(255, 122, 102, 0.6), 0 0 0 2.5px rgba(5, 10, 28, 0.55), 2px 3px 0 rgba(0, 0, 0, 0.28); }
+  body.touch #menu button { box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4px rgba(143, 216, 255, 0.22), 2px 3px 0 rgba(0, 0, 0, 0.28); }
 
   /* on the picture: the target, a small map, and announcements along the bottom edge */
   body.touch #target { left: 8px; top: calc(8px + var(--st)); transform: none; width: min(200px, 52vw); padding: 5px 12px 9px; gap: 4px; }
@@ -335,6 +340,7 @@ body.touch .btn { min-height: 44px; padding: 8px 16px 10px; }
   body.touch #tracker .label { display: inline; margin-right: 8px; }
   body.touch #tracker-text { display: inline; }
   body.touch #log { display: flex; left: 8px; right: 8px; width: auto; top: calc(var(--below) + 58px); bottom: calc(60 * var(--u) + var(--sb)); justify-content: flex-end; overflow: hidden; }
+  body.touch #log { -webkit-mask-image: linear-gradient(transparent, #000 26px); mask-image: linear-gradient(transparent, #000 26px); }      /* (older lines fade out at the top rather than being cut through) */
 
 
   /* above the thumbs: menus on the left, the two flasks on the right */
@@ -977,14 +983,14 @@ button.tile:hover, button.worn-tile:hover { background: var(--paper-2); }
 .contract-none h3 { margin: 0; font: 600 26px/1.1 var(--display); letter-spacing: 0.06em; }
 /* The contract: a banner of the place with its name on it, how far along it is and what it pays under that, and
    on a hunt the elder itself down the right side, standing on nothing. */
-.contractview { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(104px, 1fr) auto; grid-template-areas: "banner" "progress"; gap: var(--gap) 28px; }
+.contractview { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(142px, 1fr) auto; grid-template-areas: "banner" "progress"; gap: var(--gap) 28px; }
 .contractview.has-elder { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); grid-template-areas: "banner elder" "progress elder"; }
 .contract-banner { grid-area: banner; position: relative; min-height: 0; overflow: hidden; border: 1px solid var(--pen); clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
 .contract-banner > img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 58%; background: var(--card); }
 .contract-banner::after { content: ''; position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(90deg, rgba(11, 24, 62, 0.94) 0%, rgba(11, 24, 62, 0.8) 30%, rgba(11, 24, 62, 0) 62%), linear-gradient(0deg, rgba(11, 24, 62, 0.55), rgba(11, 24, 62, 0) 45%); }
 .banner-words { position: absolute; left: 26px; bottom: 22px; z-index: 1; display: grid; justify-items: start; gap: 9px; max-width: 58%; }
-.banner-words h3 { margin: 0; font: 600 clamp(26px, 3vw, 38px)/1.05 var(--display); letter-spacing: 0.06em; }
+.banner-words h3 { margin: 0; font: 600 clamp(22px, 2.35vw, 38px)/1.05 var(--display); letter-spacing: 0.06em; }      /* (the longest name on one line in the banner's dark half) */
 .banner-words p { font-size: 16px; }
 .contract-progress { grid-area: progress; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .contract-progress .label { margin: 0; }
@@ -994,8 +1000,8 @@ button.tile:hover, button.worn-tile:hover { background: var(--paper-2); }
 .contract-elder { grid-area: elder; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .contract-elder .who-card strong { font-size: 21px; }
 .contract-elder .figure.live canvas.stage { left: 0; width: 100%; }
-.progs { display: grid; gap: 7px; }
-.prog { display: grid; grid-template-columns: minmax(0, 9.5em) minmax(40px, 1fr) auto; gap: 12px; align-items: center; min-height: 38px; padding: 5px 12px 6px; font-size: 15px; background: var(--deep); border: 1px solid var(--faint); }
+.progs { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 7px; }      /* (two across where the column is wide enough) */
+.prog { display: grid; grid-template-columns: minmax(0, 9.5em) minmax(40px, 1fr) auto; gap: 12px; align-items: center; min-height: 35px; padding: 4px 12px 5px; font-size: 15px; background: var(--deep); border: 1px solid var(--faint); }
 .prog > b { grid-column: 3; text-align: right; } .prog .bar { grid-column: 2; grid-row: 1; height: 8px; }
 .prog .bar i { background: var(--c-num); }
 .prog.done { border-color: var(--c-good); } .prog.done .bar i { background: var(--c-good); }
@@ -1011,7 +1017,7 @@ button.tile:hover, button.worn-tile:hover { background: var(--paper-2); }
 .guide-cols .keys-list { grid-template-columns: 8.4em minmax(0, 1fr); grid-auto-rows: minmax(clamp(34px, calc(var(--tile) * 0.6), 44px), auto); gap: 0 16px; font-size: 16px; }
 .keys-list .keys { display: flex; gap: 4px; }
 .keys-list.two { grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); }
-.guide-notes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.guide-notes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .guide-notes strong { display: block; font: 600 15px/1.2 var(--display); letter-spacing: 0.05em; color: var(--c-key); }
 .guide-notes small { display: block; margin-top: 4px; font-size: 14px; font-weight: 500; line-height: 1.35; color: var(--dim); }
 
@@ -1032,6 +1038,20 @@ button.tile:hover, button.worn-tile:hover { background: var(--paper-2); }
 .contract-art > img:first-child { width: 100%; height: 100%; object-fit: cover; object-position: 50% 62%; }
 /* (the place's picture is left to itself: on a hunt the elder is shown small, beside the words, on the card's own ground) */
 .contract-art .tier { position: absolute; left: 0; bottom: 0; padding: 4px 12px 5px; font-size: 14px; font-weight: 500; letter-spacing: 0.04em; background: var(--paper); border-top: 1px solid var(--faint); border-right: 1px solid var(--faint); }
+/* how dangerous a place has become (content/threat.js): pips, the rank's name, a chip for each condition */
+.threat { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; font-size: 14.5px; line-height: 1.2; }
+.threat b { font-weight: 600; letter-spacing: 0.04em; color: var(--c-foe); }
+.threat-pips { display: inline-flex; gap: 6px; padding: 0 3px; }
+.threat-pips i { width: 8px; height: 8px; transform: rotate(45deg); border: 1.3px solid var(--c-foe); }
+.threat-pips i.on { background: var(--c-foe); }
+.threat .chip { font-size: 13.5px; }
+.contract > .threat { margin: 8px 16px 0; }
+.threat-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+/* a short window: the contract's rows sit a little closer, so a hunt with three conditions still fits without scrolling */
+@media (max-height: 800px) { .contract-progress { gap: 7px; } .progs { gap: 5px; } .conds { gap: 4px; } }
+.conds { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.conds li { padding: 5px 12px 6px; font-size: 14.5px; line-height: 1.3; background: var(--deep); border: 1px solid var(--faint); border-left: 3px solid var(--c-foe); }
+.conds b { margin-right: 8px; color: var(--c-foe); }
 .contract-words { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 16px 2px; }
 .contract-words > strong, .contract-words > small { grid-column: 1; }
 .contract-words .elder-chip { grid-column: 2; grid-row: 1 / span 3; align-self: center; width: 84px; height: 64px; object-fit: contain; background: none; border: 0; filter: drop-shadow(0 0 0.8px #dff0ff); }
@@ -1294,6 +1314,8 @@ body.compact .contract-art { flex: none; height: 120px; }
   body.compact .boardview .stats.pay { margin: 6px 12px 0; }
   body.compact .boardview .stats.pay div { min-height: 40px; padding: 3px 8px 4px; }
   body.compact .boardview .stats.pay div:nth-child(n+3) { display: none; }
+  body.compact .boardview .threat { margin: 5px 12px 0; }
+  body.compact .boardview .threat .chip { display: none; }
   body.compact .boardview .btn { margin: 7px 12px 10px; min-height: 40px; }
   body.compact .win-bounty .speaker p { display: none; }
 }
@@ -1378,3 +1400,6 @@ body.calm .floor ellipse { animation: none; }
 body.compact .figure.live .turn-hint { display: none; }
 @media (prefers-reduced-motion: reduce) { .floor ellipse { animation: none; } }
 body.calm #tutor.fresh .tutor-line, body.calm #tutor.tick, body.calm #tutor-mark.over svg, body.calm #tutor-point svg { animation: none; }
+
+/* an upright screen that is not tall (a short phone, a tablet): the deck has no room for a line of the log, so it is left out */
+@media (orientation: portrait) and (min-aspect-ratio: 1/2) { body.touch #log { display: none; } }

@@ -47,12 +47,13 @@ export class MonsterAI {
         if (m.actionT >= 1) m.action = 0;
       }
       const ai = m.ai, def = m.def, moves = def.specials || (def.special ? (def.specials = [def.special]) : NONE);
+      const quick = m.quick || 1, speed = def.speed * quick;        // (a place's threat may make its creatures quicker: content/threat.js)
       ai.cd -= dt;
       // each move has its own clock, and none is the opening move
       if (!ai.scds) ai.scds = moves.map((_, k) => 1 + rand() * 2.5 + k * 2);
       for (let k = 0; k < ai.scds.length; k++) ai.scds[k] -= dt;
       let sp = ai.move || null;
-      if (m.boss && !m.enraged && m.hp < m.maxHp * 0.5 && ai.state !== 'special') {
+      if (m.boss && !m.enraged && m.hp < m.maxHp * (m.rageAt || 0.5) && ai.state !== 'special') {
         // wounded: it stops, gives voice, and from here on its moves come faster
         m.enraged = true; ai.roar = 1.5; ai.stun = Math.max(ai.stun || 0, 1.5);
         g.bus.emit('boss:enrage', m);
@@ -83,19 +84,19 @@ export class MonsterAI {
         if (ai.going) {
           const d = Math.hypot(ai.gx - m.x, ai.gz - m.z);
           if (d < 0.3) ai.going = false;
-          else { dx = (ai.gx - m.x) / d * def.speed * 0.4; dz = (ai.gz - m.z) / d * def.speed * 0.4; }
+          else { dx = (ai.gx - m.x) / d * speed * 0.4; dz = (ai.gz - m.z) / d * speed * 0.4; }
         }
-        if (fair && ((def.aggro > 0 && toP < def.aggro * (m.elite ? 1.3 : 1)) || ai.provoked)) { ai.state = 'chase'; ai.target = p; g.bus.emit('monster:alert', m); }
+        if (fair && ((def.aggro > 0 && toP < def.aggro * (m.elite ? 1.3 : 1) * (m.aggroMul || 1)) || ai.provoked)) { ai.state = 'chase'; ai.target = p; g.bus.emit('monster:alert', m); }
       } else if (ai.state === 'chase') {
         const reach = def.range + m.radius * 0.5;
         if (!fair || (fromHome > LEASH && !def.giant)) { ai.state = 'home'; ai.provoked = false; }
         else if (def.keep && toP < def.keep[1]) {
           // a shooter keeps its distance: backs off when crowded, drifts sideways otherwise
           const away = toP < def.keep[0] ? -0.75 : 0, side = (m.id % 2 ? 1 : -1) * 0.35;
-          dx = ((p.x - m.x) * away - (p.z - m.z) * side) / toP * def.speed;
-          dz = ((p.z - m.z) * away + (p.x - m.x) * side) / toP * def.speed;
+          dx = ((p.x - m.x) * away - (p.z - m.z) * side) / toP * speed;
+          dz = ((p.z - m.z) * away + (p.x - m.x) * side) / toP * speed;
         }
-        else if (toP > reach * 0.9) { dx = (p.x - m.x) / toP * def.speed; dz = (p.z - m.z) / toP * def.speed; }
+        else if (toP > reach * 0.9) { dx = (p.x - m.x) / toP * speed; dz = (p.z - m.z) / toP * speed; }
         const next = ai.state === 'chase' ? moves.findIndex((mv, k) => ai.scds[k] <= 0 && toP >= mv.min && toP <= mv.max && (!mv.below || m.hp < m.maxHp * mv.below)) : -1;
         if (next >= 0) {
           sp = ai.move = moves[next]; ai.moveIndex = next;
@@ -111,7 +112,7 @@ export class MonsterAI {
         m.yaw = dampAngle(m.yaw, yawFromDir(p.x - m.x, p.z - m.z), def.turn || 9, dt);
       } else if (ai.state === 'attack') {
         if (!ai.struck && m.actionT >= HIT_AT) { ai.struck = true; g.combat.maul(m); g.bus.emit('monster:strike', m); }
-        if (m.action !== 1) { ai.state = 'chase'; ai.cd = def.cooldown * (0.8 + rand() * 0.4); }
+        if (m.action !== 1) { ai.state = 'chase'; ai.cd = def.cooldown / quick * (0.8 + rand() * 0.4); }
       } else if (ai.state === 'special') {
         const mv = SPECIALS[sp.kind].update(g, m, sp, ai.sp, dt);
         dx = mv.dx; dz = mv.dz;
@@ -124,7 +125,7 @@ export class MonsterAI {
       } else if (ai.state === 'home') {
         m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.25 * dt);
         if (fromHome < 1.2) { ai.state = 'idle'; ai.timer = 1; }
-        else { dx = (ai.hx - m.x) / fromHome * def.speed; dz = (ai.hz - m.z) / fromHome * def.speed; }
+        else { dx = (ai.hx - m.x) / fromHome * speed; dz = (ai.hz - m.z) / fromHome * speed; }
       }
 
       // knockback decays quickly

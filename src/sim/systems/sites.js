@@ -56,7 +56,7 @@ export class Sites {
     const ang = rand() * 6.283;
     let x = s.st.x + Math.sin(ang) * 2.6, z = s.st.z + Math.cos(ang) * 2.6;
     if (!g.world.walkable(x, z)) { x = g.world.rooms[s.room].x; z = g.world.rooms[s.room].z; }
-    const m = g.spawner.spawnMonster(id, x, z, a.offer.tier, true);
+    const m = g.missions.temper(g.spawner.spawnMonster(id, x, z, a.offer.tier, true));
     m.room = s.room; m.ai.provoked = true;
     s.guard = m;
     g.bus.emit('spawn:in', { x, y: g.world.surface(x, z), z, r: m.radius });

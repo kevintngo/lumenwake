@@ -22,6 +22,8 @@ import { BASES, RARITIES, AFFIXES } from '../content/gear.js';
 import { ITEMS } from '../content/items.js';
 import { TALENTS } from '../content/talents.js';
 import { LUMENS } from '../content/companions.js';
+import { biomeById } from '../content/themes.js';
+import { THREAT_MAX } from '../content/threat.js';
 import { newPlayerSheet, BAG_GEAR } from '../sim/stats.js';
 import { issue } from '../sim/items.js';
 
@@ -68,6 +70,7 @@ export function mendHero(raw) {
   s.lumen = { kind: LUMENS[l.kind] ? l.kind : 'mote', ember: int(l.ember, 0, 9999, 0), shell: int(l.shell, 0, 9999, 0), tide: int(l.tide, 0, 9999, 0), charge: num(l.charge, 0, 100, 0) };
   s.board = int(r.board, 0, 1e9, 0); s.missions = int(r.missions, 0, 1e9, 0);
   s.first = !!r.first && !s.missions;
+  for (const id in r.threat || {}) if (biomeById(id) && biomeById(id).mission) s.threat[id] = int(r.threat[id], 0, THREAT_MAX, 0);
   const id = typeof raw.id === 'string' && /^[a-z0-9]{4,24}$/.test(raw.id) ? raw.id : newId();
   return {
     id, version: VERSION, name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 24) : 'Surveyor',

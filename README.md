@@ -24,6 +24,7 @@ A mission game drawn by shaders. You arrive by shuttle at a floating town, Merid
 - **A three-step attack chain.** Attacks come in threes and the third is the heavy one: a blade's third cut takes everything in front, a rifle's third shot hits harder, a rod's third bursts.
 - **Gear.** Weapon, frame and unit. Each piece is a base type, an item level, a rarity (Standard, Tuned, Rare, Prime) and rolled affixes; a Prime piece also lends ranks of a talent. Every base has its own shape in the hand, on the shoulders or on the back, and its tile in the menu is drawn from that same shape. It drops from creatures, supply pods and bosses, every contract pays one piece, and the quartermaster buys and sells it.
 - **Contracts.** Three on the board at a time: clear the way, recover survey cores, or bring down the boss of the place. Six places, each with its own look, creatures and boss: four of sky islands (Glasswood Terraces, Ember Shelf, The Hush, Rime Steps), and two that are not.
+- **Places that remember you.** Every place keeps a threat rank, Quiet to Unbound. A contract won there raises it by one; being lifted out beaten lowers it by one. At each rank the creatures are a level or two up and hit harder, and one to three conditions are drawn for that one visit by the contract's own dice: creatures that are swift, thick-hided, in greater numbers, led by elder creatures, that burst where they fall, strays from another place in the mix, the place at night, or the elder enraged early. So a second visit is never the first one over again, and it pays more: more experience and glint, and a better lean toward rare gear. The board and the Contract tab show the rank and what is different this time.
 - **The Underhalls.** A dungeon: square halls and corridors between sheer walls of dressed stone, no sky, and no light but braziers, crystal and the lumen at your shoulder. A broken way is a pit to jump.
 - **The Shatter.** Open space: shards of a broken moon with the stars under them and the ringed world close. Things weigh so little that a jump carries three times as far, so the gaps are three times as wide.
 - **Generated missions.** A contract's seed gives the layout (islands and bridges), what waits on each island (bought from a budget that grows with the contract's level and with how deep the island lies), where the supply pods are, and how the fights roll.
@@ -39,7 +40,7 @@ A mission game drawn by shaders. You arrive by shuttle at a floating town, Merid
 - **One menu, and a pause menu.** Character, Gear, Lumen, Contract and Guide are tabs of one window that holds the game while it is open. Esc opens the pause menu: settings for display, sound, controls and accessibility (text size, reduced motion, high contrast, skip cinematics), kept between visits.
 - **Pads that show the way.** The pad that sends you down, and the one that lifts you out, keep lifting rings of light off themselves: slow and faint while cold, quick and bright once they will take you.
 - **Saves.** Every surveyor you make is kept in the browser: every few seconds, when a contract ends, and whenever the page is hidden or left. The select screen opens on them (Continue, or a new surveyor; one can be let go), and Settings, Saves writes a copy of them all to a file and reads one back. A contract in progress is not kept: leave in the middle and you are on the ship with what you had picked up.
-- **Phones.** Held upright, the picture is a strip across the top and the stick, the buttons and the HUD sit on the page under it; held sideways, the picture fills the screen and the controls sit in its corners. Menus fill the screen and scroll. Every screen is checked by a script for text that is cut off, runs out of its plate, breaks in the middle of a word or lies over other text.
+- **Phones.** Held upright, the picture is a strip across the top and the stick, the buttons and the HUD sit on a dark blue deck under it; on the select screen the camera is placed so the whole hero stands in the strip between the name plate and the choices, whatever the screen's shape; held sideways, the picture fills the screen and the controls sit in its corners. Menus fill the screen and scroll. Every screen is checked by a script for text that is cut off, runs out of its plate, breaks in the middle of a word or lies over other text.
 - **Lettering coloured by what it names.** People, places, numbers, experience, glint, good and bad, creatures, each class and each kind of contract have a colour of their own, all at 4.5:1 or better on every ground they sit on (the table is at the end of `src/ui/ui.css`).
 - **A piece of music for every place and every elder.** Each of the seven areas has its own composed tune, key, meter, tempo and lead instrument (the town a piano and violin in D major; Glasswood a celesta in 6/8; Ember a solo cello sarabande; the Hush glass tones in 5/4 over a low choir; Rime a breathy flute; the Underhalls a quiet organ chorale; the Shatter bowed metal in 7/4), and each of the five elders a theme of its own that takes over while it lives, with a fuller variant once it is enraged. A fight cuts the tune down over a soft drum and low strings; low health thins it; a cinematic holds it. All of it is made in the browser with no audio files: one row per area in `AREAS` and per elder in `BOSSES` in `src/audio/audio.js`, each theme written out as chords and scale degrees.
 - **Cinematics.** Arriving at the town, dropping onto a contract, an elder waking, an elder falling. All of them can be skipped (Esc, Enter, Space or the Skip button), and none is needed to play: add `?nocine` to the address to go without.
@@ -54,7 +55,7 @@ python3 -m http.server 8080
 
 Then open `http://localhost:8080`. Add `?touch` to see the phone layout on a desktop.
 
-Progress is not saved yet: each visit starts a new journey in the town.
+Progress is kept in the browser (see Saves above). Add `?new` to open one visit as if nothing were kept.
 
 ## Controls
 
@@ -85,6 +86,7 @@ src/
     tutorial.js     the first steps, in order: what each says, points at and waits for
     creatures.js    creatures and bosses: numbers, moves, drops, encounter cost
     themes.js       the places: ground, plants, creatures, boss, hour
+    threat.js       how a place answers being surveyed again: the ranks, and the conditions a visit can draw
     town.js         the town: rooms, paving, fixtures, crew
     items.js        flasks, materials, recipes
     talents.js      talents
@@ -122,6 +124,7 @@ A cinematic is a row in `src/content/cinematics.js`: a list of shots, each with 
 | A class | A row in `content/classes.js`: attributes, weapon family, four ability ids, a colour. |
 | An ability | A row in `content/abilities.js` using an existing effect (`arc`, `ring`, `bolt`, `volley`, `heal`, `dash`). A new kind of effect is one function in `sim/systems/skills.js`. |
 | A gear base, affix or rarity | A row in `content/gear.js`. Anything in the stat list can be rolled. A base's `look` picks its shape in `gfx/glsl/held.js`, which the hero and the menu's tiles both draw from; a new shape is a branch there. |
+| A condition a revisit can draw | A row in `CONDITIONS` in `content/threat.js`: its name, one line of text, and the numbers it changes (`hp`, `atk`, `quick`, `purse`, `aggro`, `glint`, or one of `leader`, `burst`, `strays`, `hour`, `rageAt`); `only` says which contracts it can be drawn for. A new kind of number is read where creatures are made, in `temper` in `sim/systems/missions.js`. |
 | A step of the first steps | A row in `content/tutorial.js`: its line, what it points at, the control to ring, and the event or test that ends it. |
 | A stat | A line in `derive` in `sim/stats.js` and its name in `STAT_TEXT`. |
 | A creature | A row in `content/creatures.js` (with a `cost`) and an entry in a theme's table. A new shape: an archetype in `gfx/archetypes/`. |
@@ -146,6 +149,7 @@ The picture is Brushwild's renderer: one raymarch decides what is where, and a f
 - The elders fill much of the picture and are drawn at full resolution: their cost on a slow GPU or a phone has not been measured.
 - None of the music has been listened to by its author: it is checked by a test that compares what each piece schedules (so no two share a lead voice or a ten-second stretch of the same instruments), by rendering each piece through the browser to measure its level, and by playing whole contracts with the audio running to see that nothing fails.
 - The first steps have been played end to end by a test bot that presses only what they ring, not by a new player; the game has not been tried on a real phone.
+- The threat ranks are balanced by a test bot that cannot die, not by play: at the top rank a level 6 surveyor takes about six times the damage and twice the time of a first visit.
 - The simulation still steps with the frame's time, so two runs repeat exactly only at a fixed frame time.
 - Talent logic still lives beside its data in `content/talents.js`.
 - The share picture and icons in `static/` are still Brushwild's.

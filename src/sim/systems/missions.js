@@ -11,6 +11,7 @@
 
 import { hubSpec, missionSpec, firstSpec, rimAt } from '../../world/layout.js';
 import { BIOMES, MISSION_BIOMES, biomeById } from '../../content/themes.js';
+import { THREATS, THREAT_MAX, rollConditions, threatOf } from '../../content/threat.js';
 import { mulberry32 } from '../../core/rng.js';
 import { derive } from '../stats.js';
 import { TOWN } from '../../content/town.js';
@@ -64,11 +65,15 @@ export class Missions {
       const goal = goals[(k + (s.board || 0)) % 3];
       const tier = Math.max(1, s.level + k - 1 + (goal === 'hunt' ? 1 : 0));
       const rooms = Math.min(6, 3 + Math.floor(rnd() * 2) + Math.floor(tier / 4));
+      const seed = Math.floor(rnd() * 2 ** 31);
+      // a place surveyed before answers harder, and differently each time (content/threat.js)
+      const threat = Math.min(THREAT_MAX, (s.threat && s.threat[biome]) | 0), pay = THREATS[threat].pay;
       return {
-        seed: Math.floor(rnd() * 2 ** 31), biome, goal, tier, rooms,
+        seed, biome, goal, tier, rooms,
+        threat, conditions: rollConditions(threat, { biome, goal }, mulberry32((seed ^ 0x51ed270b) >>> 0)),
         name: `${NAMES_A[Math.floor(rnd() * NAMES_A.length)]} ${NAMES_B[Math.floor(rnd() * NAMES_B.length)]}`,
-        xp: Math.round((30 + rooms * 14) * (1 + 0.3 * (tier - 1)) * (goal === 'hunt' ? 1.3 : 1)),
-        glint: Math.round((22 + rooms * 9) * (1 + 0.25 * (tier - 1))),
+        xp: Math.round((30 + rooms * 14) * (1 + 0.3 * (tier - 1)) * (goal === 'hunt' ? 1.3 : 1) * pay),
+        glint: Math.round((22 + rooms * 9) * (1 + 0.25 * (tier - 1)) * pay),
       };
     });
     if (s.first) this.offers[0] = { ...FIRST };          // until it has been run, the first card on the board is First Light
@@ -102,7 +107,10 @@ export class Missions {
     };
     this.pending = null;
     this.openGates(0, true);
-    g.bus.emit('mission:begin', { offer, biome: g.biome, goal: GOALS[offer.goal] });
+    const T = this.threat = threatOf(offer);
+    if (T.hour != null) g.hour = T.hour;
+    g.bus.emit('mission:begin', { offer, biome: g.biome, goal: GOALS[offer.goal], threat: T });
+    if (T.rank) g.bus.emit('log', { text: `Threat: ${T.name}.${T.list.map((c) => ` ${c.name}: ${c.text}`).join('')}` });
     if (!g.player.sheet.missions) g.bus.emit('log', { text: 'A jump clears a gap, gets you onto a terrace, and takes you over a blow that runs along the ground.' });
   }
 
@@ -196,7 +204,9 @@ export class Missions {
   nextWave(i) {
     const g = this.game, w = g.world, room = w.rooms[i], rs = this.active.rooms[i], p = g.player;
     const list = room.waves[++rs.wave];
-    const level = this.active.offer.tier;
+    const T = this.threat || threatOf(this.active.offer);
+    const level = this.active.offer.tier + T.level;
+    let led = !T.leader || room.kind !== 'fight';        // (an elder creature leads each pack on the way, when the place is like that)
     list.forEach((id, k) => {
       const boss = id[0] === '@';
       if (boss) id = id.slice(1);
@@ -209,7 +219,10 @@ export class Missions {
         x = room.x + Math.sin(ang) * d; z = room.z + Math.cos(ang) * d;
         if (Math.hypot(x - p.x, z - p.z) > 4.5 && w.walkable(x, z)) break;
       }
-      const m = g.spawner.spawnMonster(id, x, z, level + (boss ? 1 : 0));
+      const lead = !boss && !led;
+      if (lead) led = true;
+      const m = g.spawner.spawnMonster(id, x, z, level + (boss ? 1 : 0), lead);
+      this.temper(m);
       m.room = i;
       if (boss) m.yaw = Math.atan2(-(p.x - x), p.z - z);        // it wakes facing whoever woke it
       if (boss && this.active.offer.first) { m.maxHp = m.hp = Math.round(m.maxHp * 0.4); m.atk *= 0.7; }      // the first elder is a gentler one
@@ -219,6 +232,27 @@ export class Missions {
       if (boss) g.bus.emit('boss:arrive', m);
     });
     g.bus.emit('room:wave', { room: i, wave: rs.wave, of: room.waves.length, kind: room.kind });
+  }
+
+  /**
+   * What the place's threat does to a creature as it appears: more health and harder blows, quicker if the
+   * place is like that, a darker coat and a little more size so that it looks what it is, and what it leaves
+   * when it falls. (Every creature of a contract passes through here: packs, what an elder calls, what guards a site.)
+   */
+  temper(m) {
+    const T = this.threat;
+    if (!T || !this.active || (!T.rank && !T.list.length)) return m;
+    m.maxHp = m.hp = Math.round(m.maxHp * T.hp);
+    m.atk *= T.atk;
+    m.threat = T.rank;
+    m.quick = T.quick; m.aggroMul = T.aggro; m.glintMul = T.glint; m.luck = T.luck;
+    if (m.boss) m.rageAt = T.rageAt;
+    else {
+      if (T.burst) m.burst = T.burst;
+      m.scale *= 1 + 0.02 * T.rank;
+      m.colors[0] = m.colors[0].map((c, i) => c * (1 - 0.07 * T.rank) + [0.29, 0.3, 0.37][i] * 0.07 * T.rank);
+    }
+    return m;
   }
 
   onKill() { if (this.active) this.active.kills++; }
@@ -234,6 +268,7 @@ export class Missions {
       let x = boss.x + Math.sin(ang) * d, z = boss.z + Math.cos(ang) * d;
       if (!w.walkable(x, z)) { x = boss.x; z = boss.z; }
       const m = g.spawner.spawnMonster(id, x, z, Math.max(1, boss.level - 1));
+      this.temper(m);
       m.room = boss.room; m.ai.provoked = true; m.called = true;
       rs.alive.push(m);
       g.bus.emit('spawn:in', { x, y: w.surface(x, z), z, r: m.radius });
@@ -278,6 +313,15 @@ export class Missions {
     // every survey mark logged adds to the pay, and all of them make the piece of gear a better one
     const extra = 1 + 0.15 * a.marks, all = a.markNeed > 0 && a.marks >= a.markNeed;
     this.report = { won, offer: a.offer, kills: a.kills, time: a.time, xp: won ? Math.round(a.offer.xp * extra) : 0, glint: won ? Math.round(a.offer.glint * extra) : 0, marks: a.marks, markNeed: a.markNeed };
+    // the place remembers: surveyed and won, it is more dangerous next time; beaten there, it settles a little
+    const T = this.threat || threatOf(a.offer);
+    this.threat = null;
+    if (!a.offer.first) {
+      s.threat = s.threat || {};
+      const was = (s.threat[a.offer.biome] | 0), now = Math.max(0, Math.min(THREAT_MAX, was + (won ? 1 : -1)));
+      s.threat[a.offer.biome] = now;
+      if (now !== was) this.report.threat = { was, now, name: THREATS[now].name };
+    }
     s.boon = null;          // what a crystal lent goes back
     if (won) g.loot.gather();          // whatever is still lying about comes up with the hero
     this.active = null;
@@ -288,7 +332,7 @@ export class Missions {
       if (a.offer.first) { s.first = false; g.loot.add('wisp_ember', 6); }       // and enough for the lumen's first change comes home with it
       s.glint += this.report.glint;
       // every contract pays one piece of gear on top: at least tuned, better from a hunt
-      const prize = rollItem({ ilvl: a.offer.tier, cls: s.cls, family: CLASSES[s.cls].family, rarity: Math.min(3, (a.offer.goal === 'hunt' ? 2 : 1) + (all ? 1 : 0)), luck: 0.4 });      // always something this class can use
+      const prize = rollItem({ ilvl: a.offer.tier, cls: s.cls, family: CLASSES[s.cls].family, rarity: Math.min(3, (a.offer.goal === 'hunt' ? 2 : 1) + (all ? 1 : 0)), luck: 0.4 + T.luck });      // always something this class can use
       if (s.gear.length < 20) { s.gear.push(prize); this.report.prize = prize; this.report.prizeName = itemName(prize); }
       this.refresh();
       g.combat.grantXp(this.report.xp);

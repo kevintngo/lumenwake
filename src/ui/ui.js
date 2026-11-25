@@ -11,6 +11,7 @@
 // tabbed menu also hold the game still (`game.halt`).
 
 import { VIEWS } from '../config.js';
+import { damp } from '../core/math.js';
 import { xpToNext } from '../sim/stats.js';
 import { CLASSES, FAMILIES } from '../content/classes.js';
 import { PEOPLES, PEOPLE_ORDER } from '../content/peoples.js';
@@ -199,6 +200,8 @@ export function createUI(game) {
     rep.name.textContent = r.offer.name;
     rep.line.innerHTML = `<b class="c-place">${B.name}</b> · <b class="c-goal-${r.offer.goal}">${GOALS[r.offer.goal].name}</b>${r.won ? '' : ' · <span class="c-bad">Not paid: it is still on the board</span>'}`;
     if (r.won && r.markNeed) rep.line.innerHTML += ` · Marks <b class="c-num">${r.marks}</b> of <b class="c-num">${r.markNeed}</b>`;
+    // the place remembers being surveyed (content/threat.js)
+    if (r.threat) rep.line.innerHTML += `<br>${r.threat.now > r.threat.was ? `It will be more dangerous next time: <b class="c-foe">${r.threat.name}</b>.` : `It has settled a little: <b class="c-foe">${r.threat.name}</b>.`}`;
     const stat = (label, value, cls) => `<div><small>${label}</small><b class="${cls}">${value}</b></div>`;
     rep.stats.innerHTML = stat('Time', time, 'c-ink') + stat('Felled', r.kills, 'c-foe') + stat('Experience', '+' + r.xp, 'c-xp') + stat('Glint', '+' + r.glint, 'c-coin');
     rep.prize.innerHTML = r.prize ? `<div class="label">Also paid</div>${panels.gearCard(r.prize)}` : '';
@@ -358,18 +361,43 @@ export function createUI(game) {
   bus.on('begin', () => { if (game.store.failed) toast('This browser will not keep your journey', 'A private window, or its storage is full. Settings, Saves can keep a copy in a file.', 6); });
   game.look.fadeGoal = 1;
   // While choosing, the camera stands in front of the hero, the square and the hall behind them, and sways a little.
-  // On a wide screen the hero is in the middle between the two columns; on a narrow one, in the strip above them.
-  const selectView = (t) => {
+  // On a wide screen the hero is in the middle between the two columns. On a narrow or upright one they stand, whole,
+  // in the strip of picture between the name plate and the choices: the camera is placed so that their feet are on
+  // the strip's lower edge and the tip of whatever they hold is on its upper one, however tall the strip is.
+  const HERO_TOP = 2.0;        // metres from the ground to the top of the tallest of them, and of what they hold upright
+  const strip = { top: -1, bottom: -1 };
+  const stripNow = () => {
+    const head = document.querySelector('.select-head'), H = innerHeight;
+    let top = (head ? head.getBoundingClientRect().bottom : 0) + 12, bottom = H;
+    for (const el of document.querySelectorAll('.select-col, .select-foot')) { const r = el.getBoundingClientRect(); if (r.height > 0 && r.top < bottom) bottom = r.top; }
+    bottom -= 16;
+    if (bottom - top < 150) bottom = top + 150;        // a very short screen: the choices cover their feet rather than the hero shrinking to nothing
+    return [top, bottom];
+  };
+  const selectView = (t, dt = 0) => {
     const y = p.y, sway = game.reducedMotion ? 0 : Math.sin(t * 0.22) * 0.22, wide = innerWidth > 620 && innerWidth > innerHeight;        // (three columns, the hero between them: see the select screen's rules in ui.css)
-    const D = wide ? 5.6 : 8.4, a = 0.18 + sway;
-    return { pos: [p.x + Math.sin(a) * D, y + (wide ? 1.25 : 1.5), p.z + Math.cos(a) * D], look: [p.x, y + (wide ? 0.72 : -0.75), p.z], lens: (wide ? 32 : 30) * Math.PI / 180, mix: 1 };
+    const a = 0.18 + sway;
+    if (wide) { strip.top = -1; return { pos: [p.x + Math.sin(a) * 5.6, y + 1.25, p.z + Math.cos(a) * 5.6], look: [p.x, y + 0.72, p.z], lens: 32 * Math.PI / 180, mix: 1 }; }
+    const [top, bottom] = stripNow();
+    if (strip.top < 0) { strip.top = top; strip.bottom = bottom; }
+    else { strip.top = damp(strip.top, top, 7, dt); strip.bottom = damp(strip.bottom, bottom, 7, dt); }
+    const lens = 30 * Math.PI / 180, tl = Math.tan(lens / 2), H = innerHeight, eye = 1.3;
+    const nT = 1 - 2 * strip.top / H, nB = 1 - 2 * strip.bottom / H;      // where the strip's edges are in the picture (+1 the top, -1 the bottom)
+    let lo = 2.5, hi = 60, D = 8, pitch = 0;
+    for (let i = 0; i < 22; i++) {
+      D = (lo + hi) / 2;
+      pitch = Math.atan(eye / D) + Math.atan(nB * tl);                      // the feet on the lower edge...
+      if (Math.tan(pitch + Math.atan((HERO_TOP - eye) / D)) / tl > nT) lo = D; else hi = D;       // ...and how far back for the top to come down to the upper one
+    }
+    D = Math.max(D, 0.75 / (tl * innerWidth / H));                          // (a strip wider than it is tall: not so close that their arms leave the sides)
+    return { pos: [p.x + Math.sin(a) * D, y + eye, p.z + Math.cos(a) * D], look: [p.x, y + eye - Math.tan(pitch) * D, p.z], lens, mix: 1 };
   };
   let selectT = 0;
   bus.on('frame', (dt) => {
     if (game.started) return;
     selectT += dt;
     p.yaw = 0;                               // facing the camera, which stands to the south
-    game.camera.rail = selectView(selectT);
+    game.camera.rail = selectView(selectT, dt);
   });
 
   createCinemaUI(game, layout);

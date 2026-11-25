@@ -39,6 +39,13 @@ export class Hazards {
     g.bus.emit('shot:launch', h);
   }
 
+  /** What `m` leaves where it fell: marked on the ground, and after `delay` seconds it bursts and hurts within r. */
+  burst(m, r, delay, mult) {
+    const g = this.game, y = g.world.surface(m.x, m.z);
+    g.bus.emit('telegraph', { x: m.x, y, z: m.z, r, t: delay, fill: true });
+    this.list.push({ kind: 'fall', src: m, x: m.x, y, z: m.z, ground: y, r, left: delay, drop: 0, mult, color: [...m.colors[1]], size: 0, gone: false });
+  }
+
   clear() {
     for (const h of this.list) h.gone = true;
     this.list.length = 0;

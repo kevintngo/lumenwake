@@ -6,10 +6,20 @@
 // Fills in room.waves (lists of creature ids; '@id' is a boss) and room.pods.
 
 import { CREATURES } from '../content/creatures.js';
+import { BIOMES } from '../content/themes.js';
+import { threatOf } from '../content/threat.js';
 
 /** spec: a mission layout; theme: its row in content/themes.js; rnd: the contract's own dice. */
 export function planEncounters(spec, theme, offer, rnd) {
-  const table = theme.monsters;
+  // the place's threat (content/threat.js): a bigger purse, and perhaps creatures strayed in from somewhere else
+  const T = threatOf(offer);
+  let table = theme.monsters;
+  if (T.strays) {
+    const others = BIOMES.filter((b) => b.mission && b.id !== theme.id && b.monsters.length);
+    const from = others[Math.floor(rnd() * others.length)];
+    const mine = new Set(table.map((r) => r[0]));
+    table = [...table, ...from.monsters.filter((r) => !mine.has(r[0])).slice(0, T.strays).map((r) => [r[0], 3])];
+  }
   const draw = (purse) => {
     const can = table.filter((r) => CREATURES[r[0]].cost <= purse);
     if (!can.length) return null;
@@ -32,13 +42,13 @@ export function planEncounters(spec, theme, offer, rnd) {
     r.waves = []; r.pods = 0;
     if (r.kind === 'fight') {
       const depth = fights.indexOf(r) / Math.max(1, fights.length - 1);
-      const purse = (2.6 + offer.tier * 0.45) * (0.8 + 0.7 * depth);
+      const purse = (2.6 + offer.tier * 0.45) * (0.8 + 0.7 * depth) * T.purse;
       const waves = 1 + (rnd() < 0.3 + 0.35 * depth ? 1 : 0);
       for (let w = 0; w < waves; w++) r.waves.push(wave(purse * (w ? 0.8 : 1)));
       r.pods = rnd() < 0.45 ? 1 : 0;
     } else if (r.kind === 'cache') {
       r.pods = 1;          // (a side island also holds a site: content/sites.js)
-      if (rnd() < 0.6) r.waves.push(wave(2.4 + offer.tier * 0.3));
+      if (rnd() < 0.6) r.waves.push(wave((2.4 + offer.tier * 0.3) * T.purse));
     } else if (r.kind === 'boss') {
       r.waves.push(['@' + theme.boss]);
     }

@@ -15,7 +15,7 @@
 import { yawFromDir } from '../entities.js';
 
 const reach = (m) => (m.elite ? 1.25 : 1);
-const haste = (m) => (m.elite ? 0.85 : 1);
+const haste = (m) => (m.elite ? 0.85 : 1) / Math.sqrt(m.quick || 1);        // (a quicker creature winds up a little sooner too)
 const still = { dx: 0, dz: 0, done: false };
 const finished = { dx: 0, dz: 0, done: true };
 /** Holds the creature's attack drawing at a chosen stage (0 start .. 0.5 the blow .. 1 over). */

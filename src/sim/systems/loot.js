@@ -22,7 +22,7 @@ export class Loot {
     for (const [id, chance, range] of m.def.loot) {
       if (rand() > chance * (m.elite ? 2.5 : 1)) continue;
       let n = range[0] + Math.floor(rand() * (range[1] - range[0] + 1));
-      if (id === 'glint') n = Math.round(n * (1 + (m.level - 1) * 0.3) * (m.elite ? 4 : 1) * (g.player.forage ?? 1));
+      if (id === 'glint') n = Math.round(n * (1 + (m.level - 1) * 0.3) * (m.elite ? 4 : 1) * (g.player.forage ?? 1) * (m.glintMul || 1));
       const a = rand() * 6.283, r = 0.4 + rand() * 0.9;
       const item = ITEMS[id];
       const e = makeEntity('drop', 'drop', {
@@ -37,7 +37,7 @@ export class Loot {
     // gear: now and then from anything, often from an elder, always (twice) from a boss
     const times = m.boss ? 2 : rand() < (m.elite ? 0.55 : 0.07) ? 1 : 0;
     for (let k = 0; k < times; k++) {
-      this.dropGear(m.x, m.y, m.z, rollItem({ ilvl: m.level, cls: g.player.sheet.cls, luck: m.boss ? 1.3 : m.elite ? 0.6 : 0, rarity: m.boss ? 1 : undefined }));
+      this.dropGear(m.x, m.y, m.z, rollItem({ ilvl: m.level, cls: g.player.sheet.cls, luck: (m.boss ? 1.3 : m.elite ? 0.6 : 0) + (m.luck || 0), rarity: m.boss ? 1 : undefined }));
     }
   }
 

@@ -91,7 +91,10 @@ export class Combat {
       for (const o of g.monsters) if (o !== m && !o.dead && o.called) { o.dead = true; o.deathT = 0; g.bus.emit('monster:died', o); }
       g.hazards.clear();
       g.bus.emit('boss:fell', m);
-    } else g.loot.dropFrom(m);
+    } else {
+      g.loot.dropFrom(m);
+      if (m.burst) g.hazards.burst(m, m.burst[0], m.burst[1], m.burst[2]);        // (a volatile place: content/threat.js)
+    }
     this.grantXp(gained);
     g.missions.onKill(m);
   }

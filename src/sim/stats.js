@@ -36,6 +36,7 @@ export function newPlayerSheet(cls = 'vanguard') {
     bag: [{ id: 'tonic', n: 3 }, { id: 'draught', n: 1 }, { id: 'wisp_ember', n: 2 }, { id: 'crag_shard', n: 2 }, { id: 'puff_spore', n: 2 }],       // (a first few things to feed the lumen)
     lumen: newLumen(),    // the light at the shoulder (content/companions.js)
     board: 0, missions: 0,
+    threat: {},           // how each place answers being surveyed again: biome id -> rank (content/threat.js)
   };
 }
 
