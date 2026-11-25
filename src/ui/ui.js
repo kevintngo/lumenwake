@@ -5,10 +5,15 @@
 
 import { VIEWS } from '../config.js';
 import { xpToNext } from '../sim/stats.js';
-import { CLASSES } from '../content/classes.js';
+import { CLASSES, FAMILIES } from '../content/classes.js';
 import { PEOPLES, PEOPLE_ORDER } from '../content/peoples.js';
+import { ABILITIES } from '../content/abilities.js';
 import { describe } from '../sim/items.js';
 import { GOALS } from '../sim/systems/missions.js';
+import { biomeById } from '../content/themes.js';
+import { BOONS } from '../content/sites.js';
+import { LUMENS } from '../content/companions.js';
+import { lumenLevel } from '../sim/lumen.js';
 import { ITEMS } from '../content/items.js';
 import { clearSave } from '../app/save.js';
 import { SKILL_ICONS, MENU_ICONS, ACT_ICONS, itemIcon } from './icons.js';
@@ -144,30 +149,81 @@ export function createUI(game) {
   bus.on('log', (d) => log(d.text));
   bus.on('pickup', (d) => {
     if (d.gear) { const g = describe(d.gear); log(`Picked up <b style="color:${g.color}">${g.name}</b> <span class="dim">${g.rarity}</span>`); return; }
-    const it = ITEMS[d.item]; log(`Picked up <em>${it.name}</em>${d.n > 1 ? ` ×${d.n}` : ''}`);
+    const it = ITEMS[d.item];
+    log(it.kind === 'coin' ? `<b class="c-coin">+${d.n} glint</b>` : `Picked up <b class="c-item">${it.name}</b>${d.n > 1 ? ` <b class="c-num">×${d.n}</b>` : ''}`);
   });
   bus.on('equip', (d) => log(`Now using <b style="color:${describe(d.item).color}">${describe(d.item).name}</b>.`));
   // (with cinematics off there are no cards, so the same things are said in a slip)
   const plain = game.cinema.quiet;
   bus.on('boss:arrive', (m) => { if (plain) toast(m.name, 'It holds this island.', 3.2); });
-  bus.on('boss:fell', (m) => log(`<em>${m.name}</em> is down.`));
-  bus.on('boss:enrage', (m) => log(`<em>${m.name}</em> is wounded, and faster for it.`));
-  bus.on('talent', (d) => log(`Talent taken: <em>${d.name}</em>.`));
+  bus.on('boss:fell', (m) => log(`<b class="c-foe">${m.name}</b> is down.`));
+  bus.on('boss:enrage', (m) => log(`<b class="c-foe">${m.name}</b> is wounded, and faster for it.`));
+  bus.on('talent', (d) => log(`Talent taken: <b class="c-key">${d.name}</b>.`));
   bus.on('levelup', (d) => { toast(`Level ${d.level}`, 'A talent to choose and points to spend, in the Character sheet.', 3.6); el.menu.querySelector('[data-open="character"]').classList.add('alert'); });
   bus.on('ui:toggle', (id) => { if (id === 'character') el.menu.querySelector('[data-open="character"]').classList.remove('alert'); });
-  bus.on('trade', (d) => { if (d.total) log(`Sold materials for <em>${d.total} glint</em>`); });
-  bus.on('monster:died', (m) => { if (m.elite) log(`You felled an <em>${m.name}</em>.`); });
+  bus.on('trade', (d) => { if (d.total) log(`Sold materials for <b class="c-coin">${d.total} glint</b>`); });
+  bus.on('monster:died', (m) => { if (m.elite) log(`You felled an <b class="c-foe">${m.name}</b>.`); });
+  bus.on('xp', (d) => { if (d.amount >= 40) log(`<b class="c-xp">+${d.amount} experience</b>`); });
   // ---- the mission, said as it happens
   bus.on('mission:taken', (o) => { if (o) toast(o.name, 'Contract taken. Step onto the pad in the gate room to go down.', 4); panels.refresh(); });
   bus.on('mission:begin', (d) => { if (plain) toast(d.offer.name, `${d.biome.name} · ${GOALS[d.offer.goal].name}`, 4); });
   bus.on('room:wave', (d) => { if (d.wave > 0) log('More of them.'); });
-  bus.on('room:clear', (d) => { if (d.kind !== 'boss') log(d.kind === 'cache' ? 'Clear.' : 'Island clear. <em>The gate is down.</em>'); });
+  bus.on('room:clear', (d) => { if (d.kind !== 'boss') log(d.kind === 'cache' ? '<b class="c-good">Clear.</b>' : '<b class="c-good">Island clear.</b> The gate is down.'); });
   bus.on('pod:open', (d) => { if (d.core) toast('A survey core', game.missions.track(), 3); });
+  bus.on('site:used', (d) => log(`<b class="c-key">${d.name}</b> · ${d.text.replace(/(\d+)/g, '<b class="c-num">$1</b>')}`));
+  bus.on('site:guard', (d) => log(`Something was sitting on the <b class="c-key">${d.name.toLowerCase()}</b>: <b class="c-foe">${d.guard.name}</b>.`));
   bus.on('mission:done', () => toast('Contract done', 'Lifting out…', 2.6));
+  // ---- back in town: the contract's report, with a picture of the place and what it paid
+  const rep = { box: $('report'), art: $('report-art'), kind: $('report-kind'), name: $('report-name'), line: $('report-line'), stats: $('report-stats'), prize: $('report-prize'), ok: $('report-ok') };
+  const closeReport = () => { rep.box.hidden = true; };
+  rep.ok.addEventListener('click', closeReport);
+  bus.on('ui:close', closeReport);
+  bus.on('mission:begin', closeReport);
   bus.on('mission:report', (r) => {
-    if (r.won) toast(`${r.offer.name}: paid`, `+${r.xp} xp · +${r.glint} glint${r.prizeName ? ` · ${r.prizeName}` : ''} · ${r.kills} felled in ${Math.floor(r.time / 60)}:${String(Math.floor(r.time % 60)).padStart(2, '0')}`, 5.5);
-    else toast('Lifted out', 'The contract is not paid. The board still has it.', 4.5);
+    const B = biomeById(r.offer.biome), time = `${Math.floor(r.time / 60)}:${String(Math.floor(r.time % 60)).padStart(2, '0')}`;
+    rep.art.src = art('place-' + r.offer.biome);
+    rep.box.classList.toggle('lost', !r.won);
+    rep.kind.textContent = r.won ? 'Paid' : 'Lifted out';
+    rep.name.textContent = r.offer.name;
+    rep.line.innerHTML = `<b class="c-place">${B.name}</b> · <b class="c-goal-${r.offer.goal}">${GOALS[r.offer.goal].name}</b>${r.won ? '' : ' · <span class="c-bad">not paid: the board still has it</span>'}`;
+    if (r.won && r.markNeed) rep.line.innerHTML += ` · Survey marks <b class="c-num">${r.marks}</b> of <b class="c-num">${r.markNeed}</b>`;
+    const stat = (label, value, cls) => `<div><small>${label}</small><b class="${cls}">${value}</b></div>`;
+    rep.stats.innerHTML = stat('Time', time, 'c-ink') + stat('Felled', r.kills, 'c-foe') + stat('Experience', '+' + r.xp, 'c-xp') + stat('Glint', '+' + r.glint, 'c-coin');
+    rep.prize.innerHTML = r.prize ? `<div class="label">On top of the pay</div>${panels.gearCard(r.prize)}` : '';
+    rep.box.hidden = false;
+    rep.ok.focus({ preventScroll: true });
   });
+
+  // ---- the lumen's plate: a click lets its burst go when it is full, and opens its window when it is not
+  const lum = { box: $('lumen'), btn: $('lumen-btn'), face: $('lumen-face'), name: $('lumen-name'), sub: $('lumen-sub'), bar: $('lumen-bar'), fill: $('lumen-fill') };
+  lum.btn.addEventListener('click', (e) => { if (!game.companion.burst()) bus.emit('ui:toggle', 'lumen'); if (e.detail) lum.btn.blur(); });
+  bus.on('lumen:ready', (d) => log(`Your lumen is full: <b class="c-key">${d.name}</b> is ready${game.touch ? '' : ' (<b class="c-key">G</b>)'}.`));
+  bus.on('lumen:burst', (d) => log(`<b class="c-key">${d.burst.name}</b>`));
+  bus.on('lumen:changed', (d) => toast(`Your lumen is now a ${d.name}`, LUMENS[d.kind].blurb, 4.5));
+  bus.on('lumen:level', (d) => log(`Your lumen is level <b class="c-num">${d.level}</b>.`));
+  bus.on('frame', () => {
+    const l = p.sheet.lumen, L = LUMENS[l.kind], full = l.charge >= 100;
+    set('luFace', lum.face, 'src', art('lumen-' + l.kind));
+    set('luName', lum.name, 'textContent', L.name);
+    set('luSub', lum.sub, 'textContent', full ? L.burst.name + ' is ready' : 'Level ' + lumenLevel(l));
+    scale('luFill', lum.fill, l.charge / 100);
+    meter('lu', lum.bar, Math.round(l.charge), 100);
+    if (last.luFull !== full) { last.luFull = full; lum.box.classList.toggle('full', full); }
+  });
+
+  // ---- the hero's likeness (taken by app/portrait.js), the elder's, and whoever is speaking
+  bus.on('portrait', (d) => { $('hero-face').src = d.bust; });
+  const talk = { box: $('talk'), face: $('talk-face'), name: $('talk-name'), title: $('talk-title'), line: $('talk-line'), timer: 0 };
+  const hush = () => { talk.box.hidden = true; clearTimeout(talk.timer); };
+  bus.on('talk', (d) => {
+    talk.face.src = art('crew-' + d.npc.name.toLowerCase());
+    talk.name.textContent = d.npc.name; talk.title.textContent = d.npc.title || '';
+    talk.line.textContent = `“${d.line}”`;
+    talk.box.hidden = false;
+    clearTimeout(talk.timer);
+    talk.timer = setTimeout(hush, 5200);
+  });
+  for (const ev of ['ui:close', 'moveclick', 'cine:begin', 'mission:begin']) bus.on(ev, hush);
   el.ring.addEventListener('click', (e) => { if (e.detail) el.ring.blur(); });
 
   // ---- layout: the picture fills the canvas's box (the window, or the top of an
@@ -190,38 +246,44 @@ export function createUI(game) {
     layout();
   });
 
-  // ---- title
+  // ---- the character select: the hero stands in the middle of the picture and changes as you choose.
+  // One of the peoples down the left, a class down the right; Begin starts the journey.
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
   game.reducedMotion = calm;
-  const hadSave = !!game.player.sheet && (game.player.sheet.level > 1 || game.player.sheet.xp > 0);
-  // a journey starts by choosing who to be (any of the peoples can be any class) ...
-  const peopleRoot = $('people-pick');
-  peopleRoot.innerHTML = PEOPLE_ORDER.map((id) => `<button type="button" class="people-chip" data-people="${id}" aria-pressed="false">${PEOPLES[id].name}</button>`).join('');
-  const showPeople = (id) => {
-    for (const b of peopleRoot.children) b.setAttribute('aria-pressed', String(b.dataset.people === id));
-    $('people-blurb').textContent = PEOPLES[id].blurb;
+  const art = (name) => `./static/art/${name}.webp`;
+  const peopleRoot = $('people-pick'), pickRoot = $('class-pick'), summary = $('select-summary');
+  peopleRoot.innerHTML = PEOPLE_ORDER.map((id) => `<button type="button" class="pick people-tile" role="radio" data-people="${id}" aria-checked="false">
+    <img src="${art('people-' + id)}" alt="" loading="eager" /><span class="pick-words"><strong>${PEOPLES[id].name}</strong><span>${PEOPLES[id].blurb}</span></span></button>`).join('');
+  pickRoot.innerHTML = Object.keys(CLASSES).map((id) => `<button type="button" class="pick class-card c-${id}" role="radio" data-class="${id}" aria-checked="false">
+    <img src="${art('class-' + id)}" alt="" loading="eager" /><span class="pick-words"><strong>${CLASSES[id].name}</strong><span>${CLASSES[id].blurb}</span>
+    <small>${FAMILIES[CLASSES[id].family].name} · ${CLASSES[id].abilities.map((a) => ABILITIES[a].name).join(', ')}</small></span></button>`).join('');
+  const showChoice = () => {
+    const s = p.sheet, who = s.people || 'unit';
+    for (const b of peopleRoot.children) b.setAttribute('aria-checked', String(b.dataset.people === who));
+    for (const b of pickRoot.children) b.setAttribute('aria-checked', String(b.dataset.class === s.cls));
+    summary.innerHTML = `<b class="c-name">${PEOPLES[who].name}</b> <b class="c-${s.cls}">${CLASSES[s.cls].name}</b>`;
+    set('pkind', $('pkind'), 'textContent', `${PEOPLES[who].name} ${CLASSES[s.cls].name}`);
+    $('pname').className = 'c-' + s.cls;
   };
-  peopleRoot.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-people]');
-    if (b) game.choosePeople(b.dataset.people);
+  peopleRoot.addEventListener('click', (e) => { const b = e.target.closest('[data-people]'); if (b) game.choosePeople(b.dataset.people); });
+  pickRoot.addEventListener('click', (e) => { const b = e.target.closest('[data-class]'); if (b) game.chooseClass(b.dataset.class); });
+  // arrow keys move within a group, as they do between radio buttons
+  for (const root of [peopleRoot, pickRoot]) root.addEventListener('keydown', (e) => {
+    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (!step) return;
+    const list = [...root.children], k = (list.indexOf(document.activeElement) + step + list.length) % list.length;
+    list[k].focus(); list[k].click();
+    e.preventDefault();
   });
-  bus.on('people', (d) => showPeople(d.id));
-  showPeople(game.player.sheet.people || 'unit');
-  // ... and what to be: one button for each class
-  const pickRoot = $('class-pick');
-  pickRoot.innerHTML = Object.keys(CLASSES).map((id) => `<button type="button" class="class-card" data-class="${id}"><strong>${CLASSES[id].name}</strong><span>${CLASSES[id].blurb}</span></button>`).join('');
-  pickRoot.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-class]');
-    if (!b) return;
-    game.chooseClass(b.dataset.class);
-    $('btn-begin').click();
-  });
-  pickRoot.querySelector('button').focus({ preventScroll: true });
+  bus.on('people', showChoice);
+  bus.on('class', showChoice);
+  showChoice();
   $('btn-begin').disabled = false;
-  void hadSave;
   $('btn-begin').addEventListener('click', () => {
     document.body.classList.remove('titled');
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();      // the keys go to the game now, not to the card that was clicked
+    game.camera.rail = null;
+    p.yaw = Math.PI;
     game.begin();
     layout();
     // The view this journey was last seen from, or else the usual one: low behind the hero,
@@ -232,9 +294,20 @@ export function createUI(game) {
   });
   $('btn-new').addEventListener('click', () => { clearSave(); game.started = false; location.search = '?new'; });
   game.look.fadeGoal = 1;
-  // a wide, low view of the town turns slowly behind the title
-  Object.assign(game.camera.goal, { pitch: 0.3, distance: 32 });
-  Object.assign(game.camera, { pitch: 0.3, distance: 32 });
+  // While choosing, the camera stands in front of the hero, the square and the hall behind them, and sways a little.
+  // On a wide screen the hero is in the middle between the two columns; on a narrow one, in the strip above them.
+  const selectView = (t) => {
+    const y = p.y, sway = calm ? 0 : Math.sin(t * 0.22) * 0.22, wide = innerWidth > 900 && innerWidth > innerHeight;
+    const D = wide ? 5.6 : 8.4, a = 0.18 + sway;
+    return { pos: [p.x + Math.sin(a) * D, y + (wide ? 1.25 : 1.5), p.z + Math.cos(a) * D], look: [p.x, y + (wide ? 0.72 : -0.75), p.z], lens: (wide ? 32 : 30) * Math.PI / 180, mix: 1 };
+  };
+  let selectT = 0;
+  bus.on('frame', (dt) => {
+    if (game.started) return;
+    selectT += dt;
+    p.yaw = 0;                               // facing the camera, which stands to the south
+    game.camera.rail = selectView(selectT);
+  });
 
   createCinemaUI(game, layout);
 
@@ -243,7 +316,6 @@ export function createUI(game) {
 
   // ---- per-frame refresh
   bus.on('frame', (dt) => {
-    if (game.paused && !calm) game.camera.goal.yaw += dt * 0.06; // slow orbit behind the title
     const s = p.sheet;
     set('lvl', el.lvl, 'textContent', String(s.level));
     set('glint', el.glint, 'textContent', String(s.glint));
@@ -267,16 +339,24 @@ export function createUI(game) {
 
     const boss = game.monsters.find((m) => m.boss && !m.dead);
     set('bossHid', el.boss, 'hidden', !boss);
-    if (boss) { set('bossName', el.bossName, 'textContent', boss.name); scale('bossHp', el.bossFill, boss.hp / boss.maxHp); }
+    if (boss) {
+      set('bossName', el.bossName, 'textContent', boss.name);
+      set('bossSub', $('boss-sub'), 'textContent', boss.enraged ? 'Wounded, and faster for it' : boss.def.epithet || '');
+      set('bossFace', $('boss-face'), 'src', art('elder-' + boss.defId));
+      if (last.bossMad !== !!boss.enraged) { last.bossMad = !!boss.enraged; el.boss.classList.toggle('mad', !!boss.enraged); }
+      scale('bossHp', el.bossFill, boss.hp / boss.maxHp);
+    }
 
     const ms = game.missions;
     set('zone', el.zone, 'textContent', ms.active ? ms.active.offer.name : game.biome.name);
+    if (last.zoneKind !== !!ms.active) { last.zoneKind = !!ms.active; el.zone.className = ms.active ? 'c-ink' : 'c-place'; el.clock.className = ms.active ? 'c-place' : 'dim'; }
     set('clock', el.clock, 'textContent', ms.active ? game.biome.name : 'Aloft');
-    set('boonHid', el.boon, 'hidden', true);
+    set('boonHid', el.boon, 'hidden', !s.boon);
+    if (s.boon) { set('boonT', el.boon, 'textContent', BOONS[s.boon].name); set('boonTip', el.boon, 'title', BOONS[s.boon].desc); }
 
     const line = ms.track();
     set('trHid', el.tracker, 'hidden', !line);
-    if (line) set('trText', el.trackerText, 'textContent', line);
+    if (line) set('trText', el.trackerText, 'innerHTML', line.replace(/(\d+)/g, '<b class="c-num">$1</b>'));
 
     game.skills.list.forEach((k, i) => {
       const slot = slots[i], cd = game.skills.cooldowns[i];

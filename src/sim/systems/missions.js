@@ -56,9 +56,9 @@ export class Missions {
     const rnd = mulberry32(((s.board || 0) * 7919 + 1013) >>> 0);
     seedSim(((s.board || 0) + 1) * 2654435761);
     this.stock = [0, 1, 2, 3].map((k) => rollItem({ ilvl: Math.max(1, s.level), cls: s.cls, rarity: k === 3 ? 2 : 1, slot: ['weapon', 'frame', 'unit', undefined][k] }));
-    const goals = ['sweep', 'recover', 'hunt'];
+    const goals = ['sweep', 'recover', 'hunt'], first = Math.floor(rnd() * MISSION_BIOMES.length);
     this.offers = [0, 1, 2].map((k) => {
-      const biome = MISSION_BIOMES[(Math.floor(rnd() * MISSION_BIOMES.length) + k) % MISSION_BIOMES.length];
+      const biome = MISSION_BIOMES[(first + k) % MISSION_BIOMES.length];        // three different places every time
       const goal = goals[(k + (s.board || 0)) % 3];
       const tier = Math.max(1, s.level + k - 1 + (goal === 'hunt' ? 1 : 0));
       const rooms = Math.min(6, 3 + Math.floor(rnd() * 2) + Math.floor(tier / 4));
@@ -94,6 +94,7 @@ export class Missions {
     }
     this.active = {
       offer, need, cores: 0, done: false, over: 0, kills: 0, time: 0,
+      marks: 0, markNeed: g.world.structures.filter((s) => s.site === 'mark').length, revealed: false,        // (sim/systems/sites.js)
       rooms: spec.rooms.map((r) => ({ state: r.waves.length ? 'asleep' : 'clear', wave: -1, alive: [] })),
     };
     this.pending = null;
@@ -246,6 +247,10 @@ export class Missions {
     const a = this.active, w = this.game.world;
     if (!a) return this.pending ? `${this.pending.name}: step onto the pad` : '';
     if (a.done) return a.over > 3 ? `Done: lifting out in ${Math.ceil(a.over)}` : 'Done: lifting out';
+    const side = a.markNeed && a.marks < a.markNeed ? ` · Survey marks ${a.marks} of ${a.markNeed}` : '';
+    return this.goalLine(a, w) + side;
+  }
+  goalLine(a, w) {
     if (a.offer.goal === 'recover') return a.cores >= a.need ? 'Cores recovered: reach the far pad' : `Survey cores: ${a.cores} of ${a.need}`;
     if (a.offer.goal === 'hunt') return 'Find the elder on the last island';
     const main = a.rooms.filter((_, i) => w.rooms[i].kind === 'fight'), left = main.filter((r) => r.state !== 'clear').length;
@@ -263,19 +268,22 @@ export class Missions {
   /** Back to the ship, paid or not. */
   home(won) {
     const g = this.game, p = g.player, a = this.active, s = p.sheet;
-    this.report = { won, offer: a.offer, kills: a.kills, time: a.time, xp: won ? a.offer.xp : 0, glint: won ? a.offer.glint : 0 };
+    // every survey mark logged adds to the pay, and all of them make the piece of gear a better one
+    const extra = 1 + 0.15 * a.marks, all = a.markNeed > 0 && a.marks >= a.markNeed;
+    this.report = { won, offer: a.offer, kills: a.kills, time: a.time, xp: won ? Math.round(a.offer.xp * extra) : 0, glint: won ? Math.round(a.offer.glint * extra) : 0, marks: a.marks, markNeed: a.markNeed };
+    s.boon = null;          // what a crystal lent goes back
     if (won) g.loot.gather();          // whatever is still lying about comes up with the hero
     this.active = null;
     g.enter(hubSpec(TOWN));
     this.arrive();
     if (won) {
       s.board = (s.board || 0) + 1; s.missions = (s.missions || 0) + 1;
-      s.glint += a.offer.glint;
+      s.glint += this.report.glint;
       // every contract pays one piece of gear on top: at least tuned, better from a hunt
-      const prize = rollItem({ ilvl: a.offer.tier, cls: s.cls, family: CLASSES[s.cls].family, rarity: a.offer.goal === 'hunt' ? 2 : 1, luck: 0.4 });      // always something this class can use
+      const prize = rollItem({ ilvl: a.offer.tier, cls: s.cls, family: CLASSES[s.cls].family, rarity: Math.min(3, (a.offer.goal === 'hunt' ? 2 : 1) + (all ? 1 : 0)), luck: 0.4 });      // always something this class can use
       if (s.gear.length < 20) { s.gear.push(prize); this.report.prize = prize; this.report.prizeName = itemName(prize); }
       this.refresh();
-      g.combat.grantXp(a.offer.xp);
+      g.combat.grantXp(this.report.xp);
     }
     derive(p);
     p.hp = p.maxHp; p.focus = p.maxFocus;

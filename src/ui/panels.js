@@ -13,6 +13,10 @@ import { VIEWS } from '../config.js';
 import { BIOMES, biomeById } from '../content/themes.js';
 import { GOALS } from '../sim/systems/missions.js';
 import { itemIcon } from './icons.js';
+import { PEOPLES } from '../content/peoples.js';
+import { CREATURES } from '../content/creatures.js';
+import { LUMENS, TEMPERS, FOODS, LUMEN_STAGES, LUMEN_MAX } from '../content/companions.js';
+import { lumenLevel, lumenToNext, lumenStage, lumenMods } from '../sim/lumen.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -29,9 +33,9 @@ export class Panels {
       if (npc.role === 'shop' || npc.role === 'bounty') { this.trader = npc; this.show(npc.role === 'shop' ? 'shop' : 'bounty'); return; }
       const says = npc.says || ['Fair winds.'];
       npc.said = ((npc.said ?? -1) + 1) % says.length;
-      bus.emit('log', { text: `<em>${npc.name}</em>: “${says[npc.said]}”` });
+      bus.emit('talk', { npc, line: says[npc.said] });
     });
-    for (const ev of ['bag:changed', 'levelup', 'trade', 'bounty:changed', 'xp', 'attune', 'found', 'boon', 'talent']) bus.on(ev, () => this.refresh());
+    for (const ev of ['lumen:changed', 'lumen:level', 'lumen:ready', 'lumen:burst', 'bag:changed', 'levelup', 'trade', 'bounty:changed', 'xp', 'attune', 'found', 'boon', 'talent']) bus.on(ev, () => this.refresh());
 
     root.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
@@ -51,6 +55,7 @@ export class Panels {
     return {
       character: { title: 'Character', side: 'left', body: () => this.character() },
       bag: { title: 'Bag', side: 'right', body: () => this.bag() },
+      lumen: { title: 'Lumen', side: 'left', body: () => this.lumen() },
       shop: { title: 'Trade', side: 'right', body: () => this.shop() },
       bounty: { title: 'Contracts', side: 'right', body: () => this.bounty() },
       view: { title: 'View', side: 'right', body: () => this.view() },
@@ -91,6 +96,7 @@ export class Panels {
     if (name === 'close') return this.close(arg);
     if (name === 'attr' && s.points > 0) { s.base[arg]++; s.points--; derive(p); g.bus.emit('ui:click'); }
     else if (name === 'use') g.loot.use(arg);
+    else if (name === 'feed') g.companion.feed(arg);
     else if (name === 'equip') g.loot.equip(+arg);
     else if (name === 'sellgear') g.loot.sellGear(+arg);
     else if (name === 'buygear') g.loot.buyGear(+arg);
@@ -142,7 +148,10 @@ export class Panels {
     }).join('') : '';
     const owned = Object.keys(s.talents || {}).map((id) => `${TALENTS[id].name}${TALENTS[id].max > 1 ? ' ' + numeral[rank(s, id)] : ''}`).join(', ');
     return `
-      <div class="row"><p>Level ${s.level} ${CLASSES[s.cls].name}</p><p class="dim">${s.xp} / ${xpToNext(s.level)} xp</p></div>
+      <div class="hero-card"><img src="${this.game.portraits.figure}" alt="" />
+        <div><strong class="c-${s.cls}">${PEOPLES[s.people || 'unit'].name} ${CLASSES[s.cls].name}</strong>
+          <small>Level <b class="c-num">${s.level}</b> · <b class="c-xp">${s.xp} / ${xpToNext(s.level)} experience</b></small>
+          <small>${CLASSES[s.cls].blurb}</small></div></div>
       ${offer}
       <p class="${s.points ? '' : 'dim'}">${s.points ? `<strong style="color:var(--red-ink)">${s.points} points</strong> to spend.` : 'Gain a level to earn attribute points.'}</p>
       ${rows}
@@ -171,14 +180,52 @@ export class Panels {
     return html;
   }
 
+  /** The lumen: what it is, what it lends, what it lets go, and what there is to feed it. */
+  lumen() {
+    const g = this.game, s = g.player.sheet, l = s.lumen, L = LUMENS[l.kind], level = lumenLevel(l), stage = lumenStage(l);
+    const most = Math.max(8, l.ember, l.shell, l.tide);
+    const tempers = TEMPERS.map((t) => `<div class="temper"><span class="${t.cls}">${t.name}</span><span class="bar"><i class="${t.cls}" style="transform:scaleX(${(l[t.id] / most).toFixed(3)})"></i></span><b class="c-num">${l[t.id]}</b><small>${t.gives}</small></div>`).join('');
+    const pct = (v) => `+${Math.round(v * 1000) / 10}%`;
+    const m = Object.fromEntries(lumenMods(l).map((x) => [x.stat, x.value]));
+    const lends = lumenLevel(l) > 1 || m.attack || m.defense || m.power
+      ? `<b class="c-good">${pct(m.attack)}</b> attack · <b class="c-good">+${m.defense.toFixed(1)}</b> armor · <b class="c-good">${pct(m.maxHp)}</b> health · <b class="c-good">${pct(m.power)}</b> technique power · <b class="c-good">${pct(m.focusRegen)}</b> focus recovery`
+      : 'Nothing yet: it has not eaten.';
+    const next = stage < 2 ? `At level <b class="c-num">${LUMEN_STAGES[stage + 1]}</b> it takes a new shape, by whichever temper is strongest${stage === 1 ? ' (or a fourth shape if none leads)' : ''}.` : 'It has taken its last shape.';
+    const foods = s.bag.filter((b) => FOODS[b.id] && b.n > 0).map((b) => {
+      const it = ITEMS[b.id], f = FOODS[b.id];
+      const gives = TEMPERS.filter((t) => f[t.id]).map((t) => `<b class="${t.cls}">+${f[t.id]} ${t.name}</b>`).join(' ');
+      return `<div class="offer"><strong>${esc(it.name)} <b class="c-num">×${b.n}</b></strong><small>${gives}</small>
+        <button type="button" class="btn" data-act="feed" data-arg="${b.id}" aria-label="Feed it one ${esc(it.name)}">Feed</button></div>`;
+    }).join('');
+    return `
+      <div class="hero-card lumen-card"><img src="./static/art/lumen-${l.kind}.webp" alt="" />
+        <div><strong class="c-key">${L.name}</strong>
+          <small>Level <b class="c-num">${level}</b>${level < LUMEN_MAX ? ` · <b class="c-num">${lumenToNext(l)}</b> more to the next` : ' · full grown'}</small>
+          <small>${L.blurb}</small></div></div>
+      <div class="label">Its burst${g.touch ? '' : ' (G, when it is full)'}</div>
+      <p><b class="c-key">${L.burst.name}</b> · ${L.burst.text}</p>
+      <div class="label">Tempers</div>${tempers}
+      <div class="label">What it lends you</div><p>${lends}</p>
+      <div class="label">Feed it</div>
+      ${foods || '<p class="dim">Nothing to feed it. It eats what creatures drop: leaves, spores, bristles, embers, shards, claws.</p>'}
+      <p class="dim">${next}</p>`;
+  }
+
+  /** Whoever keeps this window: their likeness, their name and what they have to say. */
+  speaker(line) {
+    const n = this.trader;
+    if (!n) return `<p>“${line}”</p>`;
+    return `<div class="speaker"><img src="./static/art/crew-${n.name.toLowerCase()}.webp" alt="" /><div><strong class="c-name">${esc(n.name)}</strong><small>${esc(n.title || '')}</small><p>“${line}”</p></div></div>`;
+  }
+
   /** One piece of gear as a card: its name in its rarity's colour, what it gives, and a button. */
   gearCard(item, button = '', worn = false) {
     const d = describe(item), s = this.game.player.sheet;
     const cannot = !canUse(s.cls, item);
     return `<div class="gear${worn ? ' worn' : ''}">
       <strong style="color:${d.color}">${esc(d.name)}</strong>
-      <small>${d.rarity} ${d.slot}${d.family ? ` · ${d.family}` : ''} · level ${d.ilvl}${cannot ? ' · <span style="color:var(--red-ink)">not for your class</span>' : ''}</small>
-      <small class="line">${[...d.implicit, ...d.affixes].join(' &nbsp;·&nbsp; ')}</small>
+      <small><span style="color:${d.color}">${d.rarity}</span> ${d.slot}${d.family ? ` · ${d.family}` : ''} · level <b class="c-num">${d.ilvl}</b>${cannot ? ' · <span class="c-bad">not for your class</span>' : ''}</small>
+      <small class="line">${[...d.implicit, ...d.affixes].map((t) => t.replace(/([+\-]?\d+(?:\.\d+)?%?)/, '<b class="c-good">$1</b>')).join(' &nbsp;·&nbsp; ')}</small>
       ${d.power ? `<small class="power">${esc(d.power)}</small>` : ''}
       ${button}</div>`;
   }
@@ -212,7 +259,8 @@ export class Panels {
     }).join('');
     const mats = s.bag.filter((b) => ITEMS[b.id].kind === 'mat').reduce((n, b) => n + ITEMS[b.id].value * b.n, 0);
     return `
-      <div class="row"><p>“${this.trader && this.trader.id === 'tinker' ? 'Bits and bottles, all honest.' : 'Flasks, and whatever came up on the last lift.'}”</p><span class="coin">${s.glint} glint</span></div>
+      ${this.speaker('Flasks, and whatever came up on the last lift.')}
+      <div class="row"><div class="label">Supplies</div><span class="coin">${s.glint} glint</span></div>
       ${stock}
       <div class="label">Made from what you carry</div>
       ${RECIPES.map((r, i) => {
@@ -236,14 +284,17 @@ export class Panels {
     const g = this.game, ms = g.missions, taken = ms.pending;
     const card = (o, i) => {
       const B = biomeById(o.biome);
-      return `<div class="offer"><strong>${esc(o.name)}</strong>
-        <small>${esc(B.name)} · ${GOALS[o.goal].name} · level ${o.tier}</small>
-        <small>${GOALS[o.goal].brief}</small>
-        <small>Pays ${o.xp} xp, ${o.glint} glint</small>
+      const elder = o.goal === 'hunt' && B.boss ? `<img class="elder" src="./static/art/elder-${B.boss}.webp" alt="" />` : '';
+      return `<div class="contract${taken === o ? ' taken' : ''}">
+        <div class="contract-art"><img src="./static/art/place-${o.biome}.webp" alt="" />${elder}<span class="tier">Level <b class="c-num">${o.tier}</b></span></div>
+        <div class="contract-words"><strong>${esc(o.name)}</strong>
+          <small><b class="c-place">${esc(B.name)}</b> · <b class="c-goal-${o.goal}">${GOALS[o.goal].name}</b></small>
+          <small>${GOALS[o.goal].brief}${elder ? ` <b class="c-foe">${esc(CREATURES[B.boss].name)}</b> holds it.` : ''}</small>
+          <small>Pays <b class="c-xp">${o.xp} experience</b> and <b class="c-coin">${o.glint} glint</b>, and a piece of gear</small></div>
         ${taken === o ? '<button type="button" class="btn" data-act="abandon">Hand it back</button>' : `<button type="button" class="btn${taken ? '' : ' primary'}" data-act="accept" data-arg="${i}">Take it</button>`}</div>`;
     };
-    return `<p>“${taken ? 'The pad is warm. Gate room, straight ahead of you.' : 'Three places want a surveyor today. Pick one.'}”</p>` + ms.offers.map(card).join('') +
-      `<p class="dim">Contracts run: ${g.player.sheet.missions || 0}</p>`;
+    return this.speaker(taken ? 'The pad is warm. South gate, straight down the street.' : 'Three places want a surveyor today. Pick one.') + ms.offers.map(card).join('') +
+      `<p class="dim">Contracts run: <b class="c-num">${g.player.sheet.missions || 0}</b></p>`;
   }
 
   /** Every way of turning and zooming the view that needs a drag, a pinch or a wheel is also a button here. */
@@ -269,9 +320,8 @@ export class Panels {
       <kbd>Arrows</kbd><span>Picks the next creature.</span>
       <kbd>Flasks</kbd><span>Drink a Red Tonic or a Blue Draught.</span>
       <kbd>Drag / pinch</kbd><span>Drag the picture to turn and tilt the view, pinch to zoom. The View menu has buttons for both.</span>
-      <kbd>The map</kbd><span>Tap it for the waystones you can travel to, and what you have found.</span>
     </div>
-    <p class="dim">Loot is picked up by walking over it. Supply pods open when you walk up to them, once their island is quiet. A sun-yellow mark at the map's rim points to somewhere not yet found: caches under cairns, standing stones that lend a boon, beacons that show the country round. The farther from Hearthmere, the stronger the wilds.</p>
+    <p class="dim">Loot is picked up by walking over it. Supply pods open when you walk up to them, once their island is quiet. Side islands are worth the detour: survey marks pay extra, a beacon shows what is left to find, a lit crystal lends its strength until you are lifted out.</p>
     <button type="button" class="btn" data-act="guide">Show me the first steps again</button>`;
     return `<div class="keys-list">
       <kbd>Left click</kbd><span>Walk to a spot, attack a creature, talk to townsfolk. Hold to keep walking.</span>
@@ -281,10 +331,10 @@ export class Panels {
       <kbd>Space / Tab</kbd><span>Attack the nearest creature, or pick the next one.</span>
       <kbd>Right drag</kbd><span>Turn and tilt the view. <kbd>Q</kbd> <kbd>E</kbd> also turn it.</span>
       <kbd>Wheel</kbd><span>Zoom.</span>
+      <kbd>G</kbd><span>Lets your lumen's burst go, when it is full. <kbd>L</kbd> opens its window, where it is fed.</span>
       <kbd>C / B / V</kbd><span>Character sheet, bag, and buttons for the view.</span>
-      <kbd>T / the map</kbd><span>Waystones you can travel to, and what you have found.</span>
     </div>
-    <p class="dim">Loot is picked up by walking over it. Supply pods open when you walk up to them, once their island is quiet. A sun-yellow mark at the map's rim points to somewhere not yet found: caches under cairns, standing stones that lend a boon, beacons that show the country round. The farther from Hearthmere, the stronger the wilds.</p>
+    <p class="dim">Loot is picked up by walking over it. Supply pods open when you walk up to them, once their island is quiet. Side islands are worth the detour: survey marks pay extra, a beacon shows what is left to find, a lit crystal lends its strength until you are lifted out.</p>
     <button type="button" class="btn" data-act="guide">Show me the first steps again</button>`;
   }
 }

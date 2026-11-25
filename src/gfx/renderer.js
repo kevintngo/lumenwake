@@ -25,6 +25,8 @@ import './archetypes/humanoid.js';
 import './archetypes/critters.js';
 import './archetypes/craft.js';
 import './archetypes/colossi.js';
+import './archetypes/wilds.js';
+import './archetypes/lumen.js';
 
 export class Renderer {
   /** opts.lite: start on the lighter settings (phones and tablets). */

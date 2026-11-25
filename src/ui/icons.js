@@ -27,6 +27,7 @@ export function itemIcon(item) {
 export const MENU_ICONS = {
   character: svg(`<circle cx="20" cy="13" r="7" fill="#f1ebdc"/><path d="M7 35c0-9 6-13 13-13s13 4 13 13z" fill="#d64634"/>`),
   bag: svg(`<path d="M9 16h22l2 17a3 3 0 0 1-3 3H10a3 3 0 0 1-3-3z" fill="#e2bc82"/><path d="M14 16v-3a6 6 0 0 1 12 0v3"/>`),
+  lumen: svg(`<circle cx="20" cy="20" r="5.5" fill="#fff3c4"/><ellipse cx="20" cy="20" rx="14" ry="5" fill="none" transform="rotate(-24 20 20)"/><path d="M20 6v4M20 30v4M8 12l3 2.5M29 25.5l3 2.5"/>`),
   view: svg(`<path d="M4 20c5-8 11-11 16-11s11 3 16 11c-5 8-11 11-16 11S9 28 4 20z" fill="none"/><circle cx="20" cy="20" r="5.5" fill="#88b4d8"/><circle cx="20" cy="20" r="1.6" fill="#dff0ff"/>`),
   help: svg(`<circle cx="20" cy="20" r="15" fill="none"/><path d="M15 16a5 5 0 1 1 7 4.5c-1.5 1-2 2-2 3.5" stroke-width="2.6"/><circle cx="20" cy="29" r="1.4" fill="#dff0ff"/>`),
   sound: svg(`<path d="M7 16h6l8-7v22l-8-7H7z" fill="#88b4d8"/><path d="M26 14a8 8 0 0 1 0 12M30 10a13 13 0 0 1 0 20"/>`),

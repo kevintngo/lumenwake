@@ -27,6 +27,7 @@ import { Fx } from './fx.js';
 import { View } from './view.js';
 import { Controls } from './controls.js';
 import { Cinema } from './cinema.js';
+import { Portraits } from './portrait.js';
 import { PlayerSystem } from '../sim/systems/player.js';
 import { MonsterAI } from '../sim/systems/ai.js';
 import { Combat } from '../sim/systems/combat.js';
@@ -35,6 +36,8 @@ import { Spawner } from '../sim/systems/spawner.js';
 import { Loot } from '../sim/systems/loot.js';
 import { Missions, TOWN } from '../sim/systems/missions.js';
 import { Crew } from '../sim/systems/crew.js';
+import { Sites } from '../sim/systems/sites.js';
+import { Companion } from '../sim/systems/companion.js';
 import { hubSpec } from '../world/layout.js';
 import { Tutorial } from './tutorial.js';
 import { Hazards } from '../sim/systems/hazards.js';
@@ -93,9 +96,11 @@ export class Game {
     // order matters: intent -> bodies -> consequences -> population
     this.tutorial = new Tutorial(this);
     this.hazards = new Hazards(this);
-    this.sim = [new PlayerSystem(this), new MonsterAI(this), this.hazards, this.skills, this.loot, this.spawner, this.missions, new Crew(this)];
+    this.sim = [new PlayerSystem(this), new MonsterAI(this), this.hazards, this.skills, this.loot, this.spawner, this.missions, new Crew(this), new Sites(this), (this.companion = new Companion(this))];
     this.cinema = new Cinema(this);
+    this.portraits = new Portraits(this);
     this.missions.arrive();
+    this.companion.arrive();
     // What the rules announce and only the picture acts on: the weight of a blow, a fade, ground to draw again.
     this.bus.on('feel', (f) => {
       if (f.hold) this.hold(f.hold);
@@ -171,6 +176,7 @@ export class Game {
     const at = cine.focus;        // a shot far from the hero keeps the ground under it drawn
     this.renderer.worldTex.update(at ? at[0] : p.x, at ? at[1] : p.z, 2);
     w.prune(p.x, p.z);
+    this.portraits.update();       // (a likeness of the hero, if who they are has changed: taken and put away before the frame is drawn)
     this.camera.still = this.reducedMotion;      // no screen shake for those who ask for less motion
     this.camera.update(real, [p.x, p.y + 1.0, p.z], this.renderer.size.cssW / this.renderer.size.cssH, (x, z) => w.surface(x, z));
     if (!this.warmed) this.warmed = this.renderer.warm();

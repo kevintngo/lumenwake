@@ -52,7 +52,7 @@ export class PlayerSystem {
       p.moveTo = null; p.pursue = false;
     } else if (tgt && p.pursue) {
       const d = Math.hypot(tgt.x - p.x, tgt.z - p.z);
-      const stop = tgt.kind === 'monster' ? REACH + tgt.radius - 0.25 : tgt.kind === 'npc' ? 2.3 : 0.7;
+      const stop = tgt.kind === 'monster' ? REACH + tgt.radius - 0.25 : tgt.kind === 'npc' ? 2.3 : tgt.kind === 'site' ? tgt.reach - 0.5 : 0.7;
       if (d > stop) { dx = (tgt.x - p.x) / d * speed; dz = (tgt.z - p.z) / d * speed; want = 1; }
     } else if (p.moveTo) {
       const d = Math.hypot(p.moveTo.x - p.x, p.moveTo.z - p.z);
@@ -98,7 +98,7 @@ export class PlayerSystem {
         tgt.yaw = yawFromDir(p.x - tgt.x, p.z - tgt.z);
         p.target = null; p.pursue = false;
         g.bus.emit('npc:talk', tgt);
-      } else if (tgt.kind === 'drop' && d <= 1.0) {
+      } else if ((tgt.kind === 'drop' && d <= 1.0) || (tgt.kind === 'site' && d <= tgt.reach)) {
         p.target = null; p.pursue = false;
       }
     }

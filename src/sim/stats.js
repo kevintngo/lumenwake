@@ -7,6 +7,8 @@
 // talents; a buff or a class passive would too. Nothing else in the game adds
 // to a stat by hand, which is what lets an item roll any line in content/gear.js.
 
+import { BOONS } from '../content/sites.js';
+import { newLumen, lumenMods } from './lumen.js';
 import { CLASSES } from '../content/classes.js';
 import { rank } from '../content/talents.js';
 import { itemMods, baseOf } from './items.js';
@@ -31,7 +33,8 @@ export function newPlayerSheet(cls = 'vanguard') {
     base: { ...CLASSES[cls].attrs },
     gear: [],             // carried gear (item instances)
     equip: { weapon: null, frame: null, unit: null },
-    bag: [{ id: 'tonic', n: 3 }, { id: 'draught', n: 1 }],
+    bag: [{ id: 'tonic', n: 3 }, { id: 'draught', n: 1 }, { id: 'wisp_ember', n: 2 }, { id: 'crag_shard', n: 2 }, { id: 'puff_spore', n: 2 }],       // (a first few things to feed the lumen)
+    lumen: newLumen(),    // the light at the shoulder (content/companions.js)
     board: 0, missions: 0,
   };
 }
@@ -46,6 +49,8 @@ export function modifiers(sheet) {
     for (const m of itemMods(it)) mods.push(m);
     if (it.power) sheet.bonus[it.power.id] = (sheet.bonus[it.power.id] || 0) + it.power.ranks;
   }
+  if (sheet.lumen) mods.push(...lumenMods(sheet.lumen));
+  if (sheet.boon && BOONS[sheet.boon]) mods.push(...BOONS[sheet.boon].mods);        // lent by a lit crystal, for one contract
   const tal = (id) => rank(sheet, id);
   if (tal('keen')) mods.push({ stat: 'crit', op: 'flat', value: 0.06 * tal('keen') });
   if (tal('hide')) mods.push({ stat: 'ward', op: 'flat', value: -0.08 * tal('hide') });

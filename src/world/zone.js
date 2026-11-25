@@ -13,6 +13,7 @@ import { clamp, lerp, smoothstep } from '../core/math.js';
 import { biomeById } from '../content/themes.js';
 import { propById } from './props.js';   // (also registers every prop's shader)
 import { rimAt } from './layout.js';
+import { SITES } from '../content/sites.js';
 
 const N = WORLD.CHUNK, CELL = WORLD.CELL, CPC = N / CELL;
 const DEEP = -6;      // the bed under the cloud: far enough down never to show
@@ -98,11 +99,24 @@ export function createZone(spec, nav) {
         const a = rnd() * 6.283, d = (r.kind === 'cache' ? 0.15 + rnd() * 0.4 : 0.5 + rnd() * 0.3) * rimAt(r, a);
         const x = r.x + Math.sin(a) * d, z = r.z + Math.cos(a) * d;
         if (keep.some((k2) => Math.hypot(k2.x - x, k2.z - z) < k2.r + 1.6) && r.kind !== 'cache') continue;
-        if (structures.some((o) => Math.hypot(o.x - x, o.z - z) < 4.2 + o.def.reach * o.scale)) continue;
+        if (structures.some((o) => Math.hypot(o.x - x, o.z - z) < 4.6 + o.def.reach * o.scale + 1.0)) continue;
         if (onLink(x, z, 2.2)) continue;
         build('pod', x, z, { room: r.i, role: 'pod', rot: rnd() * 6.283 });
         break;
       }
+    }
+  }
+  // what an island holds besides (content/sites.js): each stands clear of everything else built
+  for (const r of rooms) for (const id of r.sites || []) {
+    const S = SITES[id], reach = propById(S.prop).reach * (S.scale || 1);
+    for (let tries = 0; tries < 90; tries++) {
+      const a = rnd() * 6.283, d = (r.kind === 'cache' ? 0.08 + rnd() * 0.62 : 0.42 + rnd() * 0.4) * rimAt(r, a);
+      const x = r.x + Math.sin(a) * d, z = r.z + Math.cos(a) * d;
+      // (two fixtures may not share a 4 x 4 cell, so they keep a cell's width and both their reaches apart)
+      if (structures.some((o) => Math.hypot(o.x - x, o.z - z) < (tries < 60 ? 5.2 : 4.3) + o.def.reach * o.scale + reach)) continue;
+      if (onLink(x, z, 2.6)) continue;
+      build(S.prop, x, z, { room: r.i, role: 'site', site: id, scale: S.scale || 1, rot: rnd() * 6.283 });
+      break;
     }
   }
   function onLink(x, z, margin) {

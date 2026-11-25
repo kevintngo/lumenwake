@@ -41,7 +41,7 @@ export class View {
     for (let i = 0; i < ents.length; i++) {
       const e = ents[i];
       const dist = Math.hypot(e.x - p.x, e.z - p.z);
-      if ((dist > DRAW_RANGE && !e.far) || e.grow <= 0.01) continue;
+      if ((dist > DRAW_RANGE && !e.far) || e.grow <= 0.01 || (this.only && e !== this.only)) continue;        // (only: a portrait is being taken of one figure)
       // dappled shade from whatever stands over this spot
       const occ = g.world.chunk(Math.floor(e.x / WORLD.CHUNK), Math.floor(e.z / WORLD.CHUNK))
         .height[((Math.floor(e.z) & (WORLD.CHUNK - 1)) * WORLD.CHUNK + (Math.floor(e.x) & (WORLD.CHUNK - 1))) * 4 + 1];
@@ -97,12 +97,13 @@ export class View {
     };
     for (const st of g.world.structures) {
       if (st.role === 'leave' || st.role === 'deploy') mark(st.x, st.z, 5, 3.2);
-      else if (st.role === 'pod' && !st.pal && Math.hypot(st.x - p.x, st.z - p.z) < reach) mm.add(st.x, st.z, 3, 2.2);
+      else if (st.role === 'pod' && !st.pal) { if (Math.hypot(st.x - p.x, st.z - p.z) < reach) mm.add(st.x, st.z, 3, 2.2); else if (g.missions.active && g.missions.active.revealed) mark(st.x, st.z, 3, 1.8); }
     }
     for (const e of ents) {
       if (e.kind === 'npc') mm.add(e.x, e.z, 1, 2.6);
       else if (e.kind === 'monster' && !e.dead) mm.add(e.x, e.z, e.boss ? 4 : 0, e.elite ? 3 : 2);
       else if (e.kind === 'drop') mm.add(e.x, e.z, 3, 1.4);
+      else if (e.kind === 'site') { const a = g.missions.active, near = Math.hypot(e.x - p.x, e.z - p.z) < 26; if (near) mm.add(e.x, e.z, 5, 2.4); else if (a && a.revealed) mark(e.x, e.z, 5, 2.2); }
     }
     return f;
   }

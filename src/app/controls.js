@@ -86,6 +86,8 @@ export class Controls {
       else if (!t) { const m = g.entities.nearest('monster', p.x, p.z, 9); if (m) this.setTarget(m, true); }
     }
     if (input.hit('Escape')) { p.target = null; p.pursue = false; g.bus.emit('ui:close'); }
+    if (input.hit('KeyG')) g.companion.burst();
+    if (input.hit('KeyL')) g.bus.emit('ui:toggle', 'lumen');
     if (input.hit('KeyC')) g.bus.emit('ui:toggle', 'character');
     if (input.hit('KeyB') || input.hit('KeyI')) g.bus.emit('ui:toggle', 'bag');
     if (input.hit('KeyV')) g.bus.emit('ui:toggle', 'view');
@@ -129,7 +131,7 @@ export class Controls {
     const o = ray.origin, d = ray.dir;
     let best = null, bt = 1e9;
     for (const e of this.game.entities.list) {
-      if (e.kind === 'player' || e.dead || e.gone) continue;
+      if (e.kind === 'player' || e.kind === 'pet' || e.kind === 'set' || e.dead || e.gone) continue;
       const r = Math.max(e.radius * 1.35, e.height * 0.5) * (e.kind === 'drop' ? 1.3 : 1) * fat;
       const cx = e.x - o[0], cy = e.y + e.height * 0.5 + e.lift - o[1], cz = e.z - o[2];
       const b = cx * d[0] + cy * d[1] + cz * d[2];

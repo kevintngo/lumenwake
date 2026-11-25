@@ -62,6 +62,50 @@ export const CREATURES = {
     loot: [['glint', 1, [3, 7]], ['snap_claw', 0.5, [1, 1]], ['tonic', 0.08, [1, 1]]],
   },
 
+  // ---- two machines an older survey left running, and three more animals (shapes: gfx/archetypes/wilds.js)
+  hound: {
+    cost: 1.3,
+    name: 'Fanghound', archetype: 'hound', scale: 1.0, radius: 0.42, height: 1.0,
+    hp: 30, atk: 7, speed: 4.7, range: 1.2, attackTime: 0.55, cooldown: 1.3, aggro: 9, xp: 14, stride: 2.4,
+    special: { kind: 'leap', every: 4.2, min: 2.6, max: 7.5, windup: 0.45, air: 0.36, r: 1.25, mult: 1.3 },        // hunts in packs, and springs
+    colors: [[122, 120, 150], [226, 176, 52], [236, 228, 210]],
+    loot: [['glint', 1, [2, 6]], ['hog_bristle', 0.4, [1, 1]], ['tonic', 0.07, [1, 1]]],
+  },
+  watcher: {
+    cost: 2.0,
+    name: 'Watcher', archetype: 'watcher', scale: 1.0, radius: 0.42, height: 1.7,
+    hp: 36, atk: 8, speed: 3.2, range: 1.4, attackTime: 0.7, cooldown: 1.8, aggro: 10, xp: 20, stride: 1.0, glow: true,
+    keep: [5, 8.5],
+    special: { kind: 'shot', every: 1.9, min: 3, max: 12, windup: 0.5, speed: 10.5, r: 0.4, life: 1.5, mult: 0.9 },      // hangs back and puts a bolt where you stand
+    colors: [[136, 160, 196], [226, 176, 52], [84, 108, 156]],
+    loot: [['glint', 1, [4, 9]], ['wisp_ember', 0.45, [1, 1]], ['draught', 0.1, [1, 1]]],
+  },
+  delver: {
+    cost: 2.6,
+    name: 'Delver', archetype: 'delver', scale: 1.0, radius: 0.52, height: 1.6,
+    hp: 78, atk: 11, speed: 1.5, range: 1.6, attackTime: 0.8, cooldown: 1.9, aggro: 8, xp: 28, stride: 2.0,
+    special: { kind: 'burrow', every: 6, min: 2.5, max: 14, windup: 0.45, under: 0.95, speed: 10, r: 2.4, mult: 1.6, recover: 0.9 },      // goes under, and comes up where you are
+    colors: [[176, 128, 104], [226, 176, 52], [236, 208, 170]],
+    loot: [['glint', 1, [6, 12]], ['crag_shard', 0.45, [1, 2]], ['tonic', 0.12, [1, 1]]],
+  },
+  strider: {
+    cost: 3.6,
+    name: 'Strider', archetype: 'strider', scale: 1.0, radius: 0.7, height: 2.9,
+    hp: 120, atk: 14, speed: 2.3, range: 1.7, attackTime: 0.95, cooldown: 2.2, aggro: 12, xp: 42, stride: 1.5,
+    keep: [4.5, 7.5],
+    special: { kind: 'lance', every: 5, min: 3.5, max: 16, windup: 1.0, len: 16, w: 1.5, mult: 1.9, recover: 0.7 },      // plants its feet and fires down a line
+    colors: [[136, 160, 196], [226, 176, 52], [84, 108, 156]],
+    loot: [['glint', 1, [9, 18]], ['crag_shard', 0.5, [1, 2]], ['draught', 0.14, [1, 1]]],
+  },
+  mite: {
+    cost: 0.8,
+    name: 'Sparkmite', archetype: 'mite', scale: 1.0, radius: 0.3, height: 0.6,
+    hp: 14, atk: 9, speed: 4.3, range: 0.9, attackTime: 0.5, cooldown: 1.2, aggro: 9, xp: 7, stride: 3.5,
+    special: { kind: 'fuse', every: 1, min: 0, max: 2.0, windup: 1.0, r: 2.5, mult: 1.7 },      // runs in, swells, bursts: put it down first or step away
+    colors: [[110, 110, 140], [226, 176, 52], [60, 60, 80]],
+    loot: [['glint', 1, [1, 3]]],
+  },
+
   // ---- elders: one holds the last island of a hunt. They are colossi, drawn at their true size
   // (gfx/archetypes/colossi.js): `radius` is the ground they stand on, `height` the top of their head.
   // Several moves, taken in turn as each comes ready (`specials` is a list where an ordinary creature has

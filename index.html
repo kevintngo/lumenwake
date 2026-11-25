@@ -37,13 +37,22 @@
 <div id="ui">
   <!-- status -->
   <section id="status" class="plate" aria-label="Your character">
-    <div class="badge" id="lvl" title="Level">1</div>
+    <div class="face"><img id="hero-face" alt="" /><div class="badge" id="lvl" title="Level">1</div></div>
     <div class="bars">
-      <div class="who"><span id="pname">Surveyor</span><span id="boon" class="boon" hidden></span><span id="glint" class="coin" title="Glint">20</span></div>
+      <div class="who"><span class="names"><span id="pname">Surveyor</span><small id="pkind"></small></span><span id="boon" class="boon" hidden></span><span id="glint" class="coin" title="Glint">20</span></div>
       <div class="meter"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 14C3 10 1.5 7.4 2.6 5c1-2.2 4-2.1 5.4.2 1.4-2.3 4.4-2.4 5.4-.2 1.1 2.4-.4 5-5.4 9z" fill="#d8584a" stroke="#623c1e" stroke-width="1.3" stroke-linejoin="round"/></svg><div class="bar hp" id="hp-bar" role="meter" aria-label="Health" aria-valuemin="0"><i id="hp-fill"></i></div><b id="hp-text">0 / 0</b></div>
       <div class="meter"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6c2.4 3.2 4.6 5.6 4.6 8.2a4.6 4.6 0 0 1-9.2 0c0-2.6 2.2-5 4.6-8.2z" fill="#4f86b4" stroke="#623c1e" stroke-width="1.3" stroke-linejoin="round"/></svg><div class="bar fo" id="fo-bar" role="meter" aria-label="Focus" aria-valuemin="0"><i id="fo-fill"></i></div><b id="fo-text">0 / 0</b></div>
       <div class="bar xp" id="xp-bar" role="meter" aria-label="Experience toward the next level" aria-valuemin="0" aria-valuemax="100"><i id="xp-fill"></i></div>
     </div>
+  </section>
+
+  <!-- the lumen: what it is, how full it is; a click lets its burst go (or opens its window) -->
+  <section id="lumen" class="plate" aria-label="Your lumen">
+    <button type="button" id="lumen-btn" aria-label="Your lumen: let its burst go, key G">
+      <span class="face"><img id="lumen-face" alt="" /></span>
+      <span class="lumen-words"><strong id="lumen-name"></strong><small id="lumen-sub"></small><span class="bar lu" role="meter" aria-label="How full it is" aria-valuemin="0" aria-valuemax="100" id="lumen-bar"><i id="lumen-fill"></i></span></span>
+      <kbd>G</kbd>
+    </button>
   </section>
 
   <section id="target" class="plate" aria-label="Your target" hidden>
@@ -56,9 +65,10 @@
     <div id="place" class="plate small"><span id="zone">Meridian Deck</span><span id="clock" class="dim">Aloft</span></div>
   </section>
 
-  <section id="boss" class="plate" aria-label="Boss" hidden>
-    <div class="label" id="boss-name"></div>
-    <div class="bar hp" role="img" aria-label="Boss health"><i id="boss-fill"></i></div>
+  <section id="boss" class="plate" aria-label="Elder" hidden>
+    <div class="face"><img id="boss-face" alt="" /></div>
+    <div class="boss-words"><strong id="boss-name"></strong><small id="boss-sub"></small></div>
+    <div class="bar hp" role="img" aria-label="Elder's health"><i id="boss-fill"></i><b class="half" aria-hidden="true"></b></div>
   </section>
   <section id="tracker" class="plate small" aria-label="Contract" hidden>
     <div class="label">Contract</div>
@@ -77,11 +87,30 @@
   </section>
   <div id="guide-arrow" aria-hidden="true" hidden><svg viewBox="0 0 44 44"><path d="M6 22h26M22 10l12 12-12 12" fill="none" stroke="#f1ebdc" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 22h26M22 10l12 12-12 12" fill="none" stroke="#d64634" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
 
+  <!-- someone speaking: their likeness, their name, what they say -->
+  <section id="talk" class="plate" aria-live="polite" hidden>
+    <div class="face"><img id="talk-face" alt="" /></div>
+    <div class="talk-words"><div class="who"><strong id="talk-name"></strong><small id="talk-title"></small></div><p id="talk-line"></p></div>
+  </section>
+
+  <!-- a contract's report, back in town -->
+  <section id="report" class="plate" role="dialog" aria-labelledby="report-name" hidden>
+    <div class="report-art"><img id="report-art" alt="" /><div class="stamp" id="report-kind"></div></div>
+    <div class="report-body">
+      <h2 id="report-name"></h2>
+      <p id="report-line"></p>
+      <div class="report-stats" id="report-stats"></div>
+      <div id="report-prize"></div>
+      <button type="button" class="btn primary" id="report-ok">Continue</button>
+    </div>
+  </section>
+
   <section id="hotbar" aria-label="Skills and potions"></section>
 
   <nav id="menu" aria-label="Menus">
     <button type="button" data-open="character" title="Character (C)" aria-label="Character sheet, key C"></button>
     <button type="button" data-open="bag" title="Bag (B)" aria-label="Bag, key B"></button>
+    <button type="button" data-open="lumen" title="Lumen (L)" aria-label="Your lumen, key L"></button>
     <button type="button" data-open="view" title="View (V)" aria-label="Turn and zoom the view, key V"></button>
     <button type="button" data-open="help" title="How to play" aria-label="How to play"></button>
     <button type="button" data-open="sound" title="Sound (M)" aria-label="Sound on or off, key M" aria-pressed="true"></button>
@@ -100,20 +129,29 @@
   <button type="button" id="cine-skip" hidden aria-label="Skip this scene, key Escape">Skip<kbd>Esc</kbd></button>
 </div>
 
+<!-- who to be: the hero stands in the middle of the picture, the peoples down one side, the classes down the other -->
 <div id="title">
-  <div class="title-card">
-    <h1>Lumenwake</h1>
-    <p class="tag">Contracts across the sky islands</p>
-    <p class="pick-label">Who you are</p>
-    <div id="people-pick" class="people-pick" role="group" aria-label="Who you are"></div>
-    <p id="people-blurb" class="people-blurb"></p>
-    <p class="pick-label">Choose a class to begin</p>
-    <div id="class-pick" class="class-pick"></div>
-    <div class="title-actions" hidden>
-      <button type="button" id="btn-begin" class="primary" disabled>Begin</button>
-      <button type="button" id="btn-new" hidden>New journey</button>
-    </div>
-    <p class="keys" id="keys-hint">Click to move and fight &nbsp;·&nbsp; WASD to walk &nbsp;·&nbsp; 1–4 abilities &nbsp;·&nbsp; drag right mouse to turn the view</p>
+  <div class="select">
+    <header class="select-head">
+      <h1>Lumenwake</h1>
+      <p class="tag">Contracts across the sky islands</p>
+    </header>
+    <section class="select-col people" aria-labelledby="pick-people">
+      <h2 class="pick-label" id="pick-people">Who you are</h2>
+      <div id="people-pick" class="people-pick" role="radiogroup" aria-labelledby="pick-people"></div>
+    </section>
+    <section class="select-col classes" aria-labelledby="pick-class">
+      <h2 class="pick-label" id="pick-class">Your class</h2>
+      <div id="class-pick" class="class-pick" role="radiogroup" aria-labelledby="pick-class"></div>
+    </section>
+    <footer class="select-foot">
+      <p id="select-summary" role="status" aria-live="polite"></p>
+      <div class="title-actions">
+        <button type="button" id="btn-begin" class="primary" disabled>Begin</button>
+        <button type="button" id="btn-new" hidden>New journey</button>
+      </div>
+      <p class="keys" id="keys-hint">Click to move and fight &nbsp;·&nbsp; WASD to walk &nbsp;·&nbsp; 1–4 abilities &nbsp;·&nbsp; drag right mouse to turn the view</p>
+    </footer>
   </div>
 </div>
 

@@ -71,6 +71,104 @@ export const SPECIALS = {
     },
   },
 
+  // ---- delver: goes under the island, and comes up where the hero was standing when it went
+  burrow: {
+    begin(g, m, sp) {
+      const wind = sp.windup * haste(m);
+      g.bus.emit('charge:dust', { x: m.x, y: m.y, z: m.z });
+      return { phase: 0, t: 0, wind, r: sp.r * reach(m), tx: m.x, tz: m.z };
+    },
+    update(g, m, sp, s, dt) {
+      const p = g.player;
+      s.t += dt;
+      if (s.phase === 0) {
+        // down it goes (drawn sinking: action 4)
+        m.action = 4; m.actionDur = 1e3; m.actionT = Math.min(1, s.t / s.wind);
+        if (s.t >= s.wind) {
+          s.phase = 1; s.t = 0; m.guard = true;                       // under the ground a blow barely reaches it
+          s.tx = p.x; s.tz = p.z;
+          warn(g, s.tx, s.tz, s.r, sp.under + 0.3);
+        }
+        return still;
+      }
+      if (s.phase === 1) {
+        m.action = 4; m.actionT = 1;
+        const dx = s.tx - m.x, dz = s.tz - m.z, d = Math.hypot(dx, dz);
+        if ((s.dust = (s.dust || 0) - dt) <= 0) { s.dust = 0.09; g.bus.emit('charge:dust', { x: m.x, y: m.y, z: m.z }); }
+        if (s.t >= sp.under) { s.phase = 2; s.t = 0; m.x = s.tx; m.z = s.tz; return still; }
+        return d > 0.2 ? { dx: dx / d * sp.speed, dz: dz / d * sp.speed, done: false } : still;
+      }
+      if (s.phase === 2) {
+        // and up
+        m.action = 4; m.actionT = Math.max(0, 1 - s.t / 0.3);
+        if (s.t >= 0.3) {
+          s.phase = 3; s.t = 0; m.guard = false;
+          g.bus.emit('slam', { x: m.x, y: m.y, z: m.z, r: s.r, heavy: true });
+          if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r) g.combat.hurt(m, sp.mult);
+          else if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r + 3) g.bus.emit('miss', { target: p, text: 'Dodged' });
+        }
+        return still;
+      }
+      rest(m);                                                       // out of breath, and open
+      if (s.t < sp.recover) return still;
+      return finished;
+    },
+  },
+
+  // ---- strider: plants its feet, dips its lance, and fires down a line. Step off the line.
+  lance: {
+    begin(g, m, sp) {
+      const p = g.player, d = Math.hypot(p.x - m.x, p.z - m.z) || 1;
+      const dirx = (p.x - m.x) / d, dirz = (p.z - m.z) / d, len = sp.len * reach(m), wind = sp.windup * haste(m);
+      face(m, p.x, p.z);
+      g.bus.emit('telegraph', { lane: true, x: m.x + dirx * len / 2, y: m.y, z: m.z + dirz * len / 2, dirx, dirz, len, w: sp.w, t: wind });
+      return { t: 0, wind, dirx, dirz, len, fired: false };
+    },
+    update(g, m, sp, s, dt) {
+      const p = g.player;
+      s.t += dt;
+      if (!s.fired) {
+        pose(m, 0.45 * Math.min(1, s.t / s.wind));
+        if (s.t >= s.wind) {
+          s.fired = true; s.t = 0;
+          // whoever is still on the line is hit: how far along it, and how far off it
+          const along = (p.x - m.x) * s.dirx + (p.z - m.z) * s.dirz, off = Math.abs((p.x - m.x) * s.dirz - (p.z - m.z) * s.dirx);
+          g.bus.emit('lance:fire', { x: m.x, y: m.y, z: m.z, dirx: s.dirx, dirz: s.dirz, len: s.len, w: sp.w });
+          if (!p.dead && along > 0 && along < s.len && off < sp.w / 2 + p.radius) g.combat.hurt(m, sp.mult);
+          else if (!p.dead && along > 0 && along < s.len && off < sp.w / 2 + 2.5) g.bus.emit('miss', { target: p, text: 'Dodged' });
+        }
+        return still;
+      }
+      pose(m, 0.5 + 0.5 * Math.min(1, s.t / sp.recover));
+      if (s.t < sp.recover) return still;
+      rest(m);
+      return finished;
+    },
+  },
+
+  // ---- sparkmite: runs in, stops, swells and bursts. Killing it first stops the burst.
+  fuse: {
+    begin(g, m, sp) {
+      const wind = sp.windup * haste(m), r = sp.r * reach(m);
+      warn(g, m.x, m.z, r, wind, { entity: m });
+      return { t: 0, wind, r };
+    },
+    update(g, m, sp, s, dt) {
+      const p = g.player;
+      s.t += dt;
+      pose(m, Math.min(1, s.t / s.wind));
+      if (s.t < s.wind) return still;
+      g.bus.emit('slam', { x: m.x, y: m.y, z: m.z, r: s.r, heavy: true });
+      if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r) g.combat.hurt(m, sp.mult);
+      else if (!p.dead && Math.hypot(p.x - m.x, p.z - m.z) < s.r + 2.5) g.bus.emit('miss', { target: p, text: 'Dodged' });
+      // it is spent: no prize for letting it go off
+      m.dead = true; m.deathT = 0; m.spent = true;
+      if (p.target === m) p.target = null;
+      g.bus.emit('monster:died', m);
+      return finished;
+    },
+  },
+
   // ---- sproutling: a hop onto where you stand
   leap: {
     begin(g, m, sp) {

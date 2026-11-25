@@ -10,6 +10,12 @@ A mission game drawn by shaders. You arrive by shuttle at a floating town, Merid
 
 ![The peoples of the corps](docs/people.jpg)
 
+![The select screen, the contract board, a report, the character sheet, an elder's bar, a lit crystal](docs/interface.jpg)
+
+![The five newer creatures](docs/creatures.jpg)
+
+![The eight kinds of lumen](docs/lumens.jpg)
+
 ## What is in it
 
 - **A town.** A paved square round a survey beacon, the contract hall, a market, homes, a landing field, an overlook and the gate terrace, with crew who walk their rounds and have something to say.
@@ -22,6 +28,12 @@ A mission game drawn by shaders. You arrive by shuttle at a floating town, Merid
 
 - **Five peoples.** Scout units, humans, the veiled, karn and lynd: a build, a head and a way of dressing each, on one set of joints. The crew is a mix of them, and the hero can be any of them in any class.
 - **Elders the size of buildings.** The Stone Warden, the Spore Matron and the Tide Sentinel are colossi eight to thirteen metres tall, each with its own shape, moves and a volley it throws at where you stand. The play camera stands back for them.
+- **Eleven kinds of creature.** The six small ones, plus a pack hound that springs, a watcher drone that keeps its distance, a delver that comes up under you, a strider that fires down a line, and a sparkmite that bursts. Each place has its own mix.
+- **A lumen at your shoulder.** A small light that follows you, puts a bolt into whatever you are fighting, and stores up a burst (G). Feed it what creatures drop: three tempers grow with what it eats, and at levels 5 and 12 it takes a new shape by the strongest of them. Eight kinds in all, each with a burst of its own.
+- **Things to find.** Side islands off the main way, and on them survey marks (each adds to the pay; all three make the prize a better piece), a beacon that puts everything left on the map, lit crystals that lend a boon until you are lifted out, and lost cargo with something sitting on it.
+- **Pictures drawn by the game.** Every portrait and scene in the interface is a frame from the game's own renderer: the peoples and classes on the select screen, the crew when they speak, the elders on their bar and on hunt contracts, a view of each place on the board and the report. The hero's own portrait is taken while you play, so it is always who you chose.
+- **Lettering coloured by what it names.** People, places, numbers, experience, glint, good and bad, creatures, each class and each kind of contract have a colour of their own, all at 4.5:1 or better on every ground they sit on (the table is at the end of `src/ui/ui.css`).
+- **Music that knows where you are.** Every area has its own key, tempo and instruments (the town in D major with piano and violin, Glasswood bright and high, Ember low on cello, the Hush on slow glass tones, Rime thin and still), all made in the browser with no audio files. A fight brings in a soft drum and low strings; an elder moves the area to a darker mode with a tolling bell; low health thins the music out; a cinematic holds it to a quiet pad. One row per area in `AREAS` in `src/audio/audio.js`.
 - **Cinematics.** Arriving at the town, dropping onto a contract, an elder waking, an elder falling. All of them can be skipped (Esc, Enter, Space or the Skip button), and none is needed to play: add `?nocine` to the address to go without.
 
 ## Run it
@@ -46,6 +58,7 @@ Progress is not saved yet: each visit starts a new journey in the town.
 | R / F | Drink a Red Tonic / Blue Draught |
 | Space / Tab | Attack the nearest creature / pick the next one |
 | Right drag, Q / E, wheel | Turn, tilt and zoom the view |
+| G / L | Let the lumen's burst go / open its window to feed it |
 | C / B / V | Character sheet / pack / view |
 
 ## How the code is laid out
@@ -99,6 +112,9 @@ A cinematic is a row in `src/content/cinematics.js`: a list of shots, each with 
 | A stat | A line in `derive` in `sim/stats.js` and its name in `STAT_TEXT`. |
 | A creature | A row in `content/creatures.js` (with a `cost`) and an entry in a theme's table. A new shape: an archetype in `gfx/archetypes/`. |
 | A boss | A creature row with `boss: true` and a list of `specials`; name it as a theme's `boss`. For a colossus add `giant: true`, `turn`, `fall` and `hitY`, and model it at its true size as the three in `gfx/archetypes/colossi.js` are, with poses for emerge, roar and fall. |
+| A kind of lumen | A row in `content/companions.js` (its stage, the temper that leads to it, its burst) and a shape for it in `gfx/archetypes/lumen.js`. A new food is a row in `FOODS`. |
+| Something to find | A row in `content/sites.js` (the landmark, its reach, its marker's colour), a line in `world/layout.js` saying which islands get it, and a branch in `sim/systems/sites.js` for what it does. |
+| A picture for the interface | Add a shot to `tools/art-studio.js` and run it: it draws with the game's renderer into `static/art/`. |
 | A people | A row in `content/peoples.js` and a branch for its `index` in `gfx/archetypes/humanoid.js` (head, build, clothes). Give it to someone in `content/town.js` with `people:`. |
 | A cinematic | A row in `content/cinematics.js`, and a row in `TRIGGERS` if an event should start it. |
 | A creature move | An entry in `SPECIALS` in `sim/systems/specials.js`. |
@@ -112,9 +128,9 @@ The picture is Brushwild's renderer: one raymarch decides what is where, and a f
 ## Not done yet
 
 - No saving, no tests in the repo, no co-op.
-- The six ordinary creatures reuse Brushwild's creature shapes (the three elders are new).
+- Six of the eleven ordinary creatures still use Brushwild's shapes.
 - The elders fill much of the picture and are drawn at full resolution: their cost on a slow GPU or a phone has not been measured.
-- The sounds for the elders and the cinematics have been written but not listened to.
+- None of the sound has been listened to: the music and effects are checked by a test that counts what is scheduled (keys, tempo, layers, voice limits), and in a browser only for running without errors.
 - The tutorial is switched off, and the game has not been tried on a real phone.
 - The simulation still steps with the frame's time, so two runs repeat exactly only at a fixed frame time.
 - Talent logic still lives beside its data in `content/talents.js`.

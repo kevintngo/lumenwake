@@ -13,7 +13,7 @@ export const GEAR_SLOTS = [['weapon', 'Weapon'], ['frame', 'Frame'], ['unit', 'U
 
 export const RARITIES = [
   { id: 'standard', name: 'Standard', color: '#e9eef8', affixes: [0, 0], weight: 58, worth: 1 },
-  { id: 'tuned', name: 'Tuned', color: '#79c4ff', affixes: [1, 2], weight: 29, worth: 2 },
+  { id: 'tuned', name: 'Tuned', color: '#a6dbff', affixes: [1, 2], weight: 29, worth: 2 },
   { id: 'rare', name: 'Rare', color: '#ffd84f', affixes: [3, 4], weight: 11, worth: 4 },
   { id: 'prime', name: 'Prime', color: '#ff9a4a', affixes: [4, 4], weight: 2, worth: 9, power: true },
 ];

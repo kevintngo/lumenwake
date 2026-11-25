@@ -49,21 +49,37 @@ export function missionSpec(offer) {
     rm.main = true;
     rooms.push(rm);
     links.push({ a: from.i, b: rm.i, w: 4.6, gate: true });
-    // now and then a small island off to one side, with something worth the detour
-    if (kind === 'fight' && rnd() < 0.5) {
-      for (let tries = 0; tries < 12; tries++) {
-        const d3 = dir + (rnd() < 0.5 ? 1 : -1) * (1.2 + rnd() * 0.7);
-        const r3 = 6.5 + rnd() * 1.5, dist = rm.r + r3 + 7 + rnd() * 5;
-        const x = rm.x + Math.sin(d3) * dist, z = rm.z + Math.cos(d3) * dist;
-        if (!fits(rooms, links, rm, x, z, r3)) continue;
-        const side = room(rooms.length, x, z, r3, Math.min(18, Math.max(6, h + (rnd() - 0.5) * 3)), 'cache', 0.1, rnd);
-        rooms.push(side);
-        links.push({ a: rm.i, b: side.i, w: 3.6, gate: false });
-        break;
-      }
+    // more often than not a small island off to one side with something worth the detour, and now and
+    // then a second one beyond it
+    if (kind === 'fight' && rnd() < 0.72) {
+      const turn = (rnd() < 0.5 ? 1 : -1) * (1.2 + rnd() * 0.7);
+      const side = branch(rm, dir + turn);
+      if (side && rnd() < 0.42) branch(side, dir + turn * (0.6 + rnd() * 0.5));
     }
   }
+  function branch(from, toward) {
+    for (let tries = 0; tries < 12; tries++) {
+      const d3 = toward + (rnd() - 0.5) * 0.5;
+      const r3 = 8.4 + rnd() * 2.4, dist = from.r + r3 + 7 + rnd() * 5;
+      const x = from.x + Math.sin(d3) * dist, z = from.z + Math.cos(d3) * dist;
+      if (!fits(rooms, links, from, x, z, r3)) continue;
+      const side = room(rooms.length, x, z, r3, Math.min(18, Math.max(6, from.h + (rnd() - 0.5) * 3.4)), 'cache', 0.1, rnd);
+      rooms.push(side);
+      links.push({ a: from.i, b: side.i, w: 3.6, gate: false });
+      return side;
+    }
+    return null;
+  }
   rooms[0].main = true;
+  // What there is to find (content/sites.js): three survey marks, on side islands first and then far along
+  // the way; a beacon early on; something on every side island; now and then a lit crystal on the way itself.
+  const fights = rooms.filter((r) => r.kind === 'fight'), sides = rooms.filter((r) => r.kind === 'cache');
+  for (const r of rooms) r.sites = [];
+  const spots = [...sides, ...fights.slice().reverse()];
+  for (let k = 0; k < 3 && spots.length; k++) spots[k % spots.length].sites.push('mark');
+  if (fights.length) fights[0].sites.push('beacon');
+  for (const r of sides) r.sites.push(rnd() < 0.5 ? 'crystal' : 'cargo');
+  if (fights.length > 2 && rnd() < 0.5) fights[Math.floor(fights.length / 2)].sites.push('crystal');
   return { id: 'm' + offer.seed, biome: offer.biome, seed: offer.seed, rooms, links, start: { x: 0, z: 0, yaw: Math.atan2(rooms[1].x, rooms[1].z) }, offer };
 }
 

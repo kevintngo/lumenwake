@@ -93,6 +93,7 @@ export class Plates {
       if (e.kind === 'npc') show = dist < 30;
       else if (e.kind === 'monster') show = !e.boss && dist < 40 && (e.marked || e.hover || e === p.target || e.hp < e.maxHp || e.elite || e.ai.state === 'chase' || e.ai.state === 'attack');
       else if (e.kind === 'drop') show = dist < 9 && e.age > 0.4;
+      else if (e.kind === 'site') show = dist < 16;
       if (!show) continue;
       const s = cam.project(e.x, e.y + e.height + 0.25 + e.lift, e.z);
       if (!s || s.x < -0.1 || s.x > 1.1 || s.y < -0.1 || s.y > 1.1) continue;
@@ -108,7 +109,7 @@ export class Plates {
       let n = this.nodes.get(e.id);
       if (!n) {
         const el = this.root.appendChild(document.createElement('div'));
-        el.className = 'np' + (e.kind === 'npc' ? ' npc' : e.kind === 'drop' ? ' loot' + (e.rare ? ' rare' : '') : e.elite ? ' elite' : '');
+        el.className = 'np' + (e.kind === 'npc' ? ' npc' : e.kind === 'drop' ? ' loot' + (e.rare ? ' rare' : '') : e.kind === 'site' ? ' site' : e.elite ? ' elite' : '');
         if (e.kind === 'monster') el.innerHTML = `${e.name}<small>Lv ${e.level}</small><span class="mini"><i></i></span>`;
         else if (e.kind === 'npc') el.innerHTML = `${e.name}<small>${e.title || ''}</small>`;
         else el.textContent = e.name;

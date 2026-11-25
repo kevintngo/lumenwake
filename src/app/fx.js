@@ -255,6 +255,36 @@ export class Fx {
       this.sparkle(d.x, d.y + 1, d.z, SKY, 12);
       this.light(d.x, d.y + 1.5, d.z, 10, 0.9);
     });
+    // a strider's lance: the line it warned of, lit for an instant, and sparks along it
+    bus.on('lance:fire', (d) => {
+      this.spawn('lane', d.x + d.dirx * d.len / 2, d.y + 0.14, d.z + d.dirz * d.len / 2, { size: d.w / 2.6, aspect: d.len / (d.w / 1.3), rot: Math.atan2(d.dirx, d.dirz), life: 0.22, color: WHITE, ground: true });
+      for (let k = 0; k < 9; k++) { const t = (k + Math.random()) / 9 * d.len; this.spawn('spark', d.x + d.dirx * t, d.y + 0.8 + Math.random() * 0.6, d.z + d.dirz * t, { size: 0.2, life: 0.3 + Math.random() * 0.2, color: MUSTARD, vy: 1.5 + Math.random() * 2, drag: 1.5 }); }
+      this.light(d.x + d.dirx * 3, d.y + 1.6, d.z + d.dirz * 3, 9, 0.2);
+      this.shakeNear(d.x, d.z, 0.3, 20);
+    });
+    // ---- the lumen: its bolt, its burst, and the moment it becomes something else
+    bus.on('lumen:ready', () => { const e = this.game.companion.e; if (e) this.sparkle(e.x, e.y, e.z, e.colors[1], 10); });
+    bus.on('lumen:fed', () => { const e = this.game.companion.e; if (e) this.sparkle(e.x, e.y, e.z, e.colors[1], 5); });
+    bus.on('lumen:burst', (d) => {
+      const b = d.burst, r = b.r || 3;
+      this.spawn('ring', d.x, d.y + 0.1, d.z, { size: 1, grow: r * 2.4, life: 0.5, color: d.color, ground: true });
+      if (b.seconds) this.spawn('mark', d.x, d.y + 0.1, d.z, { size: 1.5, life: b.seconds, color: d.color, ground: true, follow: this.game.player, dy: 0.1 });
+      this.sparkle(d.x, d.y + 1.2, d.z, d.color, 16);
+      this.light(d.x, d.y + 1.5, d.z, 10 + r, 0.5);
+    });
+    bus.on('lumen:changed', (d) => {
+      this.spawn('beam', d.x, d.y + 1.6, d.z, { size: 0.4, aspect: 6, life: 1.4, color: d.color, alpha: 1.2 });
+      this.sparkle(d.x, d.y, d.z, d.color, 18);
+      this.light(d.x, d.y, d.z, 9, 0.9);
+    });
+    // a site answers: a ray and a ring in its own colour
+    bus.on('site:used', (d) => {
+      this.spawn('beam', d.x, d.y + 3, d.z, { size: 0.45, aspect: 7, life: 1.4, color: d.color, alpha: 1.2 });
+      for (let k = 0; k < 2; k++) setTimeout(() => this.spawn('ring', d.x, d.y + 0.08, d.z, { size: 1.6, grow: 5, life: 0.7, color: d.color, ground: true }), k * 180);
+      this.sparkle(d.x, d.y + 1.2, d.z, d.color, 14);
+      this.light(d.x, d.y + 1.5, d.z, 9, 0.8);
+    });
+    bus.on('site:guard', (d) => this.spawn('ring', d.guard.x, d.guard.y + 0.08, d.guard.z, { size: 2.4, grow: 6, life: 0.6, color: RED, ground: true }));
     // a rare piece of gear stands in a ray of its rarity's colour when it lands
     bus.on('drop:rare', (d) => {
       const col = d.rarity >= 3 ? FLAME : GOLD;

@@ -37,7 +37,7 @@ export function planEncounters(spec, theme, offer, rnd) {
       for (let w = 0; w < waves; w++) r.waves.push(wave(purse * (w ? 0.8 : 1)));
       r.pods = rnd() < 0.45 ? 1 : 0;
     } else if (r.kind === 'cache') {
-      r.pods = 2;
+      r.pods = 1;          // (a side island also holds a site: content/sites.js)
       if (rnd() < 0.6) r.waves.push(wave(2.4 + offer.tier * 0.3));
     } else if (r.kind === 'boss') {
       r.waves.push(['@' + theme.boss]);

@@ -29,10 +29,10 @@
   --page: #f1eee5;           /* the drawing's own paper, behind the picture */
   --ink: #eef4ff;            /* lettering */
   --pen: #8fd8ff;            /* ruled lines and borders */
-  --dim: #b4c6ee;
+  --dim: #d9e3fa;            /* quieter lettering: still near white, so it reads on blue */
   --vermilion: #ff7a66;      /* marks and rings */
   --red-ink: #ffab99;        /* red lettering */
-  --blue-ink: #a8d4ff;       /* blue lettering */
+  --blue-ink: #d2e9ff;       /* blue lettering */
   --green-ink: #92e6ac;      /* green lettering */
   --ochre: #ffc45e;
   --focus: #ffd166;          /* keyboard focus: amber */
@@ -521,7 +521,7 @@ button.cell, .cell { border-radius: 0; }
 /* the title */
 .title-card { --cut: 18px; padding: 34px 60px 30px; border: 1.6px solid var(--pen); box-shadow: inset 0 0 0 5px var(--paper), inset 0 0 0 6px rgba(143, 216, 255, 0.25); }
 .title-card h1 { font: 800 clamp(40px, 7.4vw, 82px)/1.05 var(--display); letter-spacing: 0.1em; color: var(--ink); -webkit-text-stroke: 0; background: none; -webkit-background-clip: border-box; background-clip: border-box; }
-.title-card .tag { font: 500 17px/1.2 var(--hand); letter-spacing: 0.22em; text-transform: uppercase; color: var(--pen); margin: 10px 0 24px; }
+.title-card .tag { font: 500 17px/1.2 var(--hand); letter-spacing: 0.22em; text-transform: uppercase; color: var(--pen-text); margin: 10px 0 24px; }
 .title-actions button { font: 500 18px/1 var(--hand); letter-spacing: 0.08em; border: 1.4px solid var(--pen); padding: 11px 34px 12px; }
 .title-card .keys { font-size: 14px; }
 :focus-visible { border-radius: 0; }
@@ -582,7 +582,7 @@ body.touch #cine-skip kbd { display: none; }
 .cine-card { position: absolute; display: grid; gap: 7px; opacity: 0; transition: opacity 0.6s ease, transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1); }
 .cine-card.show { opacity: 1; transform: none !important; }
 .cine-card strong { font: 800 clamp(24px, 4vw, 46px)/1.08 var(--display); letter-spacing: 0.1em; color: #eef4ff; }
-.cine-card span { font: 500 clamp(13px, 1.5vw, 17px)/1.3 var(--hand); letter-spacing: 0.14em; color: var(--pen); }
+.cine-card span { font: 500 clamp(13px, 1.5vw, 17px)/1.3 var(--hand); letter-spacing: 0.14em; color: var(--pen-text); }
 .cine-card span:empty { display: none; }
 /* a place, a contract: lower left, a ruled line down its side */
 .cine-card.place, .cine-card.contract { left: calc(5% + var(--sl)); bottom: calc(var(--bar) + 5%); padding: 14px 44px 16px 22px; border-left: 2px solid var(--pen); transform: translateX(-14px);
@@ -598,12 +598,222 @@ body.touch #cine-skip kbd { display: none; }
   .cine-card { transform: none !important; }
 }
 
-/* ---- the title: who you are (one of the peoples), above the classes */
-.people-pick { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 0 8px; }
-.people-chip { min-height: 36px; padding: 6px 16px 7px; font: 500 15px/1.2 var(--hand); letter-spacing: 0.06em; color: var(--ink); background: transparent; border: 1.2px solid var(--faint);
-  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); transition: background 0.15s ease; }
-.people-chip:hover { background: var(--paper-2); }
-.people-chip[aria-pressed="true"] { background: var(--pen); color: #0b1a44; border-color: var(--pen); font-weight: 600; }
-.people-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.people-blurb { margin: 0 auto 16px; max-width: 46ch; min-height: 2.6em; font-size: 15px; color: var(--dim); }
-body.touch .people-chip { min-height: 42px; }
+/* ================================================================ artwork, colour and the select screen
+
+   Every picture in the interface is a frame of the game, drawn by the game's own renderer (the
+   studio that takes them is described in README.md), shown as what it is: a pencil drawing on
+   cream paper, pinned to the blueprint. The hero's own likeness is taken while playing.
+
+   Lettering is coloured by what it names, so a line can be read at a glance. Every colour is
+   checked against the three grounds text sits on (plate #14295f, raised plate #1c3a80, film bar
+   #070d1f) and is 4.5:1 or better on each; none of them is the only way a thing is told apart.
+     people and crew  --c-name       places    --c-place     numbers   --c-num     experience  --c-xp
+     glint            --c-coin       good      --c-good      bad       --c-bad     keys, talents --c-key
+     creatures        --c-foe        the three classes and the three kinds of contract have one each */
+:root {
+  --c-name: #ffd2b3; --c-place: #8fe6cf; --c-num: #ffd772; --c-xp: #d5c8ff; --c-coin: #ffdc6b;
+  --c-good: #9ceab4; --c-bad: #ffb3a3; --c-key: #cdeeff; --c-item: #eef2fb; --c-foe: #ffad9b;
+  --c-vanguard: #ffab98; --c-ranger: #ffcc74; --c-adept: #86e6dc;
+  --c-sweep: #cfe7ff; --c-recover: #d5c8ff; --c-hunt: #ffad9b;
+  --pen-text: #d4f0ff;       /* lettering that used to be the pen's own blue: lighter, because blue on blue is hard to read */
+  --card: #f1eee5;           /* the paper a picture is drawn on */
+  --deep: #0f2152;           /* a well in a plate: a tile at rest */
+}
+.c-ink { color: var(--ink); } .c-name { color: var(--c-name); } .c-place { color: var(--c-place); } .c-num { color: var(--c-num); }
+.c-xp { color: var(--c-xp); } .c-coin { color: var(--c-coin); } .c-good { color: var(--c-good); } .c-bad { color: var(--c-bad); }
+.c-key { color: var(--c-key); } .c-item { color: var(--c-item); } .c-foe { color: var(--c-foe); }
+.c-vanguard { color: var(--c-vanguard); } .c-ranger { color: var(--c-ranger); } .c-adept { color: var(--c-adept); }
+.c-goal-sweep { color: var(--c-sweep); } .c-goal-recover { color: var(--c-recover); } .c-goal-hunt { color: var(--c-hunt); }
+b[class^="c-"], strong[class^="c-"] { font-weight: 600; }
+#log em { color: var(--c-name); }
+.coin { color: var(--c-coin); }
+.np.npc { color: var(--c-name); }
+#target #t-name { color: var(--c-foe); font-weight: 600; }
+.attr .val { color: var(--c-num); }
+.sheet b, .sheet div > :last-child { color: var(--c-num); }
+.keys-list kbd { color: var(--c-key); }
+
+/* a picture: a drawing on paper, pinned on */
+.face img, .pick img, .speaker img, .hero-card img, .contract-art img, .report-art img { display: block; background: var(--card); }
+.pick img, .speaker img, .hero-card img, .contract-art .elder { border: 1px solid var(--pen); }
+
+/* ---- the select screen */
+#title { position: fixed; inset: 0; display: block; transition: opacity 0.9s ease; }
+.select { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(300px, 372px) 1fr minmax(320px, 400px); grid-template-rows: auto 1fr auto; gap: 14px 22px;
+  padding: calc(22px + var(--st)) calc(28px + var(--sr)) calc(20px + var(--sb)) calc(28px + var(--sl)); pointer-events: none; }
+.select > * { pointer-events: auto; }
+.select-head, .select-col, .select-foot { background: var(--paper); border: 1.4px solid var(--pen); box-shadow: inset 0 0 0 4px var(--paper), inset 0 0 0 5px rgba(143, 216, 255, 0.22);
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
+.select-head { grid-column: 1; justify-self: start; padding: 14px 26px 14px 22px; }
+.select-head h1 { margin: 0; font: 800 clamp(30px, 3.4vw, 46px)/1.05 var(--display); letter-spacing: 0.1em; color: var(--ink); }
+.select-head .tag { margin: 6px 0 0; font: 500 13px/1.2 var(--hand); letter-spacing: 0.16em; color: var(--pen-text); }
+.select-col { align-self: center; padding: 16px 16px 18px; display: grid; gap: 12px; max-height: 100%; overflow: auto; }
+.select-col.people { grid-column: 1; grid-row: 2; }
+.select-col.classes { grid-column: 3; grid-row: 2; }
+.pick-label { margin: 0; font: 600 13px/1 var(--hand); letter-spacing: 0.16em; color: var(--ochre); text-transform: none; }
+.people-pick, .class-pick { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 0; max-width: none; }
+.pick { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; padding: 8px 14px 8px 10px; text-align: left; color: var(--ink); background: var(--deep);
+  border: 1.2px solid var(--faint); clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px); transition: background 0.15s ease, border-color 0.15s ease; }
+.pick:hover { background: var(--paper-2); filter: none; }
+.pick[aria-checked="true"] { background: var(--paper-2); border-color: var(--focus); box-shadow: inset 5px 0 0 var(--focus); }
+.pick:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pick img { width: 64px; height: 72px; object-fit: cover; object-position: 50% 16%; }
+.class-card.pick { padding: 10px 14px 10px 10px; display: grid; }
+.class-card.pick img { width: 104px; height: 88px; object-position: 50% 40%; }
+.pick-words { display: grid; gap: 3px; min-width: 0; }
+.pick-words strong { font: 600 17px/1.15 var(--display); letter-spacing: 0.07em; color: var(--c-name); }
+.pick-words span { font-size: 13.5px; line-height: 1.35; color: var(--dim); }
+.pick-words small { font-size: 12.5px; line-height: 1.3; color: var(--pen-text); }
+.class-card.c-vanguard strong { color: var(--c-vanguard); } .class-card.c-ranger strong { color: var(--c-ranger); } .class-card.c-adept strong { color: var(--c-adept); }
+.class-card:hover { filter: none; }
+.select-foot { grid-column: 2; grid-row: 3; justify-self: center; display: grid; justify-items: center; gap: 10px; padding: 14px 30px 14px; }
+#select-summary { margin: 0; font: 600 20px/1.1 var(--display); letter-spacing: 0.08em; }
+.select-foot .title-actions { display: flex; gap: 12px; }
+#btn-begin { min-width: 220px; min-height: 48px; padding: 10px 34px 12px; font: 600 19px/1 var(--display); letter-spacing: 0.14em; color: #1b1400; background: var(--ochre); border: 1.5px solid #ffe2a6;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+#btn-begin:hover { background: #ffd684; }
+.select-foot .keys { margin: 0; font-size: 13px; color: var(--dim); text-align: center; }
+/* a narrow or upright screen: the hero in the top of the picture, the choices stacked under them */
+@media (max-width: 900px), (orientation: portrait) {
+  .select { display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; padding: 10px; overflow-y: auto; }
+  .select-head { align-self: flex-start; padding: 8px 16px 9px; margin-bottom: auto; }
+  .select-head h1 { font-size: 26px; } .select-head .tag { display: none; }
+  .select-col { align-self: stretch; padding: 10px 10px 12px; gap: 8px; max-height: none; overflow: visible; min-width: 0; }
+  .select-col > *, .pick, .pick-words { min-width: 0; }
+  .pick-words strong { overflow-wrap: anywhere; }
+  .people-pick { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  .people-pick .pick { grid-template-columns: 1fr; justify-items: center; gap: 5px; padding: 6px 2px 7px; text-align: center; }
+  .people-pick .pick img { width: 46px; height: 52px; }
+  .people-pick .pick-words span { display: none; } .people-pick .pick-words strong { font-size: 11px; letter-spacing: 0; line-height: 1.15; }
+  .class-pick { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .class-card.pick { grid-template-columns: 1fr; justify-items: center; gap: 6px; padding: 7px 6px 8px; text-align: center; }
+  .class-card.pick img { width: 100%; height: 62px; }
+  .class-card .pick-words span, .class-card .pick-words small { display: none; } .class-card .pick-words strong { font-size: 14px; }
+  .select-foot { align-self: stretch; justify-self: stretch; padding: 10px 14px 12px; gap: 8px; }
+  #btn-begin { min-width: 0; width: 100%; } .select-foot .keys { display: none; }
+}
+
+/* ---- the hero's plate: their likeness in a six-sided frame, the level on its corner, who and what they are */
+#status { width: 348px; gap: 14px; padding: 10px 16px 11px 12px; }
+.face { position: relative; flex: none; width: 62px; height: 62px; }
+.face::before { content: ''; position: absolute; inset: -3px; background: var(--pen); clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); }
+.face img { position: relative; width: 100%; height: 100%; object-fit: cover; clip-path: polygon(25% 2%, 75% 2%, 100% 50%, 75% 98%, 25% 98%, 0 50%); }
+.face img:not([src]) { visibility: hidden; }
+.face .badge { position: absolute; right: -9px; bottom: -7px; width: 28px; height: 28px; font-size: 14px; z-index: 1; }
+.names { display: grid; gap: 1px; min-width: 0; }
+#pname { font: 600 17px/1.1 var(--display); letter-spacing: 0.06em; }
+#pkind { font-size: 12.5px; letter-spacing: 0.04em; color: var(--dim); white-space: nowrap; }
+body.touch .face { width: 44px; height: 44px; } body.touch #pkind { display: none; } body.touch #status { width: auto; }
+
+/* ---- the elder's bar: its likeness, its name, a mark where it turns on you */
+#boss { width: min(600px, calc(100vw - 40px)); padding: 9px 20px 12px 14px; display: grid; grid-template-columns: 58px 1fr; grid-template-areas: "face words" "face bar"; gap: 5px 16px; align-items: center; }
+#boss .face { grid-area: face; width: 58px; height: 58px; }
+#boss .face::before { background: var(--c-foe); }
+#boss .face img { object-position: 50% 30%; }
+.boss-words { grid-area: words; display: flex; align-items: baseline; justify-content: space-between; gap: 14px; min-width: 0; }
+#boss-name { font: 600 17px/1.1 var(--display); letter-spacing: 0.1em; color: var(--c-foe); white-space: nowrap; }
+#boss-sub { font-size: 13px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#boss.mad #boss-sub { color: var(--c-bad); }
+#boss .bar { grid-area: bar; height: 15px; }
+#boss .bar .half { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: 0.85; }
+#boss.mad .bar { border-color: var(--c-bad); }
+
+/* ---- someone speaking */
+#talk { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); width: min(560px, calc(100vw - 32px)); padding: 12px 20px 14px 16px; display: grid; grid-template-columns: 62px 1fr; gap: 18px; align-items: center; z-index: 2; }
+#talk .face::before { background: var(--c-name); }
+#talk .who { justify-content: flex-start; gap: 10px; }
+#talk-name { font: 600 16px/1.1 var(--display); letter-spacing: 0.08em; color: var(--c-name); }
+#talk-title { font-size: 13px; color: var(--dim); }
+#talk-line { margin: 5px 0 0; font-size: 17px; line-height: 1.35; }
+body.touch #talk { bottom: auto; top: calc(var(--st) + 84px); }
+
+/* ---- a contract's report */
+#report { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(540px, calc(100vw - 28px)); max-height: calc(var(--vh) - 40px); overflow: auto; padding: 0; z-index: 4; display: block; }
+.report-art { position: relative; height: 168px; overflow: hidden; border-bottom: 1.4px solid var(--pen); }
+.report-art img { width: 100%; height: 100%; object-fit: cover; }
+.stamp { position: absolute; right: 22px; top: 18px; padding: 7px 18px 8px; font: 800 22px/1 var(--display); letter-spacing: 0.16em; color: #0b3d1f; background: #b9f2c9; border: 2px solid #0b3d1f; }
+#report.lost .stamp { color: #5a1408; background: #ffd0c6; border-color: #5a1408; }
+.report-body { padding: 16px 24px 22px; display: grid; gap: 12px; }
+.report-body h2 { margin: 0; font: 600 26px/1.1 var(--display); letter-spacing: 0.08em; }
+.report-body p { margin: 0; font-size: 15px; color: var(--dim); }
+.report-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.report-stats div { display: grid; gap: 3px; padding: 9px 10px 10px; background: var(--deep); border: 1px solid var(--faint); }
+.report-stats small { font-size: 12px; letter-spacing: 0.08em; color: var(--dim); }
+.report-stats b { font: 600 20px/1 var(--display); letter-spacing: 0.04em; }
+#report-prize { display: grid; gap: 8px; }
+#report-ok { justify-self: end; min-width: 150px; }
+
+/* ---- in the windows: who keeps it, the hero's figure, and a picture on every contract */
+.panel.right { width: min(470px, calc(100vw - 32px)); }
+.speaker { display: grid; grid-template-columns: 64px 1fr; gap: 14px; align-items: center; }
+.speaker img { width: 64px; height: 64px; object-fit: cover; }
+.speaker strong { font: 600 16px/1.1 var(--display); letter-spacing: 0.08em; }
+.speaker small { margin-left: 10px; font-size: 13px; color: var(--dim); }
+.speaker p { margin-top: 4px; font-size: 15.5px; line-height: 1.35; }
+.hero-card { display: grid; grid-template-columns: 104px 1fr; gap: 16px; align-items: center; }
+.hero-card img { width: 104px; height: 138px; object-fit: cover; }
+.hero-card img[src=""] { visibility: hidden; }
+.hero-card strong { display: block; font: 600 19px/1.15 var(--display); letter-spacing: 0.07em; }
+.hero-card small { display: block; margin-top: 5px; font-size: 13.5px; line-height: 1.35; color: var(--dim); }
+.contract { display: grid; grid-template-columns: 1fr auto; gap: 0 12px; align-items: end; border: 1px solid var(--faint); background: var(--deep); clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px); }
+.contract.taken { border-color: var(--focus); box-shadow: inset 5px 0 0 var(--focus); }
+.contract-art { grid-column: 1 / -1; position: relative; height: 92px; overflow: hidden; border-bottom: 1px solid var(--faint); }
+.contract-art > img:first-child { width: 100%; height: 100%; object-fit: cover; object-position: 50% 62%; }
+.contract-art .elder { position: absolute; right: 14px; top: 9px; width: 96px; height: 72px; object-fit: cover; }
+.contract-art .tier { position: absolute; left: 0; bottom: 0; padding: 4px 12px 5px 12px; font-size: 13px; letter-spacing: 0.06em; background: var(--paper); border-top: 1px solid var(--faint); border-right: 1px solid var(--faint); }
+.contract-words { display: grid; gap: 3px; padding: 10px 0 12px 14px; }
+.contract-words strong { font: 600 18px/1.15 var(--display); letter-spacing: 0.06em; }
+.contract-words small { font-size: 13.5px; line-height: 1.35; color: var(--dim); }
+.contract .btn { margin: 0 12px 12px 0; }
+.np.site { color: var(--c-key); border-color: var(--c-key); }
+.boon { color: var(--c-good); font-weight: 600; }
+
+/* ---- the hotbar sits in a dock of its own (a mouse and keys; a touch screen lays the same buttons out under the thumbs) */
+body:not(.touch) #hotbar { padding: 26px 16px 10px; }
+body:not(.touch) #hotbar::before { content: ''; position: absolute; inset: 14px 0 0 0; z-index: -1; background: rgba(15, 33, 82, 0.92); border: 1.2px solid var(--pen);
+  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%, 0 14px); }
+body:not(.touch) #hotbar .slot { background: var(--deep); }
+body:not(.touch) #hotbar .slot:not(.locked):not(.dry):not(.empty) { border-color: var(--c-key); }
+body:not(.touch) #hotbar .slot .key { color: var(--c-key); }
+/* the tracker says which kind of contract it is by its colour */
+#tracker .label { color: var(--c-num); }
+#tracker-text { line-height: 1.35; }
+
+/* ---- small lettering: nothing under 14px, and the quiet lines a little heavier, so pale blue on blue stays easy to read */
+.select-head .tag { font-size: 14px; letter-spacing: 0.12em; }
+.pick-words span { font-size: 14.5px; color: var(--dim); }
+.pick-words small { font-size: 14px; font-weight: 500; }
+#pkind, #boss-sub, #talk-title, .speaker small { font-size: 14px; font-weight: 500; }
+.report-stats small { font-size: 13.5px; font-weight: 500; letter-spacing: 0.05em; }
+.gear small, .hero-card small, .contract-words small { font-size: 14.5px; font-weight: 500; }
+.select-foot .keys, .meter b, .contract-art .tier { font-size: 14px; font-weight: 500; }
+.slotname { font-size: 12.5px; color: var(--ink); }
+.label, .pick-label { font-size: 13.5px; }
+.dim, .panel p.dim, #toast span { font-weight: 500; }
+#place .dim, #clock { color: var(--dim); }
+
+/* ---- the lumen: its plate under the hero's, and its window */
+#ui > section#lumen { position: absolute; left: 16px; top: 112px; padding: 0; width: 252px; }
+#lumen-btn { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; width: 100%; padding: 7px 12px 8px 10px; background: none; border: 0; color: var(--ink); text-align: left; }
+#lumen-btn:hover { background: var(--paper-2); }
+#lumen .face { width: 40px; height: 40px; }
+#lumen .face::before { background: var(--c-key); }
+.lumen-words { display: grid; gap: 2px; min-width: 0; }
+#lumen-name { font: 600 14.5px/1.1 var(--display); letter-spacing: 0.06em; color: var(--c-key); }
+#lumen-sub { font-size: 14px; font-weight: 500; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar.lu { flex: none; height: 7px; }
+.bar.lu i { background: repeating-linear-gradient(118deg, var(--c-key) 0 2.5px, rgba(205, 238, 255, 0.4) 2.5px 3.6px); }
+#lumen kbd { font: 600 13px/1 var(--hand); padding: 4px 7px; border: 1px solid var(--faint); color: var(--dim); }
+#lumen.full { border-color: var(--focus); }
+#lumen.full #lumen-sub { color: var(--c-num); }
+#lumen.full kbd { color: #1b1400; background: var(--ochre); border-color: var(--ochre); }
+#lumen.full .bar.lu i { background: var(--c-num); }
+body.touch #ui > section#lumen { top: calc(var(--st) + 70px); width: 190px; } body.touch #lumen kbd { display: none; }
+.panel.left { top: 188px; max-height: calc(100vh - 288px); }
+.lumen-card img { height: 104px; }
+.temper { display: grid; grid-template-columns: 62px 1fr 34px; gap: 2px 10px; align-items: center; font-size: 15px; }
+.temper > span:first-child { font-weight: 600; }
+.temper .bar { height: 9px; }
+.temper .bar i { background: currentColor; }
+.temper b { text-align: right; }
+.temper small { grid-column: 2 / -1; font-size: 14px; font-weight: 500; color: var(--dim); }
