@@ -2,6 +2,8 @@
 
 A mission game drawn by shaders. You arrive by shuttle at a floating town, Meridian Landing. Choose who you are and pick a class, take a contract from the dispatcher, step on the pad, and fight across a string of sky islands that is generated from the contract's seed. Bring back gear, get paid, take the next one.
 
+**Play it: https://kevintngo.github.io/lumenwake/** (a desktop browser with WebGL 2; `./publish.sh` builds and republishes it).
+
 "Lumenwake" is a working title.
 
 ![The title, the arrival, a contract, and the three elders](docs/cinematics.jpg)
