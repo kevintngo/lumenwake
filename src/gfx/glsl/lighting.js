@@ -14,15 +14,68 @@ uniform float uNight;       // 0 day .. 1 night
 uniform float uGold;        // 0..1 dawn and dusk
 uniform float uCloud;       // cloud cover 0..1
 uniform vec2 uWind;
+uniform float uRealm;       // what the place stands in: 0 cloud under a sky, 1 underground, 2 open space (content/themes.js)
 `);
 
 // The sky is the paper: a pale blue lay that thins to nothing at the horizon,
 // clouds left bare, two rows of far hills. Returns the pencil; `cover` is how
 // firmly it is laid and `ink` a soft ridge line.
 registerChunk('sky', /* glsl */ `
+// Open space, on every side and underfoot: the dark laid as firmly as the pencil goes, stars and a river of
+// dust left as paper, the ringed world close enough to fill a quarter of the view, and a small moon.
+vec2 starFace(vec3 d, out float face) {
+  vec3 a = abs(d);
+  if (a.x > a.y && a.x > a.z) { face = d.x > 0.0 ? 0.0 : 1.0; return d.yz / a.x; }
+  if (a.y > a.z) { face = d.y > 0.0 ? 2.0 : 3.0; return d.xz / a.y; }
+  face = d.z > 0.0 ? 4.0 : 5.0; return d.xy / a.z;
+}
+float starField(vec3 d, float many, float size, float rare) {
+  float face;
+  vec2 uv = starFace(d, face) * many, cell = floor(uv);
+  vec2 so = hash22(cell + face * 31.0 + 3.1) - 0.5;
+  return smoothstep(size, size * 0.45, length(fract(uv) - 0.5 - so * 0.6)) * step(rare, hash12(cell + face * 17.0));
+}
+vec3 spaceLay(vec3 rd, out float cover, out float ink) {
+  ink = 0.0;
+  vec3 pig = mix(P_INDIGO, INK_BLACK, 0.5);
+  cover = 0.95;
+  // a river of dust across the dark, and the stars: many small, a few large
+  float river = smoothstep(0.42, 0.0, abs(dot(rd, normalize(vec3(0.35, 0.86, -0.36)))));
+  cover *= 1.0 - 0.3 * river * smoothstep(0.35, 0.7, fbm(rd.xz * 3.0 + rd.y * 2.0));
+  cover *= 1.0 - max(starField(rd, 34.0, 0.075, 0.62 - 0.25 * river), starField(rd, 13.0, 0.06, 0.88));
+  // the ringed world, low and close: bands of peach and rose, its limb in pen, its night side left to the dark
+  vec3 pd = normalize(vec3(-0.5, 0.02, -0.86));
+  vec3 px_ = normalize(cross(pd, vec3(0.0, 1.0, 0.0))), py_ = cross(px_, pd);
+  vec2 q = vec2(dot(rd, px_), dot(rd, py_)) / 0.34;
+  float rr = length(q), front = step(0.0, dot(rd, pd));
+  vec2 e = vec2(q.x * 0.94 + q.y * 0.34, (q.y * 0.94 - q.x * 0.34) / 0.3);
+  float er = length(e);
+  float ring = smoothstep(1.3, 1.34, er) * smoothstep(2.1, 2.05, er) * (0.5 + 0.5 * step(0.4, fract(er * 5.0))) * front;
+  if (rr < 1.0 && front > 0.5) {
+    float lit = smoothstep(-0.25, 0.35, dot(normalize(vec3(q, sqrt(1.0 - rr * rr))), normalize(vec3(0.5, 0.6, 0.62))));
+    float band = vnoise(vec2(q.y * 6.0 + vnoise(q * 2.5) * 1.1, q.x * 0.6));
+    vec3 world = mix(P_PEACH, P_ROSE, smoothstep(0.4, 0.62, band));
+    pig = mix(pig, world, lit);
+    cover = mix(0.95, mix(0.62, 0.3, smoothstep(0.3, 0.7, band)), lit);
+    ink = smoothstep(0.02, 0.0, abs(rr - 0.985)) * 0.6;
+  }
+  bool behind = e.y > 0.0 && rr < 1.0;
+  if (!behind && ring > 0.01) { pig = mix(pig, P_TAN, ring); cover = mix(cover, 0.5, ring); }
+  // a small moon, the other way
+  float md = dot(rd, normalize(vec3(0.7, 0.32, 0.64)));
+  if (md > 0.9985) { pig = P_SLATE; cover = 0.28; ink = max(ink, smoothstep(0.00016, 0.0, abs(md - 0.99858)) * 0.5); }
+  // the sun: a disc of paper with a ring of it round
+  float sd = dot(rd, uSunDisk);
+  cover *= 1.0 - smoothstep(0.9982, 0.999, sd) - 0.35 * smoothstep(0.99, 0.9982, sd) * (1.0 - smoothstep(0.9982, 0.999, sd));
+  return pig;
+}
+
 vec3 skyLay(vec3 rd, out float cover, out float ink) {
   float h = max(rd.y, 0.0);
   ink = 0.0;
+  // underground there is no sky: only the dark over the halls
+  if (uRealm > 0.5 && uRealm < 1.5) { cover = 0.97; return mix(P_INDIGO, INK_BLACK, 0.66); }
+  if (uRealm > 1.5) return spaceLay(rd, cover, ink);
   vec3 pig = P_SKY;
   cover = mix(0.1, 0.5, smoothstep(0.02, 0.5, h));
   // dawn and dusk: a peach to rose blush low in the sky

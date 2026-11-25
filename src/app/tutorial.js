@@ -47,7 +47,7 @@ export class Tutorial {
   remember() { try { localStorage.setItem(KEY, 'done'); } catch { /* storage is off: they will simply be offered again */ } }
 
   begin() {
-    if (this.seen()) return;
+    if (this.seen() || this.game.player.sheet.missions > 0) return;        // (nor for a surveyor who has run a contract: a kept journey picked up in another browser)
     this.start();
   }
   start() {

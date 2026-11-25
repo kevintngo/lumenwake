@@ -15,6 +15,10 @@ let nextUid = 1;
 const affixById = Object.fromEntries(AFFIXES.map((a) => [a.id, a]));
 
 export const baseOf = (item) => BASES[item.base];
+/** A sheet read back from a save carries pieces numbered on an earlier visit: new ones are numbered on from them. */
+export function claimUids(sheet) {
+  for (const it of [...sheet.gear, ...Object.values(sheet.equip)]) if (it && it.uid >= nextUid) nextUid = it.uid + 1;
+}
 export const rarityOf = (item) => RARITIES[item.rarity];
 
 /**

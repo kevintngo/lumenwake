@@ -23,12 +23,14 @@ A mission game drawn by shaders. You arrive by shuttle at a floating town, Merid
 - **Three classes.** Vanguard (arc blade), Ranger (pulse rifle), Adept (focus rod). A class sets starting attributes, the family of weapon it can wield and the four abilities on its bar.
 - **A three-step attack chain.** Attacks come in threes and the third is the heavy one: a blade's third cut takes everything in front, a rifle's third shot hits harder, a rod's third bursts.
 - **Gear.** Weapon, frame and unit. Each piece is a base type, an item level, a rarity (Standard, Tuned, Rare, Prime) and rolled affixes; a Prime piece also lends ranks of a talent. Every base has its own shape in the hand, on the shoulders or on the back, and its tile in the menu is drawn from that same shape. It drops from creatures, supply pods and bosses, every contract pays one piece, and the quartermaster buys and sells it.
-- **Contracts.** Three on the board at a time: clear the way, recover survey cores, or bring down the boss of the place. Four places (Glasswood Terraces, Ember Shelf, The Hush, Rime Steps), each with its own look, creatures and boss.
+- **Contracts.** Three on the board at a time: clear the way, recover survey cores, or bring down the boss of the place. Six places, each with its own look, creatures and boss: four of sky islands (Glasswood Terraces, Ember Shelf, The Hush, Rime Steps), and two that are not.
+- **The Underhalls.** A dungeon: square halls and corridors between sheer walls of dressed stone, no sky, and no light but braziers, crystal and the lumen at your shoulder. A broken way is a pit to jump.
+- **The Shatter.** Open space: shards of a broken moon with the stars under them and the ringed world close. Things weigh so little that a jump carries three times as far, so the gaps are three times as wide.
 - **Generated missions.** A contract's seed gives the layout (islands and bridges), what waits on each island (bought from a budget that grows with the contract's level and with how deep the island lies), where the supply pods are, and how the fights roll.
-- **Bosses.** The Stone Warden, the Spore Matron and the Tide Sentinel: several moves each, reinforcements, and faster once past half health.
+- **Bosses.** The Stone Warden, the Spore Matron, the Tide Sentinel, the Lantern Keeper (who carries the only big light in the Underhalls) and the Star Drifter (a ray nineteen metres across that swims over the Shatter): several moves each, reinforcements, and faster once past half health.
 
 - **Five peoples.** Scout units, humans, the veiled, karn and lynd: a build, a head and a way of dressing each, on one set of joints. The crew is a mix of them, and the hero can be any of them in any class.
-- **Elders the size of buildings.** The Stone Warden, the Spore Matron and the Tide Sentinel are colossi eight to thirteen metres tall, each with its own shape, moves and a volley it throws at where you stand. The play camera stands back for them.
+- **Elders the size of buildings.** All five are colossi eight to thirteen metres tall (or, the Drifter, across), each with its own shape, moves and a volley it throws at where you stand. The play camera stands back for them.
 - **Eleven kinds of creature.** The six small ones, plus a pack hound that springs, a watcher drone that keeps its distance, a delver that comes up under you, a strider that fires down a line, and a sparkmite that bursts. Each place has its own mix.
 - **A lumen at your shoulder.** A small light that follows you, puts a bolt into whatever you are fighting, and stores up a burst (G). Feed it what creatures drop: three tempers grow with what it eats, and at levels 5 and 12 it takes a new shape by the strongest of them. Eight kinds in all, each with a burst of its own.
 - **A jump.** Space jumps. Some side islands have a bridge broken in the middle, some have no bridge at all but a row of stepping stones, and big islands may have a terrace with a supply pod on it: all of them need a jump. A blow that runs along the ground (a slam, a delver coming up) can be jumped too. Miss, and you are hauled back from the cloud a little worse for it.
@@ -36,8 +38,10 @@ A mission game drawn by shaders. You arrive by shuttle at a floating town, Merid
 - **Pictures drawn by the game.** Every portrait and scene in the interface is a frame from the game's own renderer: the peoples and classes on the select screen, the crew when they speak, the elders on their bar and on hunt contracts, a view of each place on the board and the report. The hero's own portrait is taken while you play, so it is always who you chose. In the menu the hero and the lumen stand alive on nothing: they breathe, and turn when dragged (or with the arrow keys).
 - **One menu, and a pause menu.** Character, Gear, Lumen, Contract and Guide are tabs of one window that holds the game while it is open. Esc opens the pause menu: settings for display, sound, controls and accessibility (text size, reduced motion, high contrast, skip cinematics), kept between visits.
 - **Pads that show the way.** The pad that sends you down, and the one that lifts you out, keep lifting rings of light off themselves: slow and faint while cold, quick and bright once they will take you.
+- **Saves.** Every surveyor you make is kept in the browser: every few seconds, when a contract ends, and whenever the page is hidden or left. The select screen opens on them (Continue, or a new surveyor; one can be let go), and Settings, Saves writes a copy of them all to a file and reads one back. A contract in progress is not kept: leave in the middle and you are on the ship with what you had picked up.
+- **Phones.** Held upright, the picture is a strip across the top and the stick, the buttons and the HUD sit on the page under it; held sideways, the picture fills the screen and the controls sit in its corners. Menus fill the screen and scroll. Every screen is checked by a script for text that is cut off, runs out of its plate, breaks in the middle of a word or lies over other text.
 - **Lettering coloured by what it names.** People, places, numbers, experience, glint, good and bad, creatures, each class and each kind of contract have a colour of their own, all at 4.5:1 or better on every ground they sit on (the table is at the end of `src/ui/ui.css`).
-- **Music that knows where you are.** Every area has its own key, tempo and instruments (the town in D major with piano and violin, Glasswood bright and high, Ember low on cello, the Hush on slow glass tones, Rime thin and still), all made in the browser with no audio files. A fight brings in a soft drum and low strings; an elder moves the area to a darker mode with a tolling bell; low health thins the music out; a cinematic holds it to a quiet pad. One row per area in `AREAS` in `src/audio/audio.js`.
+- **A piece of music for every place and every elder.** Each of the seven areas has its own composed tune, key, meter, tempo and lead instrument (the town a piano and violin in D major; Glasswood a celesta in 6/8; Ember a solo cello sarabande; the Hush glass tones in 5/4 over a low choir; Rime a breathy flute; the Underhalls a quiet organ chorale; the Shatter bowed metal in 7/4), and each of the five elders a theme of its own that takes over while it lives, with a fuller variant once it is enraged. A fight cuts the tune down over a soft drum and low strings; low health thins it; a cinematic holds it. All of it is made in the browser with no audio files: one row per area in `AREAS` and per elder in `BOSSES` in `src/audio/audio.js`, each theme written out as chords and scale degrees.
 - **Cinematics.** Arriving at the town, dropping onto a contract, an elder waking, an elder falling. All of them can be skipped (Esc, Enter, Space or the Skip button), and none is needed to play: add `?nocine` to the address to go without.
 
 ## Run it
@@ -99,7 +103,7 @@ src/
     props.js        every piece of scenery, with the shader that draws it
   gfx/          the renderer (raw WebGL2, no libraries)
   app/          the composition root: game loop, controls, camera view, effects,
-                the first steps' runner, the portraits and the gear tiles
+                the first steps' runner, the portraits and the gear tiles, saves
   ui/           HUD, windows, touch controls
   audio/        synthesized sound and music
   core/         events, input, maths, noise
@@ -121,14 +125,14 @@ A cinematic is a row in `src/content/cinematics.js`: a list of shots, each with 
 | A step of the first steps | A row in `content/tutorial.js`: its line, what it points at, the control to ring, and the event or test that ends it. |
 | A stat | A line in `derive` in `sim/stats.js` and its name in `STAT_TEXT`. |
 | A creature | A row in `content/creatures.js` (with a `cost`) and an entry in a theme's table. A new shape: an archetype in `gfx/archetypes/`. |
-| A boss | A creature row with `boss: true` and a list of `specials`; name it as a theme's `boss`. For a colossus add `giant: true`, `turn`, `fall` and `hitY`, and model it at its true size as the three in `gfx/archetypes/colossi.js` are, with poses for emerge, roar and fall. |
+| A boss | A creature row with `boss: true` and a list of `specials`; name it as a theme's `boss`. For a colossus add `giant: true`, `turn`, `fall`, `hitY` and `sit` (how it sits for its portrait), and model it at its true size as the ones in `gfx/archetypes/colossi.js` and `elders.js` are, with poses for emerge, roar and fall. Its pictures for the board and the Contract tab are drawn from the model when the game starts. |
 | A kind of lumen | A row in `content/companions.js` (its stage, the temper that leads to it, its burst) and a shape for it in `gfx/archetypes/lumen.js`. A new food is a row in `FOODS`. |
 | Something to find | A row in `content/sites.js` (the landmark, its reach, its marker's colour), a line in `world/layout.js` saying which islands get it, and a branch in `sim/systems/sites.js` for what it does. |
 | A picture for the interface | Add a shot to `tools/art-studio.js` and run it: it draws with the game's renderer into `static/art/`. |
 | A people | A row in `content/peoples.js` and a branch for its `index` in `gfx/archetypes/humanoid.js` (head, build, clothes). Give it to someone in `content/town.js` with `people:`. |
 | A cinematic | A row in `content/cinematics.js`, and a row in `TRIGGERS` if an event should start it. |
 | A creature move | An entry in `SPECIALS` in `sim/systems/specials.js`. |
-| A place | A row in `content/themes.js`. |
+| A place | A row in `content/themes.js`, and a row for its music in `AREAS` in `audio/audio.js` (without one it plays the town's). `realm` says what it stands in (0 cloud under a sky, 1 underground with `walls`, 2 open space), `gravity` how hard it pulls and `hop` how much wider its jumps are laid out; a picture for the board is a line in `tools/art-studio.js`. |
 | A building or prop | `registerProp` in `world/props.js`, then place it in `content/town.js` or a theme's table. |
 
 ## How it is drawn
@@ -137,10 +141,10 @@ The picture is Brushwild's renderer: one raymarch decides what is where, and a f
 
 ## Not done yet
 
-- No saving, no tests in the repo, no co-op.
-- Six of the eleven ordinary creatures still use Brushwild's shapes.
+- No tests in the repo, no co-op.
+- Six of the eleven ordinary creatures still use Brushwild's shapes, and the two new places have no creatures of their own yet: they are stocked from the others.
 - The elders fill much of the picture and are drawn at full resolution: their cost on a slow GPU or a phone has not been measured.
-- None of the sound has been listened to: the music and effects are checked by a test that counts what is scheduled (keys, tempo, layers, voice limits), and in a browser only for running without errors.
+- None of the music has been listened to by its author: it is checked by a test that compares what each piece schedules (so no two share a lead voice or a ten-second stretch of the same instruments), by rendering each piece through the browser to measure its level, and by playing whole contracts with the audio running to see that nothing fails.
 - The first steps have been played end to end by a test bot that presses only what they ring, not by a new player; the game has not been tried on a real phone.
 - The simulation still steps with the frame's time, so two runs repeat exactly only at a fixed frame time.
 - Talent logic still lives beside its data in `content/talents.js`.

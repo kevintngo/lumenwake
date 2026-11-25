@@ -17,6 +17,7 @@ export class World {
     this.seed = spec.seed;
     this.nav = new Nav(spec);
     this.gen = createZone(spec, this.nav);
+    this.wall = this.gen.biome.walls || 0;      // underground: stone this high wherever there is no floor (see zone.js)
     this.rooms = spec.rooms;
     this.structures = this.gen.structures;
     this.chunks = new Map();
@@ -60,7 +61,8 @@ export class World {
 
   texel(ix, iz) {
     const cx = Math.floor(ix / N), cz = Math.floor(iz / N);
-    return this.chunk(cx, cz).height[((iz - cz * N) * N + (ix - cx * N)) * 4];
+    const h = this.chunk(cx, cz).height, o = ((iz - cz * N) * N + (ix - cx * N)) * 4;
+    return h[o] + (this.wall && h[o + 3] > 0.05 ? this.wall : 0);
   }
   /** Ground height, bilinear over the same samples the GPU interpolates. */
   height(x, z) {
@@ -105,9 +107,11 @@ export class World {
   moveCircle(x, z, dx, dz, radius, out, feet) {
     const nav = this.nav, m = 0.35, air = feet !== undefined, here = air ? 0 : this.surface(x, z);
     const wall = (ax, az) => (air
-      ? nav.inside(ax, az, 0) && this.surface(ax, az) - feet > 0.3
+      ? (this.wall || nav.inside(ax, az, 0)) && this.surface(ax, az) - feet > 0.3
       : this.surface(ax, az) - here > GAME.STEEP * Math.max(Math.hypot(ax - x, az - z), 0.03));
-    const ok = (ax, az) => (air || nav.inside(ax, az, m)) && !nav.shut(x, z, ax, az) && !wall(ax, az);
+    // (between walls even a jump stays over the floor, or over a pit: there is nowhere else to be)
+    const open = (ax, az) => !this.wall || nav.inside(ax, az, 0.05) || this.gen.inPit(ax, az);
+    const ok = (ax, az) => (air ? open(ax, az) : nav.inside(ax, az, m)) && !nav.shut(x, z, ax, az) && !wall(ax, az);
     let nx = x + dx, nz = z + dz;
     if (!ok(nx, nz)) {
       if (ok(nx, z)) nz = z;
@@ -120,7 +124,7 @@ export class World {
       const ox = nx - p.x, oz = nz - p.z, d = Math.hypot(ox, oz), min = cr + radius;
       if (d < min && d > 1e-4) {
         const px = p.x + ox / d * min, pz = p.z + oz / d * min;
-        if (air || nav.inside(px, pz, m)) { nx = px; nz = pz; }
+        if (air ? open(px, pz) : nav.inside(px, pz, m)) { nx = px; nz = pz; }
       }
     });
     out.x = nx; out.z = nz;

@@ -78,12 +78,7 @@ try {
       const e = stand('humanoid', { extra: P.index, scale: P.scale, kit: 3, seed: n.seed ?? 0.4, colors: pencils([wearing, n.trim || wearing, n.hair || P.hair[0]]), yaw: 0 });
       one('crew-' + n.name.toLowerCase(), e, 240, 240, 1.02 * P.scale, 8, 0.4, P.index === 3 ? 1.2 : P.index === 4 ? 1.24 : 1.14, 9);
     }
-    // ---- the elders, giving voice
-    for (const id of ['warden', 'matron', 'sentinel']) {
-      const d = CREATURES[id];
-      const e = stand(d.archetype, { scale: 1, action: id === 'sentinel' ? 0 : 5, actionT: 0.5, actionDur: 1e3, seed: 0.37, colors: pencils(d.colors), yaw: 0, height: d.height, radius: d.radius });
-      one('elder-' + id, e, 480, 360, id === 'sentinel' ? 15 : 17, 24, 0.5, id === 'sentinel' ? 0.3 : 0.44, 17);
-    }
+    // (the elders are not drawn here any more: the game draws each on a clear ground when it starts, app/portrait.js)
   } else if (set === 'lumens') {
     // ---- the lumens: each kind, burning at about two thirds
     g.sim = [];
@@ -104,8 +99,8 @@ try {
     const y0 = g.world.surface(0, 0);
     const D = 64, yaw = 0.62;
     shoot('place-town', 640, 300, { pos: [Math.sin(yaw) * D, y0 + 9, 4 + Math.cos(yaw) * D], look: [-6, y0 + 9, 0], lens: 36 * RAD }, false);
-    for (const biome of ['glasswood', 'ember', 'hush', 'rime']) {
-      for (let b = 0; b < 80 && !ms.offers.some((o) => o.biome === biome); b++) { p.sheet.board = (p.sheet.board || 0) + 1; ms.refresh(); }
+    for (const biome of ['glasswood', 'ember', 'hush', 'rime', 'vault', 'shatter']) {
+      for (let b = 0; b < 400 && !ms.offers.some((o) => o.biome === biome); b++) { p.sheet.board = (p.sheet.board || 0) + 1; ms.refresh(); }
       ms.accept(ms.offers.findIndex((o) => o.biome === biome));
       ms.deploy();
       p.grow = 0;

@@ -22,6 +22,7 @@ export function createZone(spec, nav) {
   const S = spec.seed | 0, B = biomeById(spec.biome);
   const rooms = spec.rooms, links = nav.links;
   const deck = B.paving === 'deck';
+  const WALL = B.walls || 0;      // underground: wherever there is no floor there is stone this high, and a broken way is a pit
 
   // ------------------------------------------------------------ shape
   let nearH = 0, nearLink = null, nearRoom = null;
@@ -50,8 +51,28 @@ export function createZone(spec, nav) {
     }
     return best;
   }
+  // Between the two ends of a broken way underground there is a pit (elsewhere it is open air). Like the walls,
+  // it is not in the height: the floor's height runs on over it, so nothing on foot ever tips in at its lip,
+  // and the shader opens it on the line where `pitAt` goes below nothing (the third channel below).
+  let pitSide = 0;      // (how far inside the way's own edges the last point asked about was)
+  /** How far a point is from the nearest pit: below nothing inside one. */
+  function pitAt(x, z) {
+    let best = 4;
+    if (WALL) for (const l of links) {
+      if (!l.gap || l.part === 2) continue;
+      const px = x - l.ax, pz = z - l.az, along = px * l.ux + pz * l.uz, side = Math.abs(px * l.uz - pz * l.ux) - l.w / 2;
+      const d = Math.max(l.tmax - along, along - l.tmax - l.gap, side);
+      if (d < best) { best = d; pitSide = side; }
+    }
+    return best;
+  }
+  const inPit = (x, z) => pitAt(x, z) < 0;
   function height(x, z) {
     const d = dist(x, z), base = nearH;
+    // Underground the floor's height simply runs on under the stone. The walls themselves are not in the
+    // height: they stand wherever a point is outside the floor (the fourth channel below), so they are sheer
+    // and follow the floor's edge exactly, however coarse the grid.
+    if (WALL && d > 0) return base;
     if (d <= 0) {
       if (deck || !nearRoom) return base;
       // turf rolls a little, but never at the rim, on a pad or where a bridge lands
@@ -72,11 +93,23 @@ export function createZone(spec, nav) {
   const structures = [];
   const rnd = mulberry32((S ^ 0x5bd1e995) >>> 0);
   const keep = [];      // { x, z, r }: ground nothing else may stand on
+  // Only one thing can be drawn in each patch of ground (a 4 x 4 cell), and a wide fixture takes several:
+  // `taken` is every patch something already built stands in, `clear` whether a new one would share any.
+  const taken = new Set();
+  const patches = (x, z, R) => {
+    const out = [];
+    for (let cj = Math.floor((z - R) / CELL); cj <= Math.floor((z + R) / CELL); cj++) for (let ci = Math.floor((x - R) / CELL); ci <= Math.floor((x + R) / CELL); ci++) {
+      if (Math.hypot(clamp(x, ci * CELL, (ci + 1) * CELL) - x, clamp(z, cj * CELL, (cj + 1) * CELL) - z) < R) out.push(ci + ',' + cj);
+    }
+    return out;
+  };
+  const clear = (id, x, z, scale = 1) => patches(x, z, propById(id).reach * scale).every((k) => !taken.has(k));
   const build = (id, x, z, more = {}) => {
     const def = propById(id);
     const st = { id, def, type: def.type, x, z, y: 0, scale: 1, rot: 0, seed: rnd(), pal: 0, key: id + structures.length, ...more };
     st.y = height(x, z) - 0.04;
     structures.push(st);
+    for (const k of patches(x, z, def.reach * st.scale)) taken.add(k);
     keep.push({ x, z, r: def.reach * st.scale + 0.6 });
     return st;
   };
@@ -95,8 +128,21 @@ export function createZone(spec, nav) {
     }
     // a lamp where the bridge lands on the far island
     const t = l.t1 + 0.4, s = (l.a + l.b) % 2 ? 1 : -1;
-    if (!spec.hub && l.part !== 2) build('lamp', l.ax + l.ux * t + l.uz * s * (l.w / 2 + 1.1), l.az + l.uz * t - l.ux * s * (l.w / 2 + 1.1));
+    const lx = l.ax + l.ux * t + l.uz * s * (l.w / 2 + 1.1), lz = l.az + l.uz * t - l.ux * s * (l.w / 2 + 1.1);
+    // (not where it would share a patch of ground with something already built: only one of the two would be drawn)
+    if (!spec.hub && l.part !== 2 && clear('lamp', lx, lz)) build('lamp', lx, lz);
     void across;
+  }
+  // underground every hall keeps fires burning in its corners: two in a hall, four where the elder waits
+  if (WALL) for (const r of rooms) {
+    if (r.kind === 'start' || r.kind === 'stone') continue;
+    const n = r.kind === 'boss' ? 4 : 2, a0 = Math.PI / 4 + (r.i % 2) * Math.PI / 2;
+    for (let k = 0; k < n; k++) {
+      const a = a0 + k * (n === 4 ? Math.PI / 2 : Math.PI), d = rimAt(r, a) - 2.4;
+      const x = r.x + Math.sin(a) * d, z = r.z + Math.cos(a) * d;
+      // (nor in the patch of ground something else already stands in)
+      if (!onLink(x, z, 2.6) && clear('brazier', x, z)) build('brazier', x, z, { room: r.i });
+    }
   }
   for (const f of spec.fixtures || []) build(f.id, f.x, f.z, f);
   for (const r of rooms) if (r.plateau) build('pod', r.plateau.x, r.plateau.z, { room: r.i, role: 'pod', terrace: true, rot: rnd() * 6.283 });        // what is on a terrace
@@ -202,8 +248,8 @@ export function createZone(spec, nav) {
       const snow = (B.snow || 0) * smoothstep(-0.75, 0.1, drift + 0.4) * (1 - rock);
       r = lerp(r, 0.93, snow); gg = lerp(gg, 0.95, snow); b = lerp(b, 1.0, snow);
       // paths: a bridge is trodden stone, and the trail runs a little way onto each island; a pad sits on paving
-      let path = 0, paved = deck && d < 0 ? 1 : 0;
-      if (!deck) {
+      let path = 0, paved = (deck || WALL) && d < 0.3 ? 1 : 0;
+      if (!deck && !WALL) {
         if (kind === 2) paved = 1 - smoothstep(-0.9, -0.5, d);          // a bridge is decked from curb to curb
         else if (kind && d < 0) {
           for (const l of links) {
@@ -237,8 +283,11 @@ export function createZone(spec, nav) {
       const grass = B.grass * (1 - Math.min(1, bare));
       const sand = B.sand * smoothstep(0.45, 0.7, vary) * (1 - rock) * (1 - Math.min(1, path * 2));
       chunk.height[o] = h;
-      chunk.height[o + 2] = B.flowers * grass;
-      chunk.height[o + 3] = 0;
+      // (underground nothing flowers and nothing is wet: those two channels carry how far a point is from a pit,
+      // and how far outside the floor it is; over a pit, how far inside the way's own edges, so its walls run on)
+      const pit = WALL ? pitAt(x, z) : 4;
+      chunk.height[o + 2] = WALL ? clamp(pit, -4, 4) : B.flowers * grass;
+      chunk.height[o + 3] = WALL ? clamp(pit < 0 ? pitSide : d, -4, 4) : 0;
       chunk.color[o] = r * 255; chunk.color[o + 1] = gg * 255; chunk.color[o + 2] = b * 255; chunk.color[o + 3] = path * 255;
       chunk.mat[o] = grass * 255; chunk.mat[o + 1] = sand * 255; chunk.mat[o + 2] = snow * 255; chunk.mat[o + 3] = rock * 255;
     }
@@ -284,9 +333,10 @@ export function createZone(spec, nav) {
       if (ci < 0 || cj < 0 || ci >= CPC || cj >= CPC) continue;
       if (stamp(p, ci, cj)) chunk.props.push(p);
     }
+    chunk.maxH += WALL;
     for (const p of chunk.props) if (p.y + p.def.height * p.scale > chunk.maxH) chunk.maxH = p.y + p.def.height * p.scale;
     return chunk;
   }
 
-  return { seed: S, biome: B, height, dist, generateChunk, structures };
+  return { seed: S, biome: B, height, dist, inPit, generateChunk, structures };
 }

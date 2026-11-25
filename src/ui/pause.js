@@ -2,8 +2,8 @@
 // while it is up. Resume, Settings, How to play, Start the first steps again (in
 // town), Return to the select screen.
 //
-// Settings is one panel with four short sections down its left side (Display,
-// Sound, Controls, Accessibility). Every control is a real input with its
+// Settings is one panel with five short sections down its left side (Display,
+// Sound, Controls, Accessibility, Saves). Every control is a real input with its
 // label beside it and its value shown; a change takes effect at once and is
 // kept (ui/settings.js does both).
 //
@@ -28,12 +28,13 @@ const SECTIONS = [
     { key: 'mute', name: 'Mute', kind: 'switch' },
   ] },
   { id: 'controls', name: 'Controls' },
-  { id: 'access', name: 'Accessibility', rows: [
+  { id: 'access', name: 'Accessibility', short: 'Access', rows: [
     { key: 'calm', name: 'Reduce motion', hint: 'No screen shake, hit pauses or moving cameras', kind: 'switch' },
     { key: 'text', name: 'Text size', kind: 'choice', options: [[1, '100%'], [1.15, '115%'], [1.3, '130%']] },
     { key: 'skip', name: 'Skip cinematics', kind: 'switch' },
     { key: 'contrast', name: 'High contrast', hint: 'White lettering, heavier lines, solid plates', kind: 'switch' },
   ] },
+  { id: 'saves', name: 'Saves' },
 ];
 const CAMERA = [['behind', 'Behind'], ['above', 'Above'], ['left', 'Turn left'], ['right', 'Turn right'], ['high', 'Higher'], ['low', 'Lower'], ['near', 'Closer'], ['far', 'Farther']];
 const KEYS = [['W A S D', 'Walk'], ['Space', 'Jump'], ['F', 'Attack or talk'], ['Tab', 'Next target'], ['1 2 3 4', 'Abilities'], ['R T', 'Flasks'], ['G', 'Lumen’s burst'], ['Q E', 'Turn the view'], ['C B L J', 'Menu tabs'], ['M', 'Sound on or off']];
@@ -41,7 +42,7 @@ const TOUCHES = [['Stick', 'Walk'], ['Tap', 'Walk there, attack or talk'], ['Dra
 
 export function createPause(game, store, hooks = {}) {
   const el = document.getElementById('pause'), doc = document;
-  const state = { open: false, view: 'root', section: 'display', asking: false, direct: false };
+  const state = { open: false, view: 'root', section: 'display', asking: false, direct: false, importing: null, note: '', noteBad: false };
   const full = () => !!(doc.fullscreenElement || doc.webkitFullscreenElement);
   const canFull = !!(doc.fullscreenEnabled || doc.webkitFullscreenEnabled);
   const value = (key) => (key === 'fullscreen' ? full() : store.values[key]);
@@ -57,10 +58,9 @@ export function createPause(game, store, hooks = {}) {
       <h2 id="pause-title">Paused</h2>
       <p class="pause-where">${where()}</p>
       <nav class="pause-list" aria-label="Pause menu">
-        ${item('resume', 'Resume')}${item('settings', 'Settings')}${item('guide', 'How to play')}
-        ${game.missions.active ? '' : item('steps', 'Start the first steps again')}
-        ${state.asking ? `<div class="pause-ask" role="group" aria-label="Leave this journey?"><p>Leave this journey? It is not kept.</p>
-          <div><button type="button" class="btn" data-p="stay">Stay</button><button type="button" class="btn primary" data-p="leave">Leave</button></div></div>` : item('quit', 'Return to the select screen')}
+        ${state.asking ? '' : `${item('resume', 'Resume')}${item('settings', 'Settings')}${item('guide', 'How to play')}${game.missions.active ? '' : item('steps', 'Start the first steps again')}`}
+        ${state.asking ? `<div class="pause-ask" role="group" aria-label="Leave for the select screen?"><p>${game.missions.active ? 'Leave? Your surveyor is kept, with what they have picked up. This contract starts over.' : 'Leave for the select screen? Your surveyor is kept.'}</p>
+          <div><button type="button" class="btn" data-p="stay">Stay</button><button type="button" class="btn primary" data-p="leave">Leave</button></div></div>` : item('quit', 'Save and leave')}
       </nav>
       ${game.touch ? '' : '<p class="pause-keys"><kbd>Esc</kbd> Resume</p>'}
     </div>`;
@@ -88,14 +88,24 @@ export function createPause(game, store, hooks = {}) {
       <h4 class="label">${game.touch ? 'Touch' : 'Keys'}</h4>
       <div class="keys-list two">${keys}</div>`;
   }
+  /** Saves: where the journey is kept, and a copy of it out to a file and back (app/save.js). */
+  function saves() {
+    return `<p class="set-note">Your surveyors are kept in this browser: every few seconds, when a contract ends, and whenever you leave. A copy in a file can be kept, or taken to another browser or device.</p>
+      <div class="save-pair"><button type="button" class="btn" data-p="export">Save a copy to a file</button>
+        <label class="btn file">Load from a file<input type="file" accept="application/json,.json" data-import /></label></div>
+      ${state.importing ? `<div class="pause-ask" role="group" aria-label="Replace your surveyors?"><p>Replace every surveyor here with the ones in the file?</p>
+        <div><button type="button" class="btn" data-p="import-no">Keep mine</button><button type="button" class="btn primary" data-p="import-yes">Replace</button></div></div>` : ''}
+      ${state.note ? `<p class="set-note ${state.noteBad ? 'c-bad' : 'c-good'}" role="status">${state.note}</p>` : ''}
+      ${game.store.failed ? '<p class="set-note c-bad">This browser is refusing to keep anything (a private window, or its storage is full). Keep a copy in a file.</p>' : ''}`;
+  }
   function settings() {
     const sec = SECTIONS.find((s) => s.id === state.section) || SECTIONS[0];
     return `<section class="settings plate" aria-labelledby="pause-title">
       <header><h2 id="pause-title">Settings</h2><button type="button" class="x" data-p="back" aria-label="Back" title="Back (Esc)">×</button></header>
       <div class="set-rail" role="tablist" aria-orientation="vertical" aria-label="Settings sections">${SECTIONS.map((s) => `<button type="button" role="tab" class="set-tab" id="settab-${s.id}" data-sec="${s.id}"
-        aria-selected="${s.id === sec.id}" aria-controls="set-pane" tabindex="${s.id === sec.id ? 0 : -1}">${SET_ICONS[s.id]}<span>${s.name}</span></button>`).join('')}</div>
-      <div class="set-pane" id="set-pane" role="tabpanel" aria-labelledby="settab-${sec.id}">${sec.rows ? sec.rows.map(control).join('') : controls()}</div>
-      <footer><button type="button" class="btn" data-p="reset">Reset to defaults</button><button type="button" class="btn primary" data-p="back">${state.direct ? 'Done' : 'Back'}</button></footer>
+        aria-selected="${s.id === sec.id}" aria-controls="set-pane" tabindex="${s.id === sec.id ? 0 : -1}" aria-label="${s.name}">${SET_ICONS[s.id]}<span class="long">${s.name}</span><span class="short" aria-hidden="true">${s.short || s.name}</span></button>`).join('')}</div>
+      <div class="set-pane" id="set-pane" role="tabpanel" aria-labelledby="settab-${sec.id}">${sec.rows ? sec.rows.map(control).join('') : sec.id === 'saves' ? saves() : controls()}</div>
+      <footer>${sec.id === 'saves' ? '<span></span>' : '<button type="button" class="btn" data-p="reset">Reset to defaults</button>'}<button type="button" class="btn primary" data-p="back">${state.direct ? 'Done' : 'Back'}</button></footer>
     </section>`;
   }
 
@@ -163,7 +173,26 @@ export function createPause(game, store, hooks = {}) {
     else if (p === 'steps') { hide(); game.bus.emit('guide:restart'); }          // (app/tutorial.js: only from the town, so it is not offered on a contract)
     else if (p === 'quit') { state.asking = true; draw('[data-p="stay"]'); }
     else if (p === 'stay') back();
-    else if (p === 'leave') location.reload();
+    else if (p === 'leave') { game.save(); location.reload(); }
+    else if (p === 'export') {
+      // (the surveyor being played is written first, so the file has this minute in it)
+      game.save();
+      const a = doc.createElement('a');
+      a.href = URL.createObjectURL(new Blob([game.store.exportAll(game.account)], { type: 'application/json' }));
+      a.download = `lumenwake-save-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      Object.assign(state, { note: 'A copy is in your downloads.', noteBad: false }); draw('[data-p="export"]');
+    }
+    else if (p === 'import-no') { Object.assign(state, { importing: null, note: '' }); draw('[data-p="export"]'); }
+    else if (p === 'import-yes') {
+      const text = state.importing;
+      state.importing = null;
+      const mine = game.hero;
+      game.hero = null;                               // (nothing of this visit is written over what is being loaded)
+      if (game.store.importAll(text)) { Object.assign(state, { note: 'Loaded. Starting again…', noteBad: false }); draw(); setTimeout(() => location.reload(), 900); }
+      else { game.hero = mine; Object.assign(state, { note: 'That file is not a Lumenwake save.', noteBad: true }); draw('[data-p="export"]'); }
+    }
     else if (p === 'reset') { store.reset(); draw('[data-p="reset"]'); }
   });
   // a control changed: put it into force, and say its new value beside it (a slider as it is dragged, the rest when they settle)
@@ -177,6 +206,8 @@ export function createPause(game, store, hooks = {}) {
     store.set(c.dataset.set, n / 100);
   });
   el.addEventListener('change', (e) => {
+    const f = e.target instanceof HTMLInputElement && e.target.type === 'file' ? e.target : null;
+    if (f && f.files && f.files[0]) { f.files[0].text().then((text) => { Object.assign(state, { importing: text, note: '' }); draw('[data-p="import-no"]'); }); return; }
     const c = control$(e);
     if (!c || c.type === 'range') return;
     const key = c.dataset.set;

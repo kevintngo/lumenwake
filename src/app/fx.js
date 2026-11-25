@@ -178,7 +178,8 @@ export class Fx {
     this.ambientTimer -= dt;
     if (this.ambientTimer > 0 || this.live.length > MAX - 80) return;
     this.ambientTimer = 0.09;
-    const kind = g.env.night > 0.6 ? 'fireflies' : g.biome.particles;
+    // (under the ground and out among the stars there is no evening for fireflies to come out in)
+    const kind = !g.biome.realm && g.env.night > 0.6 ? 'fireflies' : g.biome.particles;
     const a = Math.random() * 6.283, r = 3 + Math.random() * 22;
     const x = p.x + Math.cos(a) * r, z = p.z + Math.sin(a) * r;
     const y = g.world.surface(x, z);
@@ -188,6 +189,9 @@ export class Fx {
     } else if (kind === 'petals' || kind === 'leaves') {
       const col = kind === 'petals' ? C(232, 150, 150) : (Math.random() < 0.5 ? C(232, 164, 48) : C(224, 92, 70));
       this.spawn('leaf', x, y + 3 + Math.random() * 3, z, { size: 0.09, life: 5, color: col, vx: wx * 0.9, vy: -0.75, vz: wz * 0.9, sway: 0.7, rot: Math.random() * 6, spin: 1.5 });
+    } else if (kind === 'stardust') {
+      // motes that hang, and go up as often as down: nothing here has much weight
+      this.spawn('mote', x, y + 0.2 + Math.random() * 3.2, z, { size: 0.05, life: 6, color: WHITE, alpha: 0.9, vx: (Math.random() - 0.5) * 0.2, vy: (Math.random() - 0.3) * 0.25, vz: (Math.random() - 0.5) * 0.2, sway: 0.15 });
     } else if (kind === 'snow') {
       this.spawn('mote', x, y + 2 + Math.random() * 5, z, { size: 0.06, life: 5, color: WHITE, alpha: 1, vx: wx * 0.6, vy: -0.9, vz: wz * 0.6, sway: 0.4 });
     } else if (Math.random() < 0.6) {

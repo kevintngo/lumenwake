@@ -9,10 +9,16 @@ uniform sampler2D uMatTex;     // grass, sand, snow, rock
 uniform sampler2D uPropTexA;   // per cell: offset x, offset z, base y, type
 uniform sampler2D uPropTexB;   // per cell: rot, scale, seed, palette
 uniform float uMaxY;           // nothing in the loaded world is taller than this
+uniform float uWall;           // underground: the height of the stone that stands wherever there is no floor (0 elsewhere)
 
 const float INV_T = 1.0 / WORLD_TEX;
 vec4 hSample(vec2 xz) { return textureLod(uHeightTex, (xz + 0.5) * INV_T, 0.0); }
-float hAt(vec2 xz) { return textureLod(uHeightTex, (xz + 0.5) * INV_T, 0.0).r; }
+// (Underground the fourth channel is how far outside the floor a point is, and a sheer wall stands on that line.)
+// (and the third how far it is from a pit, which opens where that goes below nothing.)
+float hAt(vec2 xz) {
+  vec4 h = textureLod(uHeightTex, (xz + 0.5) * INV_T, 0.0);
+  return uWall > 0.0 ? h.r + uWall * smoothstep(0.0, 0.1, h.a) - 40.0 * step(h.b, 0.0) : h.r;
+}
 vec3 terrainNormal(vec2 xz) {
   const float e = 0.7;
   return normalize(vec3(hAt(xz - vec2(e, 0.0)) - hAt(xz + vec2(e, 0.0)), 2.0 * e,
@@ -136,6 +142,7 @@ float cloudShadow(vec2 xz) {
 registerChunk('ground', /* glsl */ `
 uniform float uPave;   // 1 = paving is a ship's deck plates, 0 = cobbles
 float gGrass = 0.0;   // how much lawn is at the last ground point (the final pass doodles tufts there)
+float gSolid = 0.0;   // how far the last ground point is given up to the dark: the top of the stone the halls are cut from, the sides of a pit
 
 void groundSurf(vec3 p, float t, inout vec3 N, out Surf s, out float canopy) {
   s = newSurf();
@@ -149,6 +156,7 @@ void groundSurf(vec3 p, float t, inout vec3 N, out Surf s, out float canopy) {
   vec3 col = ct.rgb;
 
   // a lawn is two or three neighbouring pencils and an uneven hand, never one flat green
+  gSolid = 0.0;
   float swatch = fbm(p.xz * 0.07);
   float swatch2 = fbm(p.xz * 0.023 + 40.0);
   col = mix(col, mix(col, P_BUTTER, 0.42), smoothstep(0.5, 0.78, swatch2) * grass * 0.75);
@@ -212,6 +220,29 @@ void groundSurf(vec3 p, float t, inout vec3 N, out Surf s, out float canopy) {
     float drift = vnoise(vec2(dot(p.xz, vec2(0.8, 0.6)) * 0.22, dot(p.xz, vec2(-0.6, 0.8)) * 1.3));
     col = mix(col, mix(P_SKY, P_SLATE, 0.2), snow);
     s.cover = mix(s.cover, 0.015 + 0.13 * smoothstep(0.5, 0.15, drift * 0.6 + swatch * 0.6), snow);
+  }
+  if (uWall > 0.0 && (hs.a > 0.0 || hs.b < 0.5)) {
+    if (N.y < 0.6) {
+      // the face of a wall: courses of dressed stone, the joints of one course over the middles of the next
+      float course = (p.y - hs.r) / 0.58, row = floor(course);
+      float along = dot(p.xz, normalize(vec2(-N.z, N.x) + 1e-4)) / 1.15 + 0.5 * mod(row, 2.0);
+      float block = hash12(vec2(row * 3.0 + 1.0, floor(along)));
+      col = mix(P_STONE, mix(P_CREAM, P_PEACH, 0.35), 0.25 + 0.5 * block);
+      s.cover = mix(0.42, 0.74, fract(block * 7.3));
+      s.ink = max(penLine((abs(fract(course) - 0.5) - 0.5) * 0.58), penLine((abs(fract(along) - 0.5) - 0.5) * 1.15) * 0.8) * 0.85 * mix(0.5, 1.0, lod);
+      s.soft = 0.0;
+      gSolid = saturate((hs.r - p.y) / 1.5);        // down a pit the courses go into the dark
+    } else if (hs.a > 0.12 && hs.b > 0.0) gSolid = 1.0;
+  }
+  if (uRealm > 1.5) {
+    // the Shatter's dust: grey laid evenly, pocked with old craters (a ring in pen, a shade inside it)
+    vec2 cv = voronoi(p.xz * 0.3 + 17.0);
+    float crater = step(0.62, fract(cv.y * 5.3)), cr = cv.x / 0.3;
+    float rim = crater * smoothstep(0.16, 0.0, abs(cr - 1.05 - 0.9 * fract(cv.y * 9.1))) ;
+    float bowl = crater * smoothstep(1.05 + 0.9 * fract(cv.y * 9.1), 0.2, cr);
+    s.cover = mix(s.cover, min(1.0, s.cover + 0.16), bowl * (1.0 - rock));
+    s.ink = max(s.ink, rim * 0.5 * (1.0 - rock) * lod);
+    s.ink = max(s.ink, step(0.93, vnoise(p.xz * 6.0)) * 0.35 * (1.0 - rock) * lod);      // grit
   }
   s.albedo = col;
 }

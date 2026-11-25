@@ -100,14 +100,22 @@ void main() {
   hit.kind = 0; hit.t = tMax; hit.mat = 0.0; hit.cell = ivec2(0);
   if (tMin < tMax) marchScene(ro, rd, tMin, tMax, hit);
   float tw = (rd.y < -1e-4 && ro.y > SEA) ? (SEA - ro.y) / rd.y : 1e9;
-  bool wet = tw < hit.t;
+  bool wet = tw < hit.t && uRealm < 0.5;       // (the sea of cloud lies only under an open sky)
+  bool open = hit.kind == 0 && !wet;
+  if (!open && hit.kind == 1 && uRealm > 0.5) {
+    // nothing lies under these places: a pit in the halls is only dark, and a shard of the Shatter ends in a
+    // ragged edge with the stars under it
+    vec3 ph = ro + rd * hit.t;
+    float under = uRealm > 1.5 ? SEA + 1.0 + 3.4 * vnoise(ph.xz * 0.21) + 1.3 * vnoise(ph.xz * 0.9) : SEA + 0.5;
+    if (ph.y < under) open = true;
+  }
 
   Surf s = newSurf();
   vec3 N = vec3(0.0, 1.0, 0.0);
   float depth = hit.t, id = 0.0, shade = 0.0, grass = 0.0, kind = 0.0;
   vec2 sheet = vec2(8.0);       // depth of this pixel's hatching sheet along the two paper directions
 
-  if (hit.kind == 0 && !wet) {
+  if (open) {
     float skyInk;
     s.albedo = skyLay(rd, s.cover, skyInk);
     s.ink = skyInk;
@@ -127,6 +135,12 @@ void main() {
       sh = min(sh, casterShadow(p + N * 0.03));
       float ao = (1.0 - 0.3 * canopy) * (1.0 - 0.55 * casterContact(p));
       lightSurf(s, p, Nd, sh, ao, shade);
+      if (gSolid > 0.01) {
+        // no lamp lights the rock the halls are cut from, nor the bottom of a pit
+        float skyC, skyI;
+        vec3 dark = skyLay(vec3(0.0, 1.0, 0.0), skyC, skyI);
+        s.albedo = mix(s.albedo, dark, gSolid); s.cover = mix(s.cover, skyC, gSolid); s.ink *= 1.0 - gSolid; shade *= 1.0 - gSolid;
+      }
       grass = gGrass;
       kind = s.soft;
       id = 0.02;
@@ -187,7 +201,13 @@ void main() {
     // distance: a paler, thinner lay; then the edge of the loaded world left as paper
     float thin = 1.0 - 0.42 * smoothstep(26.0, 100.0, depth);
     float edge = 1.0 - smoothstep(VIEW_DIST * 0.66, VIEW_DIST * 0.97, length(p.xz - uFocus.xz));
-    s.cover *= thin * edge;
+    if (uRealm > 0.5) {
+      // (no haze here: what is far goes into the dark, not into the paper)
+      float farCover, farInk;
+      vec3 farPig = skyLay(normalize(vec3(rd.x, min(rd.y, -0.05), rd.z)), farCover, farInk);
+      s.albedo = mix(farPig, s.albedo, edge);
+      s.cover = mix(farCover, s.cover * thin, edge);
+    } else s.cover *= thin * edge;
     shade *= thin * edge;
     s.ink *= mix(1.0, 0.55, smoothstep(26.0, 100.0, depth)) * edge;
     grass *= edge;

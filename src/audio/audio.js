@@ -1,14 +1,16 @@
-// Lumenwake audio: effects, a calm generative piano-and-strings score that
-// knows which area the hero is in and what is happening there, and a quiet
-// outdoor ambience, all synthesized with the Web Audio API (no files).
+// Lumenwake audio: effects, a calm score in which every area has a piece of
+// its own and every elder a theme of its own, and which knows what is happening
+// there, and a quiet outdoor ambience, all synthesized with the Web Audio API
+// (no files).
 //
 // To add a sound, add one entry to SOUNDS keyed by the bus event name. It is
 // called with the kit (tone, noise, piano, bell, key) and the event payload.
-// To give a new area its music and ambience, add one row to AREAS.
+// To give a new area its music and ambience, add one row to AREAS; to give a
+// new elder its theme, add one row to BOSSES.
 
 const LEVELS = { master: 1, sfx: 1, music: 0.5, ambience: 0.55 }; // the mix: music sits well under effects (turned down from 0.6 after a first listen)
 const BASE_LEVELS = { ...LEVELS };  // ...as designed: the player's own levels (the 'volume' event) scale these
-const SPARE = 0.86;       // every area's piano speaks this much as often as its row says: a little less music everywhere
+const SPARE = 0.86;       // every piece says this much of its tune: now and then a phrase is left out. A little less music everywhere
 const MAX_VOICES = { sfx: 24, chime: 16, music: 48, ambience: 16 }; // a sound past its cap is skipped
 const HEARING = 30;        // world units beyond which monster sounds are silent
 const NEAR = 4;            // ...and within which they play at full level
@@ -47,6 +49,8 @@ const MONSTER_VOICE = {
   warden: { freq: 190, type: 'square', bend: 0.8 },
   matron: { freq: 330, type: 'sine', bend: 0.72 },
   sentinel: { freq: 420, type: 'triangle', bend: 1.1 },
+  keeper: { freq: 150, type: 'triangle', bend: 0.75 },
+  drifter: { freq: 520, type: 'sine', bend: 1.3 },
 };
 const DEFAULT_VOICE = { freq: 600, type: 'triangle', bend: 1.2 };
 const voiceOf = (m) => lookup(MONSTER_VOICE, m.defId, DEFAULT_VOICE);
@@ -479,19 +483,20 @@ function spatial(play, where = (payload) => payload) {
 
 // ---------------------------------------------------------- music tables
 
-const SLOT_WEIGHT = [1.3, 0.15, 0.6, 0.25, 0.9, 0.15, 0.55, 0.25]; // piano chance on each eighth of a bar
-const MAJOR = [0, 2, 4, 7, 9], MINOR = [0, 3, 5, 7, 10]; // five-note scales: no two notes a semitone apart
+const MAJOR = [0, 2, 4, 7, 9], MINOR = [0, 3, 5, 7, 10]; // five-note scales, no two notes a semitone apart: what chimes, effects and answers are tuned to (kit.key)
 const STRING_FLOOR = 36;   // lowest note (MIDI) of the low strings a fight brings in
 const HEAT_RISE = 1, HEAT_FALL = 2.5; // seconds for danger to be felt in the music, and to leave it
 const DECK_FADE = 0.12;    // time constant, in seconds, of the fade when the key changes at once
-const HELD_PAD = 0.8;      // level of the pad under a cinematic
-const PAD_CUT = 0.7;       // time constant of a pad cut short: the same fall as the tail it would have had
-const MIX_TIME = { all: 0.7, lead: 0.3, fight: 0.3, pad: 0.5 }; // time constants of the layer levels
+const FELL_HUSH = 4.5;     // seconds of no music at all after an elder falls, before the area's piece comes back
+const HELD_PAD = 0.8;      // level of the bed under a cinematic
+const PAD_CUT = 0.7;       // time constant of a bed cut short: the same fall as the tail it would have had
+const MIX_TIME = { all: 0.7, lead: 0.3, comp: 0.3, fight: 0.3, pad: 0.5 }; // time constants of the layer levels
 
-// Chords as semitones above the area's root: a bass note and an open pad
+// Chords as semitones above the piece's root: a bass note and an open pad
 // voicing. Capitals are major and small letters minor; a flat is spelled b.
-// A chord may hold notes the area's scale does not: the melody leaves out any
-// note that would rub against the chord sounding (see `over` in createMusic).
+// A chord may hold notes the piece's mode does not: a tune is written to sit
+// over its chords, and in a fight any note that would rub against the chord
+// sounding is moved off it (see `over` in createMusic).
 const CHORDS = {
   I: { bass: 0, pad: [0, 7, 16] },
   Isus: { bass: 0, pad: [0, 7, 14] },     // no third, so it sits in major and minor alike
@@ -509,91 +514,8 @@ const CHORDS = {
   VI: { bass: 8, pad: [-4, 3, 12] },
   VII: { bass: 10, pad: [-2, 5, 14] },
   vii: { bass: 10, pad: [-2, 5, 13] },    // the Phrygian chord: home, a tone down and minor
-};
-
-// One row per area (game.biome.id): what makes the place sound like itself.
-// Adding a place to visit is adding a row; an id without one plays the town's.
-//
-//   root       the tonic, as a MIDI note (D3 is 50)
-//   scale      five notes above the root: the melody's, and the ones chimes and
-//              effects are tuned to (kit.key), so they agree with the piano
-//   color      notes the melody may add: what gives the mode its name (optional)
-//   chords     names from CHORDS; the first is home
-//   tense      the chords while creatures are after the hero: the darker ones of the same mode
-//   elder      { scale, color, chords } for a fight with an elder: a darker mode on the same root
-//   beat       seconds per beat when calm
-//   low, high  the piano's register, in semitones above the root
-//   piano      how often the piano speaks, 0..1
-//   rest       bars of silence between its phrases, [fewest, most]
-//   bass       how likely the piano sounds the bass of a new chord;  bassFloor: its lowest note (MIDI)
-//   bow        how often a bowed line plays (1 is now and then)
-//   bowLow     bottom of the bowed line's register above the root: 0 is a cello, 17 a violin
-//   glass      share of the melody sung by a soft glass tone instead of the piano, 0..1
-//   pad        brightness of the string pad, in Hz
-//   pulse      the low strings' figure in a fight: one entry per beat of the bar,
-//              semitones above the chord's bass (null rests)
-//   wind, birds, crickets   how much of each the ambience has (0 is none)
-const AREAS = {
-  // Meridian Landing: D major on five notes. The warmest, and the one with the most tune.
-  town: {
-    root: 50, scale: MAJOR, color: [], chords: ['I', 'IV', 'Isus', 'vi', 'Vsus', 'ii'], tense: ['vi', 'ii', 'Vsus'],
-    beat: 1.08, low: 12, high: 36, piano: 0.62, rest: [1, 2], bass: 0.6, bassFloor: 40,
-    bow: 1.2, bowLow: 17, glass: 0, pad: 800, pulse: [0, null, 7, null],
-    wind: 0.5, birds: 1.1, crickets: 0,
-  },
-  // Glasswood Terraces: F Lydian, quicker and higher, with a little glass in it.
-  glasswood: {
-    root: 53, scale: MAJOR, color: [6], chords: ['I', 'II', 'Isus', 'vi', 'II/I'], tense: ['vi', 'iii', 'II'],
-    elder: { scale: MINOR, color: [2], chords: ['i', 'VI', 'iv', 'VII'] },
-    beat: 0.96, low: 12, high: 35, piano: 0.58, rest: [1, 2], bass: 0.35, bassFloor: 41,
-    bow: 0.9, bowLow: 19, glass: 0.18, pad: 900, pulse: [0, null, 7, null],
-    wind: 0.6, birds: 1.5, crickets: 0,
-  },
-  // Ember Shelf: B flat Dorian, slow and low. A cello has most of the tune.
-  ember: {
-    root: 46, scale: MINOR, color: [9], chords: ['i', 'IV', 'VII', 'Isus', 'v'], tense: ['i', 'v', 'VII'],
-    elder: { scale: MINOR, color: [8], chords: ['i', 'vii', 'iv', 'VI'] },
-    beat: 1.3, low: 10, high: 29, piano: 0.44, rest: [2, 3], bass: 0.85, bassFloor: 36,
-    bow: 1.5, bowLow: 0, glass: 0, pad: 620, pulse: [0, null, null, 7],
-    wind: 1, birds: 0.2, crickets: 0.6,
-  },
-  // The Hush: E flat minor, the slowest. Glass tones over a still, dark pad.
-  hush: {
-    root: 51, scale: MINOR, color: [2], chords: ['Isus', 'VI', 'i', 'iv', 'VII'], tense: ['i', 'iv', 'VI'],
-    elder: { scale: MINOR, color: [8], chords: ['i', 'iv', 'vii', 'VI'] },
-    beat: 1.42, low: 14, high: 36, piano: 0.42, rest: [1, 3], bass: 0.5, bassFloor: 39,
-    bow: 0.5, bowLow: 12, glass: 0.75, pad: 520, pulse: [0, null, null, null],
-    wind: 0.35, birds: 0, crickets: 1.2,
-  },
-  // Rime Steps: E major with its seventh, high and thin, and mostly silence.
-  rime: {
-    root: 52, scale: MAJOR, color: [11], chords: ['Isus', 'iii', 'vi', 'I', 'Vsus'], tense: ['vi', 'iii', 'ii'],
-    elder: { scale: MINOR, color: [2], chords: ['i', 'III', 'VI', 'v'] },
-    beat: 1.2, low: 16, high: 36, piano: 0.4, rest: [2, 3], bass: 0.25, bassFloor: 40,
-    bow: 0.8, bowLow: 19, glass: 0.12, pad: 980, pulse: [0, null, 12, null],
-    wind: 1.15, birds: 0.2, crickets: 0,
-  },
-};
-const areaOf = (game) => lookup(AREAS, game.biome && game.biome.id, AREAS.town);
-
-// How the piece stands toward what is happening. A stance bends the area's row:
-//
-//   pace    multiplies the beat (under 1 is faster);   bars: how long a chord lasts
-//   piano   multiplies how often the piano speaks;     drop: semitones its register falls
-//   space   multiplies the silences between its phrases
-//   glass   multiplies the share of glass tones
-//   left    level of the piano's bass note on every bar (0: now and then, on a new chord);
-//           octave: it tolls with the octave above
-//   drum    level of the low drum on each beat of the bar;  deep: a bigger, slower drum
-//   drone   the low strings hold one note a bar instead of the area's pulse
-//   toll    level of a low bell on every other bar
-//
-// Everything a fight adds is lower, slower and quieter than the piano.
-const STANCES = {
-  calm: { pace: 1, bars: 2, piano: 1, space: 1, drop: 0, glass: 1, left: 0 },
-  tense: { pace: 0.92, bars: 1, piano: 0.4, space: 2, drop: 7, glass: 0.3, left: 0.15, drum: [0.05, 0, 0, 0] },
-  elder: { pace: 1.06, bars: 2, piano: 0.4, space: 1.5, drop: 12, glass: 0, left: 0.16, octave: true, drum: [0.055, 0, 0.03, 0], deep: true, drone: true, toll: 0.05 },
-  rage: { pace: 0.86, bars: 1, piano: 0.4, space: 2, drop: 12, glass: 0, left: 0.16, octave: true, drum: [0.055, 0, 0.03, 0], deep: true, drone: true, toll: 0.05 },
+  V: { bass: 7, pad: [-5, 2, 11] },       // the major fifth chord a minor key borrows: it wants to go home
+  bII: { bass: 1, pad: [1, 8, 17] },      // the major chord a semitone above home: the weight of the Phrygian mode
 };
 
 // Short answers to what happens, in the area's key, played once and left to ring.
@@ -611,6 +533,476 @@ const ANSWERS = {
 };
 const ANSWER_STEP = 0.5;   // seconds: the hero is lifted out 2.6 s after a contract is done, and its answer must be over
 
+// ----------------------------------------------------- the pieces' words
+//
+// Every area has a piece of its own and every elder a theme of its own: one row
+// each, in AREAS and BOSSES below. A row is written as a musician would say it:
+// the key and mode, the meter and tempo, who has the tune, what holds the chords
+// and what moves under it, and the tune itself. These tables are the words the
+// rows use: MODES, CHORDS (above), VOICES, BEDS and FIGURES.
+
+// Seven-note modes, in semitones above the tonic. A tune's degrees count in its
+// row's mode: 1 is the tonic, 8 the octave above it.
+const MODES = {
+  major: [0, 2, 4, 5, 7, 9, 11],
+  lydian: [0, 2, 4, 6, 7, 9, 11],      // major with a raised fourth: bright, afloat
+  dorian: [0, 2, 3, 5, 7, 9, 10],      // minor with a raised sixth: old and open
+  minor: [0, 2, 3, 5, 7, 8, 10],
+  harmonic: [0, 2, 3, 5, 7, 8, 11],    // minor with a raised seventh: uneasy
+  phrygian: [0, 1, 3, 5, 7, 8, 10],    // minor with a lowered second: heavy
+};
+const STRONG = { 3: [0], 4: [0, 2], 5: [0, 3], 6: [0, 3], 7: [0, 4], 9: [0, 3, 6] }; // the beats a bar of each meter leans on
+
+// A bowed string: two a few cents apart (one, if `one`), kept dark by a low-pass;
+// a singing line (`vibrato`: [rate, depth in cents]) rocks a little once it speaks.
+function bowed(k, n, o) {
+  const freq = mtof(n.midi), loud = o.vibrato ? clamp((400 / freq) ** 0.25, 0.8, 1.3) : 1;   // a low string needs more bow
+  for (const [detune, share] of o.one ? [[0, 0.8]] : [[0, 0.67], [o.spread ?? 6, 0.33]]) {
+    k.tone({
+      bus: n.bus, type: 'sawtooth', freq, detune, when: n.when, gain: o.gain * share * loud * n.gain,
+      attack: o.attack, hold: Math.max(0.1, n.len - (o.vibrato ? 0.4 : 0.3)), decay: o.decay ?? 1.5, cutoff: Math.min(o.top, freq * o.bright),
+      vibrato: o.vibrato && { rate: o.vibrato[0], depth: o.vibrato[1], delay: 0.45 },
+    });
+  }
+}
+
+// The instruments a row can name. Each sounds one note: k is the kit, and n says
+// which (midi), when, how long it is held (len, in seconds: a struck voice rings
+// on by itself), how strongly (gain: 1 is its usual level) and on which bus.
+// `low` is the lowest note (MIDI) it sounds well on. None of them is plucked hard,
+// and the high ones are held back so that nothing pierces.
+const VOICES = {
+  // felt piano: struck, two strings to a note (one, damped sooner, when `light`: in a fight)
+  piano: { low: 40, play(k, n) { k.piano(mtof(n.midi), { bus: n.bus, when: n.when + rand(0, 0.02), gain: 0.14 * n.gain, strings: n.light ? 1 : 2, ring: n.light ? 0.7 : 1 }); } },
+  // a violin: the bow takes half a second to speak
+  violin: { low: 55, play(k, n) { bowed(k, n, { gain: 0.08, attack: 0.5, bright: 3, top: 2200, vibrato: [5.2, 12] }); } },
+  // a cello: the same bow, slower and darker
+  cello: { low: 36, play(k, n) { bowed(k, n, { gain: 0.085, attack: 0.55, bright: 2.6, top: 1400, vibrato: [4.7, 10] }); } },
+  // strings in octaves: a violin and a cello under it, one string each (`also`: the other note it sounds)
+  strings: { low: 48, also: -12, play(k, n) {
+    bowed(k, n, { gain: 0.05, attack: 0.45, bright: 2.2, top: 1400, vibrato: [5.2, 10], one: true });
+    bowed(k, { ...n, midi: n.midi - 12 }, { gain: 0.055, attack: 0.5, bright: 2.4, top: 1000, vibrato: [4.7, 8], one: true });
+  } },
+  // cellos and basses under a fight: bowed, never plucked, and kept dark
+  lowstring: { low: 28, play(k, n) { bowed(k, n, { gain: 0.04, attack: 0.14, decay: 0.7, bright: 4, top: 700, spread: 8, one: n.light }); } },
+  // a glass tone: a soft sine that swells in rather than being struck, with a fainter one a twelfth above
+  glass: { low: 55, play(k, n) {
+    const freq = mtof(n.midi), gain = 0.06 * n.gain * Math.min(1, Math.sqrt(660 / freq)), pan = rand(-0.3, 0.3), ring = clamp(n.len * 1.7, 1.8, 3.6);
+    k.tone({ bus: n.bus, freq, when: n.when, pan, attack: 0.05, decay: ring, gain });
+    if (freq * 3 < 4200) k.tone({ bus: n.bus, freq: freq * 3.01, when: n.when, pan, attack: 0.08, decay: ring * 0.4, gain: gain * 0.12 });
+  } },
+  // a celesta: a soft mallet on a metal bar. Struck, round, and gone in a second or two
+  celesta: { low: 60, play(k, n) {
+    const freq = mtof(n.midi), gain = 0.065 * n.gain * Math.min(1, Math.sqrt(784 / freq));
+    const base = { bus: n.bus, when: n.when + rand(0, 0.015), attack: 0.007, pan: rand(-0.25, 0.25) };
+    k.tone({ ...base, freq, decay: 1.8, gain });
+    k.tone({ ...base, freq: freq * 2, decay: 0.7, gain: gain * 0.25 });
+    if (freq * 4.2 < 4200) k.tone({ ...base, freq: freq * 4.2, decay: 0.22, gain: gain * 0.06 });
+  } },
+  // a music box: a thin tine, a hair out of tune
+  musicbox: { low: 67, play(k, n) {
+    const freq = mtof(n.midi), gain = 0.06 * n.gain * Math.min(1, Math.sqrt(1000 / freq)), base = { bus: n.bus, when: n.when + rand(0, 0.02), attack: 0.003 };
+    k.tone({ ...base, type: 'triangle', freq, detune: rand(-8, 8), decay: 1.3, gain });
+    if (freq * 4 < 4200) k.tone({ ...base, freq: freq * 4, decay: 0.3, gain: gain * 0.12 });
+  } },
+  // a flute: nearly a pure tone, with breath in it and a slow vibrato
+  flute: { low: 60, play(k, n) {
+    const freq = mtof(n.midi), gain = 0.07 * n.gain * Math.min(1, Math.sqrt(700 / freq)), hold = Math.max(0.1, n.len - 0.25);
+    k.tone({ bus: n.bus, wave: k.waves.flute, freq, when: n.when, gain, attack: 0.09, hold, decay: 0.5, vibrato: { rate: 4.6, depth: 8, delay: 0.35 } });
+    k.noise({ bus: n.bus, freq: freq * 1.5, q: 3, when: n.when, attack: 0.07, hold: hold * 0.5, decay: 0.5, gain: gain * 0.04 });
+  } },
+  // a quiet pipe organ: a few soft stops, steady, no vibrato
+  organ: { low: 43, play(k, n) {
+    const freq = mtof(n.midi), gain = 0.05 * n.gain * Math.min(1, Math.sqrt(520 / freq));
+    k.tone({ bus: n.bus, wave: k.waves.organ, freq, when: n.when, gain, attack: 0.08, hold: Math.max(0.1, n.len - 0.1), decay: 0.6, cutoff: Math.min(2400, freq * 4) });
+  } },
+  // a soft low horn: the tone opens as the note swells
+  horn: { low: 36, play(k, n) {
+    const freq = mtof(n.midi), gain = 0.07 * n.gain * clamp((200 / freq) ** 0.25, 0.8, 1.25);
+    const env = { bus: n.bus, freq, when: n.when, attack: 0.14, hold: Math.max(0.1, n.len - 0.3), decay: 0.6 };
+    k.tone({ ...env, type: 'sawtooth', gain: gain * 0.55, cutoff: freq * 1.5, cutoffTo: Math.min(1100, freq * 3.2), glide: 0.35 });
+    k.tone({ ...env, type: 'triangle', gain: gain * 0.6 });
+  } },
+  // someone humming, mouth closed: one low voice
+  hum: { low: 48, play(k, n) {
+    const freq = mtof(n.midi), gain = 0.07 * n.gain;
+    const env = { bus: n.bus, freq, when: n.when, attack: 0.3, hold: Math.max(0.1, n.len - 0.35), decay: 0.7, vibrato: { rate: 5, depth: 16, delay: 0.3 } };
+    k.tone({ ...env, type: 'sawtooth', gain: gain * 0.45, cutoff: Math.min(1000, freq * 3), formant: [480, 8, 2] });
+    k.tone({ ...env, gain: gain * 0.7 });
+  } },
+  // a wordless choir, open ("ah"): several voices, slow to arrive
+  choir: { low: 55, play(k, n) {
+    const freq = mtof(n.midi), gain = 0.05 * n.gain * Math.min(1, Math.sqrt(520 / freq));
+    for (const detune of [-9, 0, 8]) {
+      k.tone({ bus: n.bus, type: 'sawtooth', freq, detune, pan: detune / 20, when: n.when, gain: gain * 0.4, attack: 0.8, hold: Math.max(0.2, n.len - 0.6), decay: 1.8, cutoff: Math.min(2600, freq * 4), formant: [950, 7, 1.4] });
+    }
+  } },
+  // a big soft bell, with the hum an octave under it
+  bell: { low: 45, play(k, n) {
+    const freq = mtof(n.midi), gain = 0.1 * n.gain, base = { bus: n.bus, when: n.when, attack: 0.012 };
+    k.tone({ ...base, freq, decay: 4.2, gain });
+    k.tone({ ...base, freq: freq * 2.76, decay: 1.6, gain: gain * 0.18 });
+    k.tone({ ...base, freq: freq / 2, decay: 5, gain: gain * 0.3 });
+  } },
+  // bowed metal: pure tones that are not quite in tune with each other, so the note slowly beats; very slow to arrive
+  metal: { low: 47, play(k, n) {
+    const freq = mtof(n.midi), gain = 0.05 * n.gain * Math.min(1, Math.sqrt(440 / freq)), pan = rand(-0.4, 0.4);
+    const part = (ratio, share, detune = 0) => {
+      if (freq * ratio < 4200) k.tone({ bus: n.bus, freq: freq * ratio, detune, when: n.when, pan, gain: gain * share, attack: 1.2, hold: Math.max(0.2, n.len - 1), decay: 3.2 });
+    };
+    part(1, 1); part(1, 0.6, 7); part(2.76, 0.16); part(5.4, 0.04);
+  } },
+};
+
+// What holds the chords. Each sounds one chord from t0 for `span` seconds,
+// swelling in and falling away, on the pad's bus (the one thing a cinematic
+// leaves sounding). b: root (MIDI of the key), chord (a row of CHORDS), bass (its
+// bass note, down where the row's bassFloor puts it), t0, span, swell, tail, and
+// thin (the hero is hurt: half the players).
+function sustain(k, b, midi, o) {
+  b.sounding.push(midi);       // (the tune is kept clear of the notes a bed sounds)
+  k.tone({ bus: 'pad', freq: mtof(midi), when: b.t0, attack: b.swell, hold: b.span - b.swell + 0.5, decay: b.tail, ...o });
+}
+const BEDS = {
+  // a string pad: the chord's three notes, two bowed strings to each
+  strings(k, b) {
+    for (const offset of b.chord.pad) for (const detune of b.thin ? [0] : [-7, 7]) sustain(k, b, b.root + offset, { type: 'sawtooth', detune, gain: 0.028 });
+  },
+  // violins alone, an octave up, one to a note: thin, cold air
+  high(k, b) {
+    b.chord.pad.forEach((offset, i) => { if (!(b.thin && i === 0)) sustain(k, b, b.root + offset + 12, { type: 'sawtooth', detune: 4 * i - 4, gain: 0.032 }); });
+  },
+  // cellos and basses on the chord's bass, its fifth and its octave: no third, so neither major nor minor
+  drone(k, b) {
+    for (const up of b.thin ? [0, 7] : [0, 7, 12]) for (const detune of b.thin ? [0] : [-5, 5]) sustain(k, b, b.bass + up, { type: 'sawtooth', detune, gain: 0.026 });
+  },
+  // a wordless choir, low and closed ("oo")
+  choir(k, b) {
+    for (const offset of b.chord.pad) for (const detune of b.thin ? [0] : [-6, 6]) sustain(k, b, b.root + offset, { type: 'sawtooth', detune, gain: 0.023, formant: [560, 7, 1.4] });
+  },
+  // a quiet organ: the chord on a soft stop over a pedal note. It speaks at once and lets go at once, as pipes do
+  organ(k, b) {
+    const pipes = { ...b, swell: Math.min(b.swell, 0.4), tail: Math.min(b.tail, 1.6) };
+    sustain(k, pipes, b.bass, { wave: k.waves.organ, gain: 0.025 });
+    b.chord.pad.forEach((offset, i) => { if (!(b.thin && i === 0)) sustain(k, pipes, b.root + offset, { wave: k.waves.organ, gain: 0.017 }); });
+  },
+  // glass: pure tones an octave up, each a pair a hair apart, so the chord slowly beats
+  glass(k, b) {
+    for (const offset of b.chord.pad) for (const detune of b.thin ? [0] : [-4, 4]) sustain(k, b, b.root + offset + 12, { detune, gain: 0.021 });
+  },
+  // the void: a deep fifth far below and a few thin tones far above, with nothing between
+  void(k, b) {
+    for (const up of [0, 7]) for (const detune of b.thin ? [0] : [-4, 4]) sustain(k, b, b.bass + up, { type: 'triangle', detune, gain: 0.027 });
+    for (const offset of b.chord.pad.slice(b.thin ? 2 : 1)) sustain(k, b, fold(b.root + offset, 79), { detune: 5, gain: 0.008 });   // (wherever the key lies, between G5 and F#6)
+  },
+};
+
+// What moves under the tune. `on` says when it is played: as each new 'chord'
+// arrives, as each 'phrase' of the tune begins, or in every 'bar' (two bars, if
+// it has two, take turns). A note is [beat, which note of the chord, beats it is
+// held, level]: 'bass' is the chord's bass, 'low' 'mid' 'top' the three notes of
+// its voicing, and +7 or +12 lifts one by that many semitones. `light`: one
+// player to a note, where there are many notes.
+const FIGURES = {
+  still: null,                                                                                  // nothing: the bed alone
+  bass: { voice: 'piano', on: 'chord', bars: [[[0, 'bass', 4, 0.85]]] },                        // the piano's left hand, softly: the bass of each new chord
+  root: { voice: 'piano', on: 'phrase', bars: [[[0, 'bass', 4, 0.85]]] },                       // ...or only as a phrase begins
+  star: { voice: 'celesta', on: 'phrase', bars: [[[5, 'top+24', 2, 0.7]]] },                    // one high note, late in the bar: a far light
+  tread: { voice: 'lowstring', on: 'bar', bars: [[[0, 'bass', 3], [3, 'bass', 2, 0.8]]] },      // two heavy steps to a bar of five
+  cradle: { voice: 'lowstring', on: 'bar', light: true, bars: [[[0, 'bass', 3], [3, 'bass+7', 3, 0.85]]] },   // rocking: the bass, then its fifth
+  pedal: { voice: 'lowstring', on: 'bar', bars: [[[0, 'bass', 4]]] },                           // the bass, bowed again each bar
+  surge: { voice: 'lowstring', on: 'bar', light: true, bars: [                                  // a wave: up through the chord, and back down
+    [[0, 'low', 3, 0.8], [3, 'mid', 3, 0.9], [6, 'top', 3, 1]],
+    [[0, 'top', 3, 1], [3, 'mid', 3, 0.9], [6, 'low', 3, 0.8]],
+  ] },
+  orbit: { voice: 'glass', on: 'bar', bars: [                                                   // glass going round, quietly: up the chord and over the top
+    [[0, 'low+12', 1, 0.6], [1, 'mid+12', 1, 0.6], [2, 'top+12', 1, 0.6]],
+    [[0, 'mid+24', 1, 0.6], [1, 'top+12', 1, 0.6], [2, 'mid+12', 1, 0.6]],
+  ] },
+};
+
+// ------------------------------------------------------------ the pieces
+//
+// One row per area (game.biome.id). Adding a place to visit is adding a row; an
+// id without one plays the town's.
+//
+//   root        the tonic, as a MIDI note (D3 is 50);  mode: a name from MODES
+//   meter       beats to the bar;  beat: seconds per beat when calm (in a meter of 6 or 9 the beat is the quick one, felt in threes)
+//   lead        who has the tune: [a name from VOICES, the MIDI note its degree 1 is]
+//   second      who takes the phrases marked 2 (optional)
+//   bed         what holds the chords: a name from BEDS;  pad: how bright it is, in Hz
+//   figure      what moves under the tune: a name from FIGURES;  bassFloor: the lowest note (MIDI) its bass may be
+//   theme       the tune, a phrase to a line: [chords, notes, who]
+//                 chords  one name from CHORDS for each bar of the phrase; a dot holds the chord before
+//                 notes   bars split by |. A note is a degree of the mode (1 the tonic, 8 the octave above; a comma
+//                         after it drops it an octave; b or # before it bends it a semitone), then a colon and its
+//                         length in beats (one beat if left out). A dash is a rest; a bar left short is rest too
+//                 who     2 if the second voice has this phrase
+//               The piece plays its phrases in order, round and round. Now and then one is left out (SPARE).
+//   tense       the chords while creatures are after the hero: the darker ones of the same mode
+//   elder       { mode, chords } for a fight with an elder that has no theme of its own (see BOSSES): a darker mode on the same root
+//   wind, birds, crickets   how much of each the ambience has (0 is none)
+const AREAS = {
+  // Meridian Landing. Home: D major in an easy four. A felt piano has the tune and a violin answers it, over warm
+  // strings, with the piano's left hand under each new chord. The warmest, and the one with the most tune.
+  town: {
+    root: 50, mode: 'major', meter: 4, beat: 1.08,
+    lead: ['piano', 62], second: ['violin', 62], bed: 'strings', pad: 800, figure: 'bass', bassFloor: 40,
+    theme: [
+      ['I . IV .', '5 10 9:2 | 8:2 5:2 | 6:4'],          // up a sixth, down by step, and at rest on the fourth chord
+      ['I . Vsus .', '5 10 9:2 | 8:2 10:2 | 9:4'],       // the same, turned upward: a question
+      ['vi . IV .', '10:3 9 | 8:2 6:2 | 8:4', 2],        // the violin answers it
+      ['I Vsus I .', '5 10 9:2 | 8:2 9:2 | 8:4'],        // and the piano comes home
+    ],
+    tense: ['vi', 'ii', 'Vsus'],
+    wind: 0.5, birds: 1.1, crickets: 0,
+  },
+  // Glasswood Terraces. F Lydian in a lilting six, quick and high: a celesta over a bed of glass, and no bass at
+  // all, so it floats. Every phrase has the same long-short-long skip and turns on the raised fourth.
+  glasswood: {
+    root: 53, mode: 'lydian', meter: 6, beat: 0.32,
+    lead: ['celesta', 77], bed: 'glass', pad: 1400, figure: 'still', bassFloor: 41,
+    theme: [
+      ['I . . . II/I . . .', '1:2 2 3:3 | 5:6 | 4:2 3 2:3'],
+      ['I . . . vi . . .', '1:2 2 3:3 | 6:6 | 5:2 4 3:3'],
+      ['II/I . . . I . . .', '2:2 3 4:3 | 6:6 | 4:2 3 2:3'],
+      ['vi . . . I . . .', '6,:2 1 3:3 | 5:6 | 3:2 2 1:3'],
+    ],
+    tense: ['vi', 'iii', 'II'],
+    elder: { mode: 'minor', chords: ['i', 'VI', 'iv', 'VII'] },
+    wind: 0.6, birds: 1.5, crickets: 0,
+  },
+  // Ember Shelf. B flat Dorian in a slow three, the second beat leaned on like a sarabande: a cello alone over a
+  // drone of open fifths, and a low piano note as each chord arrives.
+  ember: {
+    root: 46, mode: 'dorian', meter: 3, beat: 1.3,
+    lead: ['cello', 58], bed: 'drone', pad: 620, figure: 'bass', bassFloor: 36,
+    theme: [
+      ['i . IV . . .', '1 5:2 | 4 3:2 | 2:3'],           // up a fifth and down by step
+      ['i . VII . . .', '1 5:2 | 6 5:2 | 4:3'],          // ...over the top, by the raised sixth
+      ['IV . i . . .', '6, 4:2 | 2 1:2 | 5,:3'],         // from below, falling to the low fifth
+      ['v . i . . .', '5, 2:2 | 7, 5,:2 | 1:3'],         // and home
+    ],
+    tense: ['i', 'v', 'VII'],
+    elder: { mode: 'minor', chords: ['i', 'vii', 'iv', 'VI'] },
+    wind: 1, birds: 0.2, crickets: 0.6,
+  },
+  // The Hush. E flat minor in a slow five (three and two), the slowest of the walking pieces: glass tones falling
+  // in pairs, like sighs, over a low closed choir.
+  hush: {
+    root: 51, mode: 'minor', meter: 5, beat: 1.42,
+    lead: ['glass', 75], bed: 'choir', pad: 680, figure: 'root', bassFloor: 39,
+    theme: [
+      ['i . VI .', '5:3 3:2 | 4:3 2:2 | 1:5'],
+      ['iv . i .', '6:3 4:2 | 5:3 3:2 | 2:5'],
+      ['VI . VII .', '3:3 1:2 | 2:3 7,:2 | 2:5'],
+      ['Isus . i .', '5,:3 2:2 | 1:3 7,:2 | 1:5'],
+    ],
+    tense: ['i', 'iv', 'VI'],
+    elder: { mode: 'minor', chords: ['i', 'iv', 'vii', 'VI'] },
+    wind: 0.35, birds: 0, crickets: 1.2,
+  },
+  // Rime Steps. E major in a light three, high and thin and mostly silence: a flute, over violins alone. Its
+  // tune keeps touching the seventh.
+  rime: {
+    root: 52, mode: 'major', meter: 3, beat: 1.05,
+    lead: ['flute', 76], bed: 'high', pad: 980, figure: 'still', bassFloor: 40,
+    theme: [
+      ['I . . . vi . . .', '5,:2 1 | 3:3 | 2:2 7, | 5,:3'],
+      ['IV . . . I . . .', '6,:2 1 | 4:3 | 3:2 1 | 2:3'],
+      ['vi . . . Vsus . . .', '8:2 7 | 5:3 | 6:2 5 | 3:3'],
+      ['Isus . . . I . . .', '5,:2 1 | 2:3 | 5:2 3 | 1:3'],
+    ],
+    tense: ['vi', 'iii', 'ii'],
+    elder: { mode: 'minor', chords: ['i', 'III', 'VI', 'v'] },
+    wind: 1.15, birds: 0.2, crickets: 0,
+  },
+  // The Underhalls. C minor in the slowest four there is: a quiet organ, like a hymn heard through stone. The
+  // chord changes in every bar, and a high stop sings a plain chant over it in even notes, two to the bar, with
+  // a two-note amen at the end of each line.
+  vault: {
+    root: 48, mode: 'minor', meter: 4, beat: 1.5,
+    lead: ['organ', 72], bed: 'organ', pad: 700, figure: 'still', bassFloor: 36,
+    theme: [
+      ['i iv VII III VI iv v i', '1:2 3:2 | 4:2 3:2 | 2:2 4:2 | 3:4 | - | - | 2:4 | 1:4'],
+      ['i VI III VII iv i v i', '5:2 3:2 | 6:2 5:2 | 5:2 3:2 | 4:4 | - | - | 2:4 | 1:4'],
+    ],
+    tense: ['i', 'iv', 'vii'],
+    elder: { mode: 'phrygian', chords: ['i', 'vii', 'iv', 'VI'] },
+    wind: 0.25, birds: 0, crickets: 0,
+  },
+  // The Shatter. B Lydian in a very slow seven, so slow that it has no step to it: bowed metal, in fifths and
+  // sixths a long way apart, over the void (a deep fifth and a few thin tones, nothing between), and one far
+  // high note in each phrase. The chords are major ones a third apart, which is how awe is spelled.
+  shatter: {
+    root: 47, mode: 'lydian', meter: 7, beat: 1.5,
+    lead: ['metal', 59], bed: 'void', pad: 1500, figure: 'star', bassFloor: 35,
+    theme: [
+      ['Isus .', '1:4 5:3 | 9:7'],                        // a fifth, and a fifth on top of it
+      ['II/I .', '11:4 9:3 | 6:7'],                       // down from the raised fourth
+      ['VI .', '8:4 5:3 | 2:7'],                          // the same fifths, falling, over a far chord
+      ['I .', '5,:4 3:3 | 8:7'],                          // and up to the tonic
+    ],
+    tense: ['Isus', 'VI', 'III'],
+    elder: { mode: 'minor', chords: ['i', 'VI', 'iv', 'VII'] },
+    wind: 0.12, birds: 0, crickets: 0,
+  },
+};
+
+// One row per elder (the creature's id: content/creatures.js). While it lives its
+// theme is the piece, in its own key; an elder without a row gets the area's
+// piece darkened (the area's `elder` mode, and the `elder` stance). A row is an
+// area's row without the ambience, and with what makes it a fight:
+//
+//   drum      level of the soft low drum on each beat of the bar;  deep: a bigger, slower drum
+//   wash      level of a wave of low noise that comes in and draws back over two bars
+//   echo      [seconds, share]: every note of the tune comes back once, that much later and that much quieter
+//   double    [voice, the MIDI note its degree 1 is]: a second instrument plays the tune along with the lead
+//   rage      what changes when it is wounded (below half health): the same row with these fields put over it.
+//             The key stays; the tune starts again from the top
+const BOSSES = {
+  // The Stone Warden. C sharp Phrygian in a slow five: two heavy steps to the bar (low strings and a deep
+  // drum), a soft low horn in long notes that keeps coming back to the same one, and a drone under all.
+  warden: {
+    root: 37, mode: 'phrygian', meter: 5, beat: 1.1,
+    lead: ['horn', 49], bed: 'drone', pad: 520, figure: 'tread', bassFloor: 30,
+    drum: [0.06, 0, 0, 0.035, 0], deep: true,
+    theme: [
+      ['i . bII i . .', '1:3 5,:2 | 1:3 3:2 | 4:3 2:2 | 1:5'],
+      ['i . vii i . .', '5:3 3:2 | 4:3 1:2 | 7,:3 2:2 | 1:5'],
+    ],
+    rage: { beat: 0.95, drum: [0.065, 0, 0, 0.04, 0.03], double: ['cello', 61] },
+  },
+  // The Spore Matron. A harmonic minor in a slow six: a lullaby, hummed low, that keeps landing on the
+  // raised seventh; a music box gives it back two octaves up. Low strings rock under it, bass and fifth.
+  matron: {
+    root: 45, mode: 'harmonic', meter: 6, beat: 0.48,
+    lead: ['hum', 57], second: ['musicbox', 69], bed: 'strings', pad: 560, figure: 'cradle', bassFloor: 40,
+    theme: [
+      ['i . iv i . .', '5:2 3 5:3 | 8:4 7:2 | 6:2 4 6:3 | 5:6'],
+      ['i . V i . .', '5:2 3 5:3 | 8:4 9:2 | 9:2 7 9:3 | 8:6', 2],
+    ],
+    rage: { beat: 0.41, drum: [0.045, 0, 0, 0, 0, 0], double: ['musicbox', 69] },
+  },
+  // The Tide Sentinel. C Dorian in a rolling nine (three threes): low strings climb the chord and fall back,
+  // bar after bar, with a wash of noise like a wave under them; strings in octaves surge up and ebb.
+  sentinel: {
+    root: 48, mode: 'dorian', meter: 9, beat: 0.4,
+    lead: ['strings', 60], bed: 'strings', pad: 700, figure: 'surge', bassFloor: 36,
+    drum: [0.05, 0, 0, 0, 0, 0, 0, 0, 0], deep: true, wash: 0.035,
+    theme: [
+      ['i . VII . . .', '1:3 3:3 5:3 | 8:9 | 7:6 6:3 | 4:9'],
+      ['i . IV i . .', '1:3 3:3 5:3 | 8:6 10:3 | 8:6 6:3 | 5:9'],
+    ],
+    rage: { beat: 0.34, drum: [0.06, 0, 0, 0, 0, 0, 0.035, 0, 0], double: ['horn', 48] },
+  },
+  // The Lantern Keeper. D minor in a slow four, a procession: a big soft bell has the chant, and every note
+  // of it comes back off the stone; a low choir holds the chords, the basses bow each bar, the drum walks.
+  keeper: {
+    root: 38, mode: 'minor', meter: 4, beat: 1.4,
+    lead: ['bell', 62], echo: [0.45, 0.3], bed: 'choir', pad: 620, figure: 'pedal', bassFloor: 31,
+    drum: [0.06, 0, 0.035, 0], deep: true,
+    theme: [
+      ['i . VI VII', '1:4 | 3:2 2:2 | 3:4 | 5:4'],
+      ['iv . i .', '5:2 4:2 | 3:4 | 2:2 1:2'],
+    ],
+    rage: { beat: 1.15, drum: [0.065, 0, 0.035, 0.03], double: ['organ', 62] },
+  },
+  // The Star Drifter. F sharp Lydian in a slow three, a waltz with nothing under its feet: glass goes round
+  // and round the chord, a wordless choir sings one long note to a bar, an octave leap and a slow way down,
+  // and the chords are the far-apart major ones of the Shatter. No drum until it is wounded.
+  drifter: {
+    root: 54, mode: 'lydian', meter: 3, beat: 1.35,
+    lead: ['choir', 66], bed: 'void', pad: 1500, figure: 'orbit', bassFloor: 35,
+    theme: [
+      ['I . II/I .', '5,:3 | 5:3 | 4:3 | 3:3'],
+      ['vi . VI I', '3:3 | 6:3 | 5:6'],
+      ['I . II/I .', '8:3 | 5:3 | 6:3 | 9:3'],
+      ['vi . VI I', '8:3 | 10:3 | 8:6'],
+    ],
+    rage: { beat: 1.12, drum: [0.05, 0, 0.025], deep: true, double: ['horn', 54] },
+  },
+};
+
+/** Reads a tune as a row writes it (see AREAS): for each bar, its notes as { at, len (beats), degree (0 is the tonic), sharp }. */
+function readTune(text, meter) {
+  return String(text ?? '').split('|').map((bar) => {
+    const notes = [];
+    let at = 0;
+    for (const word of bar.trim().split(/\s+/)) {
+      const m = /^([b#]?)(\d+|-)(,*)(?::(\d*\.?\d+))?$/.exec(word);
+      if (!m) continue;
+      const len = m[4] ? Number(m[4]) : 1;
+      if (m[2] !== '-' && at < meter) notes.push({ at, len, degree: Number(m[2]) - 1 - 7 * m[3].length, sharp: m[1] === '#' ? 1 : m[1] === 'b' ? -1 : 0 });
+      at += len;
+    }
+    return notes;
+  });
+}
+
+/** Makes a row ready to play: its mode's notes, its phrases bar by bar, and its enraged self. A row with something missing still plays. */
+function prepare(row) {
+  const part = (p) => (Array.isArray(p) ? { voice: p[0], at: p[1] } : p || null);
+  row.notes = lookup(MODES, row.mode, MODES.major);
+  row.five = row.notes.includes(4) ? MAJOR : MINOR;       // what chimes, effects and answers are tuned to
+  row.meter = row.meter > 0 ? Math.round(row.meter) : 4;
+  row.strong = lookup(STRONG, row.meter, [0]);
+  row.lead = part(row.lead) || { voice: 'piano', at: 60 };
+  row.second = part(row.second);
+  row.double = part(row.double);
+  row.phrases = (row.theme || []).map(([chords, tune, who]) => {
+    const phrase = { chords: [], spans: [], bars: readTune(tune, row.meter), who };
+    String(chords).trim().split(/\s+/).forEach((name, i) => {
+      const held = name === '.' && i > 0;
+      phrase.chords.push(held ? phrase.chords[i - 1] : Object.hasOwn(CHORDS, name) ? name : 'Isus');
+      phrase.spans.push(held ? 0 : 1);        // how many bars the chord that starts here lasts
+      if (held) phrase.spans[phrase.spans.findLastIndex((bars) => bars > 0)]++;
+    });
+    return phrase;
+  });
+  row.home = row.phrases.length ? row.phrases[0].chords[0] : 'Isus';
+  if (!row.tense || !row.tense.length) row.tense = [row.home];
+  if (row.elder) {
+    row.elder.notes = lookup(MODES, row.elder.mode, MODES.minor);
+    row.elder.five = row.elder.notes.includes(4) ? MAJOR : MINOR;
+  }
+  // the gap between the notes of an answer: half a beat as the piece is felt
+  row.step = Math.min(((row.meter % 3 === 0 && row.meter > 3 ? 3 : 1) * row.beat) / 2, ANSWER_STEP);
+  // how long a phrase and the silence after it take, in seconds, on average
+  row.breath = (row.phrases.reduce((bars, phrase) => bars + phrase.chords.length, 0) / Math.max(1, row.phrases.length)) * row.meter * row.beat;
+  if (row.rage) row.fury = prepare({ ...row, ...row.rage, rage: null });
+  return row;
+}
+for (const row of [...Object.values(AREAS), ...Object.values(BOSSES)]) prepare(row);
+const areaOf = (game) => lookup(AREAS, game.biome && game.biome.id, AREAS.town);
+
+// How the piece stands toward what is happening.
+//
+//   calm    the piece as its row writes it: an area at peace, or an elder's own theme
+//   tense   creatures are after the hero
+//   elder   an elder with no theme of its own is up;  rage: and it is wounded
+//
+// In the last three the tune is not played through. Its phrases' opening notes
+// are, one phrase at a time, lower, with silence between; the chords are the
+// row's `tense` (or `elder`) ones, wandering; and a fight's layers come in.
+// They count in measures: a bar, or two bars of a quick meter (about four seconds).
+//
+//   pace    multiplies the beat (under 1 is faster);   bars: how many measures a chord lasts
+//   drop    how many degrees of the scale the tune comes down (7 is an octave)
+//   space   how far apart its fragments are, in phrases of the piece as written (one phrase is taken as 10 to 24 seconds)
+//   left    level of the piano's bass note on every measure;  octave: it tolls with the octave above
+//   drum    level of the low drum on the downbeat and in the middle of the measure;  deep: a bigger, slower drum
+//   drone   the low strings hold one note a measure instead of marking its beats
+//   toll    level of a low bell on every other measure
+//
+// Everything a fight adds is lower, slower and quieter than the tune.
+const STANCES = {
+  calm: { pace: 1, written: true },
+  tense: { pace: 0.92, bars: 1, drop: 4, space: 1.15, left: 0.15, drum: [0.05, 0] },
+  elder: { pace: 1.06, bars: 2, drop: 7, space: 1.3, left: 0.16, octave: true, drum: [0.055, 0.03], deep: true, drone: true, toll: 0.05 },
+  rage: { pace: 0.86, bars: 1, drop: 7, space: 1.3, left: 0.16, octave: true, drum: [0.055, 0.03], deep: true, drone: true, toll: 0.05 },
+};
+
 // ------------------------------------------------------------------ entry
 
 export function createAudio(game) {
@@ -620,7 +1012,7 @@ export function createAudio(game) {
   const own = { master: 1, music: 1, sfx: 1, ambience: 1 };
   const unit = (v, was) => (Number.isFinite(+v) ? clamp(+v, 0, 1) : was);
   function hearSettings(v) {
-    if (!v) return;
+    if (!v || typeof v !== 'object') return;
     for (const name in own) own[name] = unit(v[name], own[name]);
     volume = own.master;
     if ('mute' in v) soundOn = !v.mute;
@@ -764,6 +1156,12 @@ function createKit(ctx, game) {
   const noiseBuffer = whiteNoise(ctx, 5);
   // Felt piano tone: a strong fundamental and a few quickly fading harmonics.
   const felt = ctx.createPeriodicWave(new Float32Array(7), new Float32Array([0, 1, 0.45, 0.2, 0.1, 0.05, 0.025]));
+  // Two more tones the music's voices are built on (VOICES), as the strength of each harmonic.
+  const wave = (...harmonics) => ctx.createPeriodicWave(new Float32Array(harmonics.length + 1), new Float32Array([0, ...harmonics]));
+  const waves = {
+    organ: wave(1, 0.5, 0.12, 0.25, 0, 0.06, 0, 0.08),   // pipes at 8, 4 and 2 feet, and a little of the ones between
+    flute: wave(1, 0.3, 0.09, 0.03),                     // nearly pure
+  };
 
   const startTime = (o) => o.when ?? ctx.currentTime + kit.delay + (o.at ?? 0);
 
@@ -799,7 +1197,7 @@ function createKit(ctx, game) {
   /**
    * An enveloped oscillator note.
    * o: freq, to (pitch glide target), glide (seconds), type | wave, detune (cents),
-   *    gain, attack, hold, decay, cutoff, cutoffTo (low-pass Hz), pan (-1..1),
+   *    gain, attack, hold, decay, cutoff, cutoffTo (low-pass Hz), formant [Hz, dB, Q], pan (-1..1),
    *    vibrato { rate, depth (cents), delay }, bus, at (seconds from now) | when (absolute).
    */
   function tone(o) {
@@ -822,6 +1220,14 @@ function createKit(ctx, game) {
       filter.frequency.setValueAtTime(o.cutoff, t0);
       if (o.cutoffTo > 0) filter.frequency.exponentialRampToValueAtTime(o.cutoffTo, glideEnd);
       chain.push(filter);
+    }
+    if (o.formant) {           // a resonance, as a mouth gives a voice: one band lifted
+      const peak = ctx.createBiquadFilter();
+      peak.type = 'peaking';
+      peak.frequency.value = o.formant[0];
+      peak.gain.value = o.formant[1];
+      peak.Q.value = o.formant[2] ?? 1.5;
+      chain.push(peak);
     }
     chain.push(amp);
     if (o.pan && ctx.createStereoPanner) {
@@ -896,11 +1302,11 @@ function createKit(ctx, game) {
   }
 
   const kit = {
-    ctx, master, buses, padFilter, noiseBuffer, tone, noise, piano, bell,
+    ctx, master, buses, padFilter, noiseBuffer, waves, tone, noise, piano, bell,
     level: 1,        // distance scale for the sound being triggered
     delay: 0,        // stagger for the sound being triggered
-    root: AREAS.town.root,    // the music's current key root (MIDI)...
-    scale: AREAS.town.scale,  // ...and its five-note scale: both follow the area (and its elder)
+    root: AREAS.town.root,   // the music's current key root (MIDI)...
+    scale: AREAS.town.five,  // ...and its five-note scale: both follow the piece playing (the area's, or its elder's)
 
     /**
      * Frequency of a step of the five-note scale the music is in, so chimes agree
@@ -959,39 +1365,44 @@ function softClip(ctx) {
 // ------------------------------------------------------------------ music
 
 /**
- * Generative score. The calm piece is the same kind of thing everywhere: a slow
- * string pad changes chord, a felt piano speaks in short phrases with bars of
- * silence between them, and now and then a bowed line plays a few long notes.
- * Its key, speed, register and instruments are the area's row in AREAS.
+ * The score. Each area has a piece of its own and each elder a theme of its
+ * own (the rows of AREAS and BOSSES): a tune that is written down, sung by the
+ * row's lead over the row's bed and figure, in the row's key, meter and tempo.
+ * The piece is played phrase by phrase, round and round; now and then a phrase
+ * is left out, so it never comes round quite the same.
  *
  * What is happening bends it (STANCES) by bringing layers in and out, never by
- * changing the track. Creatures after the hero tighten the chords and add low
- * strings and a soft drum; an elder moves the area into its darker mode and
- * tolls; low health thins everything; a cinematic leaves only the pad.
+ * changing the track. Creatures after the hero darken the chords, cut the tune
+ * down to its opening notes and add low strings and a soft drum; an elder takes
+ * the piece over with its own theme, in its own key (one without a theme darkens
+ * the area's piece and tolls); low health thins everything; a cinematic leaves
+ * only the bed.
  *
- * Nothing repeats and nothing is written far ahead of the audio clock. Three
- * clocks keep it close to the game: every tick reads the game (sense), every
- * bar re-reads the stance, and a fight's layers are written a beat at a time.
+ * Nothing is written far ahead of the audio clock. Three clocks keep it close
+ * to the game: every tick reads the game (sense), every bar re-reads the stance,
+ * and a fight's layers are written a beat at a time.
  */
 function createMusic(kit, game) {
   const ctx = kit.ctx, out = kit.buses.music;
   const st = {
     at: -Infinity,                 // start time of the next beat
-    bar: 0, beat: 0, len: 1,       // bars since the key was set, the beat within the bar, seconds per beat
-    area: null,                    // the row of AREAS being played
+    bar: 0, beat: 0, len: 1,       // bars since the key or the stance was set, the beat within the bar, seconds per beat
+    area: null,                    // the row of AREAS for where the hero is
+    theme: null,                   // the row of BOSSES for the elder that is up, if it has one
+    piece: null,                   // the row being played: the area's, the elder's, or the elder's enraged
     elder: false, fury: false,     // an elder is up / it is wounded
     stance: 'calm',
     heat: 0,                       // 0..1, smoothed: creatures are after the hero
     thin: 0, low: false,           // 0..1, smoothed: the hero's health is low
     held: false, blocks: true,     // a cinematic has the stage / the one playing holds the controls
     chordName: '', chord: CHORDS.I, chordIn: 0,   // the chord sounding, and bars until the next
-    tones: new Set(),              // its pitch classes, bass included
-    fit: () => false,              // may the melody play this note over it?
-    ladder: [],                    // piano notes available over it
-    last: 0, below: 0,             // last melody note (MIDI), and the note played under it, if one was
-    phrase: 0, rest: 1,            // bars left in the piano's phrase / silence
-    sure: false,                   // the piano's bass will sound on the next chord, whatever the odds
-    bowIn: 2, bowBars: 0,          // chord changes until the next bowed line / bars it still plays
+    fit: () => false,              // may a note of the scale be sung over it?
+    clear: () => true,             // may a note the tune writes be sung over it as it stands?
+    phrase: 0, pbar: 0,            // where the tune is: which phrase, and which bar of it
+    skip: false,                   // the phrase now passing is one that is left out
+    wait: 0,                       // bars of the bed alone before the tune goes on
+    rest: 1,                       // in a fight: measures until the next fragment of the tune
+    wide: 1, mid: -1,              // in a fight: bars to a measure, and the beat its middle falls on
     fought: false,                 // the last beat had the fight layers in it
     busy: 0,                       // an effect's own flourish is sounding until then: answers wait for it
     felled: -Infinity,             // when an elder last came down
@@ -1000,16 +1411,18 @@ function createMusic(kit, game) {
 
   // ---- the mix: layers, and the decks they play through
 
-  // A deck is the set of buses everything pitched plays through: `lead` (piano,
-  // glass, bow), `call` (answers), `fight` (what danger adds) and `pad`. When the
-  // key changes at once (another area, an elder waking or coming down) the deck
-  // is faded out together with whatever was ringing or already written into it,
-  // and a new one takes over, so two keys are never heard together.
+  // A deck is the set of buses everything pitched plays through: `lead` (the
+  // tune), `comp` (what moves under it), `call` (answers), `fight` (what danger
+  // adds) and `pad` (the bed). When the key changes at once (another area, an
+  // elder waking or coming down) the deck is faded out together with whatever
+  // was ringing or already written into it, and a new one takes over, so two
+  // keys are never heard together.
   let deck = null;
   const spent = [];   // gains that have been faded out, until they can be let go
 
   const levels = () => ({
     lead: st.held ? 0 : 1,
+    comp: st.held ? 0 : 1,
     fight: st.held ? 0 : st.elder ? 1 : clamp((st.heat - 0.15) / 0.6, 0, 1),
     pad: st.held ? HELD_PAD : 1,
   });
@@ -1039,12 +1452,12 @@ function createMusic(kit, game) {
     if (deck) for (const bus of Object.values(deck)) retire(bus, now, DECK_FADE);
     deck = {};
     const level = levels();
-    for (const name of ['lead', 'call', 'fight', 'pad']) layer(name, level[name]);
+    for (const name of ['lead', 'comp', 'call', 'fight', 'pad']) layer(name, level[name]);
     Object.assign(st.mix, level);
   }
 
   // A chord cut short (the stance changed under it, or an answer took the piece
-  // home) takes its pad with it, so the next chord is not heard through it.
+  // home) takes its bed with it, so the next chord is not heard through it.
   function cutPad(t0) {
     retire(deck.pad, t0, PAD_CUT);
     layer('pad', st.mix.pad);
@@ -1063,30 +1476,30 @@ function createMusic(kit, game) {
 
   // ---- reading the game
 
-  const harmony = () => (st.elder && st.area.elder) || st.area;   // the scale and chords in force
-  const chords = () => (harmony() !== st.area ? harmony().chords : st.stance === 'tense' ? st.area.tense : st.area.chords);
-  const fightStance = () => STANCES[st.elder ? (st.fury ? 'rage' : 'elder') : 'tense'];
+  const generic = () => st.elder && !st.theme;                       // an elder with no theme of its own
+  const harmony = () => (generic() && st.area.elder) || st.piece;    // whose mode is in force
+  const wanderers = () => (generic() && st.area.elder ? st.area.elder.chords : st.area.tense);   // the chords of a fight
+  const pieceNow = () => (st.theme ? (st.fury && st.theme.fury) || st.theme : st.area);
   // a little danger does not start a fight in the music, and it is not over at the first lull
-  const stanceNow = () => (st.elder ? (st.fury ? 'rage' : 'elder') : st.heat > (st.stance === 'tense' ? 0.25 : 0.5) ? 'tense' : 'calm');
+  const stanceNow = () => (st.theme ? 'calm' : st.elder ? (st.fury ? 'rage' : 'elder') : st.heat > (st.stance === 'tense' ? 0.25 : 0.5) ? 'tense' : 'calm');
+  const fightStance = () => STANCES[st.elder ? (st.fury ? 'rage' : 'elder') : 'tense'];
+  const barsFor = (seconds) => Math.max(1, Math.round(seconds / (st.piece.meter * st.len)));
 
-  // Takes up a stance: the melody moves down or up with its register.
-  function stand(name) {
-    if (st.last) st.last += STANCES[st.stance].drop - STANCES[name].drop;
-    st.stance = name;
-  }
-
-  // Where the hero is and whether an elder is up. Either one changing changes
-  // the key at once: a new deck, and the piece opens again on its home chord.
+  // Where the hero is, and which elder is up. Either one changing changes the
+  // key at once: a new deck, and the piece (the area's, or the elder's own)
+  // opens at the top of its tune.
   function place(now) {
-    const area = areaOf(game), elder = (game.monsters || []).some((m) => m && m.boss && !m.dead);
-    if (area === st.area && elder === st.elder) return;
-    const moved = area !== st.area;
-    st.area = area; st.elder = elder;
+    const area = areaOf(game), boss = (game.monsters || []).find((m) => m && m.boss && !m.dead);
+    const elder = !!boss, theme = boss ? lookup(BOSSES, boss.defId, null) : null;
+    if (area === st.area && elder === st.elder && theme === st.theme) return;
+    const moved = area !== st.area, fallen = st.elder && !elder;
+    Object.assign(st, { area, elder, theme, piece: theme || area, stance: 'calm' });
     st.heat = 0;                   // whatever fight there was is not this one
-    kit.root = area.root;
-    kit.scale = harmony().scale;
+    kit.root = st.piece.root;
+    kit.scale = harmony().five;
     newDeck(now);
-    Object.assign(st, { at: now + (moved ? 0.6 : 0.3), bar: 0, beat: 0, chordName: '', chordIn: 0, phrase: 0, rest: 1, last: 0, bowIn: 2, bowBars: 0 });
+    // (an elder's fall rings on its own tonic, which is not the area's: the area's piece waits for it to die away)
+    Object.assign(st, { at: now + (fallen ? FELL_HUSH : moved ? 0.6 : 0.3), bar: 0, beat: 0, chordName: '', chordIn: 0, phrase: 0, pbar: 0, wait: 0, rest: 1, skip: false });
   }
 
   function sense(now, dt) {
@@ -1107,12 +1520,12 @@ function createMusic(kit, game) {
     // a cinematic that holds the controls has the stage; one that only slows the fight does not
     const held = !!(game.cinema && game.cinema.active) && st.blocks;
     if (st.held && !held) {
-      // It is over. After an elder's fall, a silence before the piano speaks;
-      // after any other the piece opens again on its home chord, on a downbeat.
-      if (now - st.felled < 15) Object.assign(st, { phrase: 0, rest: 2 });
+      // It is over. After an elder's fall, a silence before the tune; after any
+      // other the piece opens again at the top of its tune, on a downbeat.
+      if (now - st.felled < 15) Object.assign(st, { pbar: 0, wait: barsFor(8) });
       else {
         cutPad(now + 0.4);
-        Object.assign(st, { at: now + 0.4, beat: 0, chordName: '', chordIn: 0, phrase: 0, rest: 0, sure: true });
+        Object.assign(st, { at: now + 0.4, beat: 0, bar: 0, chordName: '', chordIn: 0, phrase: 0, pbar: 0, wait: 0, rest: 0 });
       }
     }
     st.held = held;
@@ -1120,158 +1533,104 @@ function createMusic(kit, game) {
 
   // ---- harmony
 
-  // May the melody sound a note over this chord? Only notes of the scale, never
-  // one a semitone above a chord tone in any octave (the harsh rub), and never
-  // one sitting right under a note of the pad.
-  function over(chord) {
-    const h = harmony(), root = kit.root;
-    const notes = [...h.scale, ...(h.color || [])];
-    const tones = new Set([chord.bass, ...chord.pad].map(pitchClass));
-    const pad = new Set(chord.pad.map((offset) => root + offset));
-    return (midi) => {
-      const pc = pitchClass(midi - root);
-      return notes.includes(pc) && !tones.has(pitchClass(pc - 1)) && !pad.has(midi + 1);
+  // What may be sung over a chord. `clear`: not a semitone above one of its notes
+  // in any octave (the harsh rub), and not right under a note the bed is
+  // sounding. `fit`: that, and a note of the mode in force.
+  function over(chord, sounding = chord.pad.map((offset) => kit.root + offset)) {
+    const root = kit.root, notes = harmony().notes, held = new Set(sounding);
+    const tones = new Set([chord.bass, ...chord.pad, ...sounding.map((midi) => midi - root)].map(pitchClass));
+    const clear = (midi) => !tones.has(pitchClass(midi - root - 1)) && !held.has(midi + 1);
+    return { clear, fit: (midi) => notes.includes(pitchClass(midi - root)) && clear(midi) };
+  }
+
+  // The nearest note to `midi` that fits (itself, if nothing near does).
+  const snap = (midi, fit) => [0, 1, -1, 2, -2, 3, -3].map((d) => midi + d).find(fit) ?? midi;
+
+  // The note a degree of the mode in force stands for, counted from `base`
+  // (0 is the tonic there, 7 the octave above it).
+  function pitch(base, degree, sharp = 0) {
+    const notes = harmony().notes, octave = Math.floor(degree / 7);
+    return base + 12 * octave + notes[degree - 7 * octave] + sharp;
+  }
+
+  // A chord arrives: the piece's bed holds it for `bars` bars from t0.
+  function sound(name, t0, bars) {
+    const piece = st.piece, chord = lookup(CHORDS, name, CHORDS.Isus), span = bars * piece.meter * st.len;
+    if (st.chordIn > 0) cutPad(t0);      // the chord before is cut short
+    const bed = {
+      root: kit.root, chord, bass: fold(kit.root + chord.bass, piece.bassFloor ?? 36), t0, span, sounding: [],
+      swell: Math.min(3, span * 0.4), tail: Math.min(5, span * 0.58), thin: st.thin > 0.5,
     };
+    lookup(BEDS, piece.bed, BEDS.strings)(kit, bed);
+    Object.assign(st, { chordName: name, chord, chordIn: bars }, over(chord, bed.sounding));
+    kit.padFilter.frequency.setTargetAtTime((piece.pad || 800) * (generic() ? 0.75 : 1), t0, 2);
   }
 
-  const inChord = (midi) => st.tones.has(pitchClass(midi - kit.root));
+  // ---- the tune, and what moves under it
 
-  function chordTone(midi, notes = st.ladder) {
-    let best = midi, gap = Infinity;
-    for (const m of notes) {
-      if (Math.abs(m - midi) < gap && inChord(m)) { best = m; gap = Math.abs(m - midi); }
-    }
-    return best;
+  function sing(voice, midi, when, seconds, gain, more) {
+    lookup(VOICES, voice, VOICES.piano).play(kit, { bus: 'lead', midi, when, len: seconds, gain: gain * rand(0.92, 1.08), ...more });
   }
 
-  // The piano's notes over the chord sounding. A fight brings its register down.
-  function tune() {
-    const { area } = st, drop = STANCES[st.stance].drop;
-    const low = kit.root + Math.max(5, area.low - drop), high = Math.max(low + 12, kit.root + area.high - drop);
-    st.ladder = [];
-    for (let m = low; m <= high; m++) if (st.fit(m)) st.ladder.push(m);
-    if (!st.last) st.last = low + 9;
-  }
-
-  function changeChord(t0, span) {
-    const { area } = st, list = chords(), home = list[0], was = st.chordName;
-    // a new key or stance opens on its home chord; after that the piece wanders and comes back
-    st.chordName = !list.includes(was) ? home : was !== home && rand() < 0.4 ? home : pick(list.filter((name) => name !== was));
-    const chord = st.chord = CHORDS[st.chordName], thin = st.thin > 0.5;
-    st.tones = new Set([chord.bass, ...chord.pad].map(pitchClass));
-    st.fit = over(chord);
-    tune();
-    const swell = Math.min(3, span * 0.4);
-    for (const offset of chord.pad) {
-      for (const detune of thin ? [0] : [-7, 7]) {   // low health: one string to a note, not two
-        kit.tone({ bus: 'pad', type: 'sawtooth', freq: mtof(kit.root + offset), detune, when: t0, attack: swell, hold: span - swell + 0.5, decay: Math.min(5, span * 0.58), gain: 0.028 });
-      }
-    }
-    kit.padFilter.frequency.setTargetAtTime(area.pad * (st.elder ? 0.75 : 1), t0, 2);
-    if (st.stance !== 'calm' || st.held || thin || --st.bowIn > 0) return;
-    bowLine(t0);
-    st.bowBars = STANCES.calm.bars;
-    st.bowIn = Math.max(2, Math.round(rand(3, 6.5) / area.bow));
-  }
-
-  // ---- the calm layers
-
-  // The melody wanders by step, leaning back toward the middle of its register.
-  function nextPitch(strong) {
-    const ladder = st.ladder, top = ladder.length - 1;
-    let i = 0;
-    for (let j = 1; j <= top; j++) if (Math.abs(ladder[j] - st.last) < Math.abs(ladder[i] - st.last)) i = j;
-    const up = rand() < 0.5 + ((top / 2 - i) / (top + 1)) * 0.9;
-    const step = (up ? 1 : -1) * (rand() < 0.72 ? 1 : 2);
-    i = clamp(i + step < 0 || i + step > top ? i - step : i + step, 0, top); // turn around at the edges
-    let midi = ladder[i];
-    // strong beats settle on a chord tone, unless that would just repeat the last note
-    if (strong && rand() < 0.7 && chordTone(midi) !== st.last) midi = chordTone(midi);
-    // two notes a semitone apart would ring against each other: step on past, or to the other side
-    const rubs = (m) => Math.abs(m - st.last) === 1 || Math.abs(m - st.below) === 1;
-    if (rubs(midi)) {
-      const at = ladder.indexOf(midi), dir = Math.sign(midi - st.last) || 1;
-      midi = [at + dir, at - 2 * dir, at + 2 * dir, at - dir].map((k) => ladder[k]).find((m) => m && !rubs(m)) ?? midi;
-    }
-    st.last = midi;
-    st.below = 0;
-    return midi;
-  }
-
-  // A glass tone: a soft sine that swells in rather than being struck, with a
-  // fainter one a twelfth above. High notes are held back so none of them pierce.
-  function glass(midi, when, gain) {
-    const freq = mtof(midi), level = gain * Math.min(1, Math.sqrt(660 / freq)), pan = rand(-0.3, 0.3);
-    kit.tone({ bus: 'lead', freq, when, pan, attack: 0.05, decay: 3.6, gain: level });
-    if (freq * 3 < 4200) kit.tone({ bus: 'lead', freq: freq * 3.01, when, pan, attack: 0.08, decay: 1.4, gain: level * 0.12 });
-  }
-
-  function pianoBar(t0, opening) {
-    const { area } = st, stance = STANCES[st.stance], thin = st.thin > 0.5;
-    if (st.ladder.length < 3) return;
-    // In a fight the piano is a lighter voice: one string to a note, damped sooner.
-    // (It also keeps the count of voices down when the chords come every bar.)
-    const touch = st.stance === 'calm' ? { bus: 'lead' } : { bus: 'lead', strings: 1, ring: 0.7 };
-    // make room for the bow; say less when the hero is hurt
-    const density = area.piano * stance.piano * SPARE * (st.bowBars > 0 ? 0.45 : 1) * (thin ? 0.5 : 1);
-    for (let slot = 0; slot < SLOT_WEIGHT.length; slot++) {
-      // (a phrase always begins: the downbeat of its first bar sounds, however sparse the area)
-      if (!(opening && slot === 0) && rand() > SLOT_WEIGHT[slot] * density) continue;
-      const strong = slot % 4 === 0;
-      const midi = nextPitch(strong);
-      const when = t0 + (slot * st.len) / 2 + rand(0, 0.03);
-      const gain = rand(0.12, 0.18) * (strong ? 1 : 0.85);
-      if (rand() < area.glass * stance.glass) { glass(midi, when, gain * 0.4); continue; }
-      kit.piano(mtof(midi), { ...touch, when, gain });
-      if (!strong || thin || rand() > 0.3) continue;
-      // now and then a chord tone a third to a sixth below makes a two-note chord
-      const under = st.ladder.findLast((m) => m <= midi - 3 && m >= midi - 9 && inChord(m));
-      if (under) kit.piano(mtof(st.below = under), { ...touch, when: when + 0.025, gain: gain * 0.7 });
+  // One bar of the tune as written: the lead's, or the second voice's where the
+  // phrase is marked for it.
+  function tuneBar(t0, phrase, bar) {
+    const piece = st.piece, by = (phrase.who === 2 && piece.second) || piece.lead, twin = piece.double;
+    const also = lookup(VOICES, by.voice, VOICES.piano).also ?? 0, across = twin ? twin.at - by.at : 0;
+    for (const n of phrase.bars[bar] || []) {
+      let midi = pitch(by.at, n.degree, n.sharp);
+      // (a row's tune is written to sit over its chords: this is for one that does not)
+      if (!(st.clear(midi) && st.clear(midi + also))) midi = snap(midi, (m) => st.fit(m) && st.clear(m + also));
+      const when = t0 + n.at * st.len, seconds = n.len * st.len, gain = piece.strong.includes(n.at) ? 1 : 0.88;
+      sing(by.voice, midi, when, seconds, gain);
+      if (piece.echo) sing(by.voice, midi, when + piece.echo[0], seconds, gain * piece.echo[1]);
+      // the second instrument on the tune leaves out a note that would rub where it lies
+      if (twin && twin.voice !== by.voice && st.thin < 0.5 && st.clear(midi + across)) sing(twin.voice, midi + across, when + 0.012, seconds, gain * 0.6);
     }
   }
 
-  // The piano's left hand: the bass of the chord. Calm, it sounds on some chord
-  // changes; in a fight it marks every bar, and against an elder it tolls in octaves.
-  function leftHand(t0, changed) {
-    const stance = STANCES[st.stance], thin = st.thin > 0.5;
-    if (!stance.left && !st.sure && (!changed || rand() > st.area.bass * (thin ? 0.5 : 1))) return;
-    st.sure = false;
-    const midi = fold(kit.root + st.chord.bass, st.area.bassFloor), when = t0 + rand(0, 0.03);
-    // (in a fight the notes come every bar, so they are not left to ring into each other)
-    kit.piano(mtof(midi), { bus: 'lead', when, gain: stance.left || 0.15, ring: stance.left ? 0.6 : 1 });
-    if (stance.octave && !thin) kit.piano(mtof(midi + 12), { bus: 'lead', strings: 1, ring: 0.6, when: when + 0.03, gain: stance.left * 0.5 });
+  // In a fight the tune is not played through: one phrase's opening notes at a
+  // time, lower (but no lower than the voice sounds well), in whatever the chord allows.
+  function fragment(t0) {
+    const piece = st.piece, phrases = piece.phrases;
+    if (!phrases.length) return;
+    const phrase = phrases[st.phrase % phrases.length], by = piece.lead, drop = STANCES[st.stance].drop;
+    st.phrase = (st.phrase + 1) % phrases.length;
+    const head = (phrase.bars[0] || []).slice(0, 3), notes = head.map((n) => pitch(by.at, n.degree - drop, n.sharp));
+    if (!notes.length) return;
+    const lift = 12 * Math.max(0, Math.ceil((lookup(VOICES, by.voice, VOICES.piano).low - Math.min(...notes)) / 12));
+    head.forEach((n, i) => sing(by.voice, snap(notes[i] + lift, st.fit), t0 + n.at * st.len, n.len * st.len, 0.9, { light: true }));
   }
 
-  // Two to four long legato notes inside one chord, starting and ending on chord
-  // tones: a violin where the area's row puts it high, a cello where it puts it low.
-  function bowLine(t0) {
-    const floor = kit.root + st.area.bowLow, beat = st.len, reach = [];
-    for (let m = floor; m <= floor + 16; m++) if (st.fit(m)) reach.push(m);
-    if (reach.length < 3) return;
-    const top = reach.length - 1, breath = randInt(0, 2);
-    let i = clamp(Math.floor(top / 2) + randInt(-1, 1), 0, top), dir = pick([-1, 1]), prev = 0;
-    let left = STANCES.calm.bars * 4 - breath, when = t0 + breath * beat;
-    for (let n = 0; n < 4 && left >= 2; n++) {
-      const beats = Math.min(left, pick([2, 3, 3, 4]));
-      left -= beats;
-      const anchor = n === 0 || n === 3 || left < 2;
-      let midi = anchor ? chordTone(reach[i], reach) : reach[i];
-      if (midi === prev) { const at = reach.indexOf(prev); midi = reach[at + dir] ?? reach[at - dir]; } // do not bow the same note twice
-      prev = midi;
-      const freq = mtof(midi), dur = beats * beat, loud = clamp((400 / freq) ** 0.25, 0.8, 1.3); // low strings need more bow
-      for (const [detune, gain] of [[0, 0.055], [6, 0.025]]) {
-        kit.tone({
-          bus: 'lead', type: 'sawtooth', freq, detune, when, gain: gain * loud, attack: 0.5, hold: Math.max(0.1, dur - 0.4), decay: 1.5,
-          cutoff: Math.min(2200, freq * 3), vibrato: { rate: 5.2, depth: 12, delay: 0.45 },
-        });
-      }
-      when += dur;
-      if (i + dir < 0 || i + dir > top) dir = -dir; // the line rises or falls, turning at the edge of its range
-      i = clamp(i + dir * pick([1, 1, 2]), 0, top);
+  // A note of the chord sounding, as a figure names it ('bass', 'low' 'mid' 'top', and '+12').
+  function chordNote(part) {
+    const [name, up = 0] = String(part).split('+'), chord = st.chord;
+    const base = name === 'bass' ? fold(kit.root + chord.bass, st.piece.bassFloor ?? 36) : kit.root + chord.pad[{ low: 0, mid: 1, top: 2 }[name] ?? 0];
+    return base + Number(up);
+  }
+
+  // One bar of the piece's figure. `fresh`: a chord arrives in this bar; `opening`: a phrase begins in it.
+  function figureBar(t0, fresh, opening) {
+    for (const name of [].concat(st.piece.figure || [])) {
+      const figure = lookup(FIGURES, name, null);
+      if (!figure || (figure.on === 'chord' && !fresh) || (figure.on === 'phrase' && !opening)) continue;
+      const voice = lookup(VOICES, figure.voice, VOICES.piano);
+      figure.bars[figure.on === 'bar' ? st.bar % figure.bars.length : 0].forEach(([beat, part, held = 1, level = 1], i) => {
+        if (beat < st.piece.meter) voice.play(kit, { bus: 'comp', midi: chordNote(part), when: t0 + beat * st.len + 0.004 * i, len: held * st.len, gain: level, light: figure.light });
+      });
     }
   }
 
-  // ---- what a fight adds: all of it low, slow and under the piano
+  // The piano's left hand in a fight: the bass of the chord on every measure.
+  // Against an elder it tolls in octaves.
+  function leftHand(t0) {
+    const stance = STANCES[st.stance], midi = fold(kit.root + st.chord.bass, st.piece.bassFloor ?? 36), when = t0 + rand(0, 0.03);
+    // (the notes come every measure, so they are not left to ring into each other)
+    kit.piano(mtof(midi), { bus: 'comp', when, gain: stance.left, ring: 0.6 });
+    if (stance.octave && st.thin < 0.5) kit.piano(mtof(midi + 12), { bus: 'comp', strings: 1, ring: 0.6, when: when + 0.03, gain: stance.left * 0.5 });
+  }
+
+  // ---- what a fight adds: all of it low, slow and under the tune
 
   // A soft low drum: a felt beater on a big skin, more felt than heard.
   function drum(when, gain, deep) {
@@ -1282,10 +1641,7 @@ function createMusic(kit, game) {
 
   // Cellos and basses: bowed, never plucked, and kept dark.
   function lowString(midi, when, seconds, gain) {
-    const freq = mtof(midi);
-    for (const [detune, share] of [[0, 0.65], [8, 0.35]]) {
-      kit.tone({ bus: 'fight', type: 'sawtooth', freq, detune, when, gain: gain * share, attack: 0.14, hold: Math.max(0.1, seconds - 0.3), decay: 0.7, cutoff: Math.min(700, freq * 4) });
-    }
+    VOICES.lowstring.play(kit, { bus: 'fight', midi, when, len: seconds, gain: gain / 0.04 });
   }
 
   // A low bell on the tonic, left to ring.
@@ -1295,46 +1651,51 @@ function createMusic(kit, game) {
     kit.tone({ bus: 'fight', freq: freq * 2.76, when, attack: 0.012, decay: 2.2, gain: gain * 0.18 });
   }
 
+  // A wave coming in and drawing back: a breath of low noise (no hiss in it) that swells for half its length.
+  function wash(when, seconds, gain) {
+    kit.noise({ bus: 'fight', filter: 'lowpass', freq: 240, to: 700, glide: seconds * 0.45, when, attack: seconds * 0.45, hold: 0.2, decay: seconds * 0.5, gain });
+  }
+
   // One beat of the fight layers. They follow the danger itself, not the stance
   // of the bar, so they arrive and leave within a beat of the game.
   function fightBeat(t0) {
     const on = !st.held && (st.elder || st.heat > (st.fought ? 0.2 : 0.3));
-    // the first beat of a fight is a downbeat, wherever in the bar it falls
-    const first = on && !st.fought, beat = first ? 0 : st.beat;
+    const first = on && !st.fought, thin = st.thin > 0.5, piece = st.piece;
     st.fought = on;
     if (!on) return;
-    const stance = fightStance(), thin = st.thin > 0.5;
-    if (stance.drum[beat]) drum(t0, stance.drum[beat] * (thin ? 0.8 : 1), stance.deep);
+    if (st.theme) {                // an elder with a theme of its own: its row says what the drum does
+      const hit = piece.drum && piece.drum[st.beat];
+      if (hit) drum(t0, hit * (thin ? 0.8 : 1), piece.deep);
+      if (!thin && piece.wash && st.beat === 0 && st.bar % 2 === 0) wash(t0, 2 * piece.meter * st.len, piece.wash);
+      return;
+    }
+    // Where the beat falls in the measure. The first beat of a fight is a downbeat, wherever it falls.
+    const stance = fightStance(), beats = st.wide * piece.meter, here = (st.bar % st.wide) * piece.meter + st.beat, at = first ? 0 : here;
+    const hit = at === 0 ? stance.drum[0] : at === st.mid ? stance.drum[1] : 0;
+    if (hit) drum(t0, hit * (thin ? 0.8 : 1), stance.deep);
     if (thin) return;              // low health: the drum alone
-    const bass = fold(kit.root + st.chord.bass, STRING_FLOOR);
-    if (stance.drone) { if (beat === 0) lowString(bass, t0, (4 - st.beat) * st.len, 0.04); }   // held to the bar line
-    else if (st.area.pulse[beat] != null) lowString(bass + st.area.pulse[beat], t0, st.len, 0.034);
-    if (stance.toll && beat === 0 && (first || st.bar % 2 === 0)) toll(t0, stance.toll);
+    const bass = fold(kit.root + st.chord.bass, STRING_FLOOR), half = Math.min(1.4, (beats * st.len) / 2);
+    if (stance.drone) { if (at === 0) lowString(bass, t0, (beats - here) * st.len, 0.04); }   // held to the end of the measure
+    else if (at === 0) lowString(bass, t0, half, 0.034);
+    else if (at === st.mid) lowString(bass + 7, t0, half, 0.034);
+    if (stance.toll && at === 0 && (first || Math.floor(st.bar / st.wide) % 2 === 0)) toll(t0, stance.toll);
   }
 
   // ---- answers
 
-  // The nearest note to `midi` that may sound over a chord.
-  function snap(midi, fit) {
-    for (const d of [0, 1, -1, 2, -2, 3, -3]) if (fit(midi + d)) return midi + d;
-    return midi;
-  }
-
   function answer(kind) {
     if (st.held || !st.area) return;
-    const a = ANSWERS[kind], { area } = st, half = Math.min(area.beat / 2, ANSWER_STEP);
+    const a = ANSWERS[kind], piece = st.piece, half = piece.step;
     const t0 = Math.max(ctx.currentTime + 0.12, st.busy);
-    // It is over: whatever fight there was leaves at once, and the piece goes home
-    // (it stays a bar if it is there already).
+    // It is over: whatever fight there was leaves at once, the tune stops for
+    // the answer, and the piece goes home (it stays if it is there already).
     st.heat = Math.min(st.heat, 0.2);
-    const home = harmony().chords[0], chord = CHORDS[home];
-    if (st.chordName === home && st.stance === 'calm') st.chordIn = Math.max(st.chordIn, 1);
-    else {
+    const home = generic() && st.area.elder ? st.area.elder.chords[0] : piece.home, chord = lookup(CHORDS, home, CHORDS.Isus);
+    if (!(st.chordName === home && st.stance === 'calm')) {
       cutPad(t0);
-      stand('calm');
-      Object.assign(st, { at: t0, beat: 0, chordName: '', chordIn: 0 });
+      Object.assign(st, { stance: 'calm', at: t0, beat: 0, bar: 0, chordName: '', chordIn: 0 });
     }
-    const fit = over(chord), base = fold(kit.root, a.floor), last = a.steps.length - 1;
+    const fit = over(chord).fit, base = fold(kit.root, a.floor), last = a.steps.length - 1;
     a.steps.forEach((step, i) => {
       const octave = Math.floor(step / 5);
       const midi = snap(base + 12 * octave + kit.scale[step - 5 * octave], fit);
@@ -1342,40 +1703,71 @@ function createMusic(kit, game) {
     });
     if (a.roll) {
       const when = t0 + (last + 1) * half;
-      kit.piano(mtof(fold(kit.root + chord.bass, area.bassFloor)), { bus: 'call', when, gain: a.gain });
+      kit.piano(mtof(fold(kit.root + chord.bass, piece.bassFloor ?? 36)), { bus: 'call', when, gain: a.gain });
       chord.pad.forEach((offset, i) => kit.piano(mtof(kit.root + offset + 12), { bus: 'call', strings: 1, when: when + 0.05 + i * 0.07, gain: a.gain * 0.6 }));
     }
-    // then silence, and the calm layer picks up again
-    st.phrase = 0;
-    st.rest = Math.max(st.rest, 2);
+    // then the bed alone, and the tune picks up again at the top of a phrase
+    Object.assign(st, { pbar: 0, wait: Math.max(st.wait, barsFor(8)), rest: Math.max(st.rest, 2) });
     st.busy = t0 + (last + 3) * half;
   }
 
   // ---- the scheduler
 
+  // A bar of the piece as its row writes it.
+  function writtenBar(t0) {
+    const piece = st.piece, phrases = piece.phrases;
+    if (st.held || st.wait > 0 || !phrases.length) {       // the bed alone, on the home chord
+      if (st.chordIn <= 0 || st.chordName !== piece.home) sound(piece.home, t0, barsFor(9));
+      if (st.wait > 0 && !st.held) st.wait--;
+      st.pbar = 0;
+      return;
+    }
+    const phrase = phrases[st.phrase % phrases.length], opening = st.pbar === 0, hurt = st.thin > 0.5;
+    // Now and then a phrase is left out and the bed breathes alone: more often when the hero is hurt, and
+    // never the first, so that a piece always begins by saying its tune.
+    if (opening) st.skip = (st.phrase > 0 || hurt) && rand() > SPARE * (hurt ? 0.5 : 1);
+    const fresh = phrase.spans[st.pbar] > 0;
+    if (fresh) sound(phrase.chords[st.pbar], t0, phrase.spans[st.pbar]);
+    else if (st.chordIn <= 0) sound(phrase.chords[st.pbar] || piece.home, t0, 1);
+    if (!hurt) figureBar(t0, fresh, opening);
+    if (!st.skip) tuneBar(t0, phrase, st.pbar);
+    if (++st.pbar >= phrase.chords.length) { st.pbar = 0; st.phrase = (st.phrase + 1) % phrases.length; }
+  }
+
+  // A measure of a fight: a chord from the darker ones, the left hand, and now and then a fragment of the tune.
+  function wanderBar(t0) {
+    const stance = STANCES[st.stance], hurt = st.thin > 0.5;
+    if (st.bar % st.wide) return;                          // the second bar of a measure of two
+    if (st.chordIn <= 0) {
+      // a new stance opens on its home chord; after that the piece wanders and comes back
+      const list = wanderers(), home = list[0], was = st.chordName;
+      sound(!list.includes(was) ? home : was !== home && rand() < 0.4 ? home : pick(list.filter((name) => name !== was)) ?? home, t0, stance.bars * st.wide);
+    }
+    if (st.held) return;           // a cinematic is playing: the bed alone
+    leftHand(t0);
+    if (st.rest > 0) { st.rest--; return; }
+    fragment(t0);
+    // the next one comes about a phrase later: the tune says under half of what it does in peace
+    st.rest = Math.max(1, Math.round((stance.space * (hurt ? 2 : 1) * clamp(st.piece.breath, 10, 24)) / (st.wide * st.piece.meter * st.len)) - 1);
+  }
+
   function startBar(t0) {
-    const name = stanceNow();
-    if (name !== st.stance) {      // a new stance starts on a new chord
+    const name = stanceNow(), piece = pieceNow();
+    if (name !== st.stance || piece !== st.piece) {
+      // a new stance (or an elder now enraged) starts on a new chord, and the tune at the top of a phrase
       if (st.chordIn > 0) cutPad(t0);
-      stand(name);
-      st.chordIn = 0;
+      Object.assign(st, { stance: name, phrase: piece === st.piece ? st.phrase : 0, piece, chordIn: 0, chordName: '', pbar: 0, bar: 0, rest: 1 });
     }
-    const stance = STANCES[name], { area } = st;
-    st.len = area.beat * stance.pace;
-    const changed = st.chordIn <= 0;
-    if (changed) { changeChord(t0, stance.bars * 4 * st.len); st.chordIn = stance.bars; }
+    const stance = STANCES[name], beats = piece.meter;
+    st.len = piece.beat * stance.pace;
+    // a fight counts in measures of about four seconds: a bar, or two of a quick meter
+    st.wide = stance.written ? 1 : Math.max(1, Math.round(4 / (beats * st.len)));
+    // ...and its second pulse falls on the strong beat nearest the middle of one
+    const strong = [], middle = (st.wide * beats) / 2;
+    for (let b = 0; b < st.wide; b++) for (const s of piece.strong) if (b * beats + s > 0) strong.push(b * beats + s);
+    st.mid = strong.length ? strong.reduce((best, at) => (Math.abs(at - middle) < Math.abs(best - middle) ? at : best)) : -1;
+    if (stance.written) writtenBar(t0); else wanderBar(t0);
     st.chordIn--;
-    if (st.held) return;           // a cinematic is playing: the pad alone
-    leftHand(t0, changed);
-    const opening = st.phrase === 0 && st.rest === 0;
-    if (opening) st.phrase = randInt(1, 2);
-    if (st.phrase > 0) {
-      pianoBar(t0, opening);
-      if (--st.phrase === 0) st.rest = Math.round(randInt(area.rest[0], area.rest[1]) * stance.space);
-    } else {
-      st.rest--;
-    }
-    if (st.bowBars > 0) st.bowBars--;
   }
 
   function scheduleBeat() {
@@ -1383,7 +1775,7 @@ function createMusic(kit, game) {
     if (st.beat === 0) startBar(t0);
     fightBeat(t0);
     st.at = t0 + st.len;
-    if (++st.beat === 4) { st.beat = 0; st.bar++; }
+    if (++st.beat >= st.piece.meter) { st.beat = 0; st.bar++; }
   }
 
   place(ctx.currentTime);
@@ -1391,9 +1783,9 @@ function createMusic(kit, game) {
   return {
     update(now, dt) {
       sense(now, dt);
-      if (st.at < now - 1) {       // back from a stall: pick up on a new bar and a new chord
+      if (st.at < now - 1) {       // back from a stall: pick up on a new bar, a new chord and the top of a phrase
         cutPad(now + 0.4);
-        Object.assign(st, { at: now + 0.4, beat: 0, chordIn: 0 });
+        Object.assign(st, { at: now + 0.4, beat: 0, bar: 0, chordIn: 0, pbar: 0 });
       }
       while (st.at < now + LOOKAHEAD) scheduleBeat();
       mix(now);

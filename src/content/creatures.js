@@ -113,8 +113,9 @@ export const CREATURES = {
   //   giant   the play camera stands back for it, it turns slowly, its steps shake the ground
   //   turn    how fast it can turn to face the hero (an ordinary creature: 9)
   //   fall    seconds it takes to come down when it dies       hitY  how high a blow on it is drawn
+  //   sit     how it sits for its portrait: the action it is caught in, how many metres of it to show, how high the picture's middle is
   warden: {
-    cost: 0, boss: true, giant: true, epithet: 'Keeper of the Ember Shelf',
+    cost: 0, boss: true, giant: true, epithet: 'Keeper of the Ember Shelf', sit: [5, 17, 7.5],
     name: 'The Stone Warden', archetype: 'warden', scale: 1, radius: 3.5, height: 13, hitY: 2.6, turn: 2.0, fall: 4.2,
     hp: 1500, atk: 19, speed: 2.7, range: 3.2, attackTime: 1.5, cooldown: 2.6, aggro: 80, xp: 420, stride: 0.52,
     specials: [
@@ -127,7 +128,7 @@ export const CREATURES = {
     loot: [['glint', 1, [90, 130]], ['crag_shard', 1, [3, 5]], ['tonic', 1, [2, 3]]],
   },
   matron: {
-    cost: 0, boss: true, giant: true, epithet: 'Mother of the Glasswood',
+    cost: 0, boss: true, giant: true, epithet: 'Mother of the Glasswood', sit: [5, 17, 7.5],
     name: 'The Spore Matron', archetype: 'matron', scale: 1, radius: 3.6, height: 12, hitY: 2.6, turn: 2.4, fall: 4.2,
     hp: 1350, atk: 16, speed: 2.4, range: 3.4, attackTime: 1.4, cooldown: 2.4, aggro: 80, xp: 400, stride: 0.6,
     specials: [
@@ -140,7 +141,7 @@ export const CREATURES = {
     loot: [['glint', 1, [90, 130]], ['puff_spore', 1, [3, 5]], ['draught', 1, [2, 3]]],
   },
   sentinel: {
-    cost: 0, boss: true, giant: true, epithet: 'Warden of the Rime Steps',
+    cost: 0, boss: true, giant: true, epithet: 'Warden of the Rime Steps', sit: [0, 15, 4.5],
     name: 'The Tide Sentinel', archetype: 'sentinel', scale: 1, radius: 5.0, height: 8.5, hitY: 2.4, turn: 2.2, fall: 4.0,
     hp: 1420, atk: 17, speed: 3.2, range: 3.2, attackTime: 1.3, cooldown: 2.2, aggro: 80, xp: 410, stride: 0.45,
     specials: [
@@ -151,6 +152,34 @@ export const CREATURES = {
     ],
     colors: [[188, 84, 60], [226, 176, 52], [226, 188, 130]],
     loot: [['glint', 1, [90, 130]], ['snap_claw', 1, [3, 5]], ['tonic', 1, [2, 3]]],
+  },
+  // lamp: [how high, how far]: a light it carries, which lights its hall for everyone (app/view.js)
+  keeper: {
+    cost: 0, boss: true, giant: true, epithet: 'Warden of the Underhalls', lamp: [5.5, 21], sit: [5, 16.5, 6.6],
+    name: 'The Lantern Keeper', archetype: 'keeper', scale: 1, radius: 3.4, height: 11.5, hitY: 2.6, turn: 2.2, fall: 4.2,
+    hp: 1450, atk: 17, speed: 2.5, range: 3.4, attackTime: 1.5, cooldown: 2.5, aggro: 80, xp: 430, stride: 0.5,
+    specials: [
+      { kind: 'lance', every: 9, min: 6, max: 40, windup: 1.3, len: 30, w: 3.0, mult: 1.8, recover: 1.0 },
+      { kind: 'slam', every: 10, min: 0, max: 10, windup: 1.5, r: 9.0, mult: 1.8, recover: 1.4 },
+      { kind: 'barrage', every: 12, min: 6, max: 60, windup: 1.0, count: 6, r: 2.6, gap: 0.45, drop: 1.25, mult: 1.2 },
+      { kind: 'summon', every: 19, min: 0, max: 60, below: 0.75, windup: 1.3, adds: 'watcher', count: 2 },
+    ],
+    colors: [[104, 98, 132], [226, 176, 52], [226, 214, 190]],
+    loot: [['glint', 1, [95, 135]], ['crag_shard', 1, [3, 5]], ['draught', 1, [2, 3]]],
+  },
+  // (stride 0: it does not walk, so the ground does not shake under it)
+  drifter: {
+    cost: 0, boss: true, giant: true, epithet: 'Tide of the Shatter', sit: [5, 17.5, 5.2],
+    name: 'The Star Drifter', archetype: 'drifter', scale: 1, radius: 4.6, height: 8, hitY: 3.2, turn: 2.6, fall: 4.4,
+    hp: 1400, atk: 16, speed: 3.6, range: 3.6, attackTime: 1.4, cooldown: 2.3, aggro: 80, xp: 430, stride: 0,
+    specials: [
+      { kind: 'barrage', every: 8, min: 5, max: 60, windup: 0.9, count: 9, r: 2.3, gap: 0.28, drop: 1.3, mult: 1.1 },
+      { kind: 'charge', every: 11, min: 9, max: 36, windup: 1.2, speed: 18, dist: 28, mult: 1.9, winded: 2.2 },
+      { kind: 'slam', every: 12, min: 0, max: 10, windup: 1.4, r: 9.5, mult: 1.7, recover: 1.3 },
+      { kind: 'summon', every: 18, min: 0, max: 60, below: 0.75, windup: 1.3, adds: 'wisp', count: 3 },
+    ],
+    colors: [[112, 128, 176], [226, 176, 52], [170, 226, 220]],
+    loot: [['glint', 1, [95, 135]], ['wisp_ember', 1, [3, 5]], ['draught', 1, [2, 3]]],
   },
 };
 

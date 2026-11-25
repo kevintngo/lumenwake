@@ -16,6 +16,11 @@
 //              its district favours, so a wood has a colour of its own and a few strays.
 //   monsters   rows of [monsterId, weight], read by the spawner
 //   variant    how this country's beasts differ: a name and the pencil of their hide
+//   realm      what the place stands in: 0 a sea of cloud under an open sky (the default); 1 underground: no
+//              sky, no cloud, only the dark, and `walls` (metres) of stone wherever there is no floor;
+//              2 open space: the dark and the stars on every side, the ringed world close
+//   gravity    how hard the ground pulls, beside home (1): a jump goes further where it is less
+//   hop        how many times further a jump carries there: broken bridges and stepping stones are spaced by it
 
 import { smoothstep } from '../core/math.js';
 
@@ -115,6 +120,32 @@ registerBiome({
   variant: { prefix: 'Rime', pencil: [168, 202, 226] },
   boss: 'sentinel',
   particles: 'snow',
+});
+
+// halls under the islands, older than the survey: flagged floors between walls of dressed stone, no sky, and
+// no light but the braziers, the crystal in the walls and the lumen at your shoulder
+registerBiome({
+  id: 'vault', name: 'The Underhalls', mission: true, realm: 1, walls: 2.3,
+  ground: [0.800, 0.740, 0.640], ground2: [0.700, 0.700, 0.740], rock: [0.360, 0.340, 0.440],
+  grass: 0, sand: 0, flowers: 0, leaf: [9], rag: 0, roll: 0, hour: 1.0, cloud: 0,
+  props: [['column', 0.05, 0.3], ['brazier', 0.035, 0.16], ['urn', 0.04, 0.2], ['crystal', 0.012, 0.06], ['rock', 0.012, 0.05], ['cairn', 0.008, 0.03]],
+  monsters: [['delver', 4], ['watcher', 4], ['shellsnap', 3], ['mite', 3], ['cragling', 3], ['hound', 2], ['strider', 1]],
+  variant: { prefix: 'Hall', pencil: [170, 150, 196] },
+  boss: 'keeper',
+  particles: 'dust',
+});
+
+// what is left of a moon, adrift round the ringed world: shards of pale rock with the stars under them, the
+// survey's own wreckage, and so little weight that a jump carries three times as far
+registerBiome({
+  id: 'shatter', name: 'The Shatter', mission: true, realm: 2, gravity: 0.42, hop: 2.3,
+  ground: [0.640, 0.620, 0.740], ground2: [0.730, 0.690, 0.700], rock: [0.430, 0.400, 0.560],
+  grass: 0, sand: 0.12, flowers: 0, leaf: [11], rag: 0.16, roll: 1.0, hour: 9.2, cloud: 0,
+  props: [['shard', 0.04, 0.22], ['floater', 0.04, 0.14], ['rock', 0.03, 0.08], ['crystal', 0.02, 0.07], ['wreck', 0.014, 0.05], ['dish', 0.008, 0.03], ['stone', 0.008, 0.03]],
+  monsters: [['watcher', 4], ['wisp', 4], ['strider', 3], ['mite', 3], ['delver', 2], ['shellsnap', 2], ['cragling', 2]],
+  variant: { prefix: 'Star', pencil: [150, 170, 220] },
+  boss: 'drifter',
+  particles: 'stardust',
 });
 
 export const MISSION_BIOMES = BIOMES.filter((b) => b.mission).map((b) => b.id);

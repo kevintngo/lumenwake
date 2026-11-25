@@ -73,7 +73,7 @@ export class PlayerSystem {
       it.jump = false;
       if (!p.aloft && !p.dash) {
         p.aloft = true; p.air = 0; p.vy = GAME.JUMP_SPEED;
-        if (!p.action) { p.action = 5; p.actionT = 0; p.actionDur = 2 * GAME.JUMP_SPEED / GAME.GRAVITY; }
+        if (!p.action) { p.action = 5; p.actionT = 0; p.actionDur = 2 * GAME.JUMP_SPEED / (GAME.GRAVITY * (w.biome().gravity || 1)); }
         g.bus.emit('jump', { entity: p, x: p.x, y: p.y, z: p.z });
       }
     }
@@ -101,7 +101,7 @@ export class PlayerSystem {
     p.move = damp(p.move, Math.min(1, movedNow / (GAME.PLAYER_SPEED * 0.8)), 14, dt);
     if (p.aloft) {
       // in the air: the feet are p.air above where the jump began (p.y), and come down on whatever floor is under them
-      p.vy -= GAME.GRAVITY * dt;
+      p.vy -= GAME.GRAVITY * (w.biome().gravity || 1) * dt;          // (a place may pull less: content/themes.js)
       p.air += p.vy * dt;
       const feet = p.y + p.air, floor = w.nav.inside(p.x, p.z, 0.05) ? w.surface(p.x, p.z) : -1e3;      // (over the cloud there is no floor)
       if (p.vy <= 0 && feet <= floor) {

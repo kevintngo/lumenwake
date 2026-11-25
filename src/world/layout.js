@@ -7,11 +7,14 @@
 //   link  { a, b, w, gate }      a bridge from room a to room b, `w` wide; gate: it is shut until room a is cleared
 
 import { mulberry32 } from '../core/rng.js';
+import { biomeById } from '../content/themes.js';
 
 const TAU = Math.PI * 2;
 
 /** The rim of a room at an angle: its radius, a little ragged. */
 export function rimAt(room, angle) {
+  // a hall built by hands is square with its corners eased, and stands square to the compass
+  if (room.sq) { const c = Math.abs(Math.cos(angle)), s = Math.abs(Math.sin(angle)); return room.r * 0.9 * Math.pow(c ** 6 + s ** 6, -1 / 6); }
   const [p1, p2, p3] = room.w;
   return room.r * (1 + room.rag * (0.5 * Math.sin(3 * angle + p1) + 0.32 * Math.sin(5 * angle + p2) + 0.18 * Math.sin(9 * angle + p3)));
 }
@@ -24,6 +27,7 @@ function room(i, x, z, r, h, kind, rag, rnd) {
 export function missionSpec(offer) {
   const rnd = mulberry32(offer.seed >>> 0);
   const rooms = [], links = [];
+  const B = biomeById(offer.biome) || {}, walled = !!B.walls, far = B.hop || 1;      // (see content/themes.js: realm, hop)
   let h = 10 + Math.floor(rnd() * 3);
   rooms.push(room(0, 0, 0, 8.5, h, 'start', 0.05, rnd));
   let dir = rnd() * TAU;
@@ -58,26 +62,27 @@ export function missionSpec(offer) {
     if (kind === 'fight' && rnd() < 0.72) {
       side = rnd() < 0.5 ? 1 : -1;
       const turn = side * (1.2 + rnd() * 0.7);
-      const first = branch(rm, dir + turn, false, rnd() < 0.45);
-      if (first && rnd() < 0.5) branch(first, dir + turn * (0.6 + rnd() * 0.5), true, false);
+      const first = branch(rm, dir + turn, false, rnd() < (walled ? 0.7 : 0.45));
+      // (between walls there is nowhere for stepping stones to stand: a second hall beyond is reached over a pit)
+      if (first && rnd() < 0.5) branch(first, dir + turn * (0.6 + rnd() * 0.5), !walled, walled);
     }
     if (kind === 'fight' && r >= 12 && rnd() < 0.65) {
       const a = dir - (side || (rnd() < 0.5 ? 1 : -1)) * (1.45 + rnd() * 0.4), d = rm.r * 0.52;
-      rm.plateau = { x: rm.x + Math.sin(a) * d, z: rm.z + Math.cos(a) * d, r: 3.0, h: 1.2 };
+      rm.plateau = { x: rm.x + Math.sin(a) * d, z: rm.z + Math.cos(a) * d, r: 3.0, h: far > 1.5 ? 2.5 : 1.2 };
     }
   }
   function branch(from, toward, hop, broken) {
     for (let tries = 0; tries < 12; tries++) {
       const d3 = toward + (rnd() - 0.5) * 0.5;
-      const r3 = 8.4 + rnd() * 2.4, dist = from.r + r3 + 7 + rnd() * 5;
+      const r3 = 8.4 + rnd() * 2.4, dist = from.r + r3 + (7 + rnd() * 5) * (hop ? far : 1);
       const x = from.x + Math.sin(d3) * dist, z = from.z + Math.cos(d3) * dist;
       if (!fits(rooms, links, from, x, z, r3)) continue;
       const side = room(rooms.length, x, z, r3, Math.min(18, Math.max(6, from.h + (rnd() - 0.5) * (hop ? 1.6 : 3.4))), 'cache', 0.1, rnd);
       rooms.push(side);
-      if (!hop) { links.push({ a: from.i, b: side.i, w: 3.6, gate: false, gap: broken ? 2.6 : 0 }); return side; }
+      if (!hop) { links.push({ a: from.i, b: side.i, w: 3.6, gate: false, gap: broken ? 2.6 * far : 0 }); return side; }
       // stepping stones from rim to rim, near enough apart to jump and too far to step
       const s0 = rimAt(from, d3), s1 = dist - rimAt(side, d3 + Math.PI), span = s1 - s0;
-      const n = Math.max(1, Math.round(span / 3.9) - 1);
+      const n = Math.max(1, Math.round(span / (3.9 * far)) - 1);
       for (let k = 1; k <= n; k++) {
         const s = s0 + span * k / (n + 1);
         rooms.push(room(rooms.length, from.x + Math.sin(d3) * s, from.z + Math.cos(d3) * s, 1.15, from.h + (side.h - from.h) * k / (n + 1), 'stone', 0, rnd));
@@ -88,6 +93,7 @@ export function missionSpec(offer) {
     return null;
   }
   rooms[0].main = true;
+  if (walled) for (const r of rooms) { r.sq = true; r.rag = 0; }
   // What there is to find (content/sites.js): three survey marks, on side islands first and then far along
   // the way; a beacon early on; something on every side island; now and then a lit crystal on the way itself.
   const fights = rooms.filter((r) => r.kind === 'fight'), sides = rooms.filter((r) => r.kind === 'cache');

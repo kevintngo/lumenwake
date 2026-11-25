@@ -134,6 +134,12 @@
       <h1>Lumenwake</h1>
       <p class="tag">Contracts across the sky islands</p>
     </header>
+    <!-- kept journeys: with any, the screen opens on them (the two columns below are for a new surveyor) -->
+    <section class="select-col saves" id="saves" aria-labelledby="pick-saves" hidden>
+      <h2 class="pick-label" id="pick-saves">Your surveyors</h2>
+      <div id="save-list" class="save-list" role="radiogroup" aria-labelledby="pick-saves"></div>
+      <button type="button" id="btn-create" class="btn">New surveyor</button>
+    </section>
     <section class="select-col people" aria-labelledby="pick-people">
       <h2 class="pick-label" id="pick-people">Who you are</h2>
       <div id="people-pick" class="people-pick" role="radiogroup" aria-labelledby="pick-people"></div>
@@ -146,7 +152,7 @@
       <p id="select-summary" role="status" aria-live="polite"></p>
       <div class="title-actions">
         <button type="button" id="btn-begin" class="primary" disabled>Begin</button>
-        <button type="button" id="btn-new" hidden>New journey</button>
+        <button type="button" id="btn-new" hidden>Your surveyors</button>
       </div>
       <p class="keys" id="keys-hint">WASD to move &nbsp;·&nbsp; F attack &nbsp;·&nbsp; Space jump</p>
     </footer>

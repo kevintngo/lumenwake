@@ -26,6 +26,7 @@ import './archetypes/humanoid.js';
 import './archetypes/critters.js';
 import './archetypes/craft.js';
 import './archetypes/colossi.js';
+import './archetypes/elders.js';
 import './archetypes/wilds.js';
 import './archetypes/lumen.js';
 import './archetypes/gear.js';
@@ -152,7 +153,7 @@ export class Renderer {
     p.set('uCamPos', c.pos).set('uCamRight', c.right).set('uCamUp', c.up).set('uCamFwd', c.fwd).set('uTanFov', c.tan);
     p.set('uFocus', f.focus).set('uTime', f.time).set('uReveal', f.reveal);
     p.set('uSunDir', e.keyDir).set('uSunDisk', e.sunDir).set('uMoonDisk', e.moonDir);
-    p.set('uNight', e.night).set('uGold', e.gold).set('uCloud', e.cloud).set('uWind', e.wind);
+    p.set('uNight', e.night).set('uGold', e.gold).set('uCloud', e.cloud).set('uWind', e.wind).set('uRealm', e.realm || 0).set('uWall', e.wall || 0);
     p.set('uRockCol', e.rockCol).set('uLeafPal', this.leafPal).set('uPave', e.pave || 0);
     p.set('uLightPos', f.lightPos).set('uLightCol', f.lightCol).set('uLightCount', f.lightCount);
     p.set('uPencil', this.pencil).set('uPaperAnchor', this.paperAnchor);

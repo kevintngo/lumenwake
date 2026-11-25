@@ -22,8 +22,7 @@ import { BOONS } from '../content/sites.js';
 import { LUMENS } from '../content/companions.js';
 import { lumenLevel } from '../sim/lumen.js';
 import { ITEMS } from '../content/items.js';
-import { clearSave } from '../app/save.js';
-import { SKILL_ICONS, MENU_ICONS, ACT_ICONS, itemIcon } from './icons.js';
+import { SKILL_ICONS, MENU_ICONS, ACT_ICONS, itemIcon, elderPic } from './icons.js';
 import { Plates } from './plates.js';
 import { Panels } from './panels.js';
 import { createStick, watchTouch } from './touch.js';
@@ -314,12 +313,54 @@ export function createUI(game) {
     Object.assign(game.camera.goal, { pitch, distance });
     p.yaw = Math.PI - game.camera.goal.yaw;
   });
-  $('btn-new').addEventListener('click', () => { clearSave(); game.started = false; location.search = '?new'; });
+  // ---- kept journeys (app/save.js): with any, the select screen opens on them, the one played last chosen.
+  // The two columns are then put away; "New surveyor" brings them back for a fresh sheet.
+  const savesRoot = $('saves'), saveList = $('save-list'), btnBegin = $('btn-begin'), btnBack = $('btn-new');
+  const span = (sec) => { const m = Math.round(sec / 60); return m < 60 ? `${Math.max(1, m)} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
+  const kept = () => (game.fresh ? [] : game.store.summaries(game.account));
+  let asking = null;
+  function mode(creating) {
+    const have = kept().length > 0;
+    document.body.classList.toggle('has-saves', have);
+    document.body.classList.toggle('creating', creating || !have);
+    savesRoot.hidden = !have || creating;
+    btnBack.hidden = !have || !creating;
+    btnBegin.textContent = have && !creating ? 'Continue' : 'Begin';
+  }
+  function drawSaves() {
+    saveList.innerHTML = kept().map((h) => (asking === h.id
+      ? `<div class="save-ask" role="group" aria-label="Let this surveyor go?"><p>Let this surveyor go? Level <b class="c-num">${h.level}</b>, and everything they carry.</p>
+          <div><button type="button" class="btn" data-keep="${h.id}">Keep</button><button type="button" class="btn danger" data-gone="${h.id}">Let go</button></div></div>`
+      : `<div class="save-row"><button type="button" class="pick" role="radio" data-hero="${h.id}" aria-checked="${!!game.hero && game.hero.id === h.id}">
+          <img src="${art('people-' + h.people)}" alt="" /><span class="pick-words"><strong>${PEOPLES[h.people].name} <b class="c-${h.cls}">${CLASSES[h.cls].name}</b></strong>
+          <span>Level <b class="c-num">${h.level}</b> · ${h.missions} ${h.missions === 1 ? 'contract' : 'contracts'}</span><small>${span(h.played)} played</small></span></button>
+        <button type="button" class="x" data-drop="${h.id}" aria-label="Let this surveyor go" title="Let this surveyor go">×</button></div>`)).join('');
+  }
+  function pickSave(id) { const h = game.store.loadHero(id); if (h) game.load(h); drawSaves(); }
+  function createNew() { game.hero = null; game.chooseClass(p.sheet.cls); mode(true); }        // a fresh sheet: nothing of a kept surveyor's goes with it
+  saveList.addEventListener('click', (e) => {
+    const t = e.target instanceof Element ? e.target : null;
+    if (!t || game.started) return;
+    const row = t.closest('[data-hero]'), drop = t.closest('[data-drop]'), keep = t.closest('[data-keep]'), gone = t.closest('[data-gone]');
+    if (row) pickSave(row.dataset.hero);
+    else if (drop) { asking = drop.dataset.drop; drawSaves(); }
+    else if (keep) { asking = null; drawSaves(); }
+    else if (gone) {
+      game.store.deleteHero(gone.dataset.gone, game.account);
+      asking = null;
+      const left = kept();
+      if (left.length) { pickSave(left[0].id); mode(false); } else { createNew(); drawSaves(); }
+    }
+  });
+  $('btn-create').addEventListener('click', () => { if (!game.started) createNew(); });
+  btnBack.addEventListener('click', () => { const list = kept(); if (!game.started && list.length) { pickSave(list[0].id); mode(false); } });
+  { const list = kept(); if (list.length) pickSave(list[0].id); mode(false); drawSaves(); }
+  bus.on('begin', () => { if (game.store.failed) toast('This browser will not keep your journey', 'A private window, or its storage is full. Settings, Saves can keep a copy in a file.', 6); });
   game.look.fadeGoal = 1;
   // While choosing, the camera stands in front of the hero, the square and the hall behind them, and sways a little.
   // On a wide screen the hero is in the middle between the two columns; on a narrow one, in the strip above them.
   const selectView = (t) => {
-    const y = p.y, sway = game.reducedMotion ? 0 : Math.sin(t * 0.22) * 0.22, wide = innerWidth > 900 && innerWidth > innerHeight;
+    const y = p.y, sway = game.reducedMotion ? 0 : Math.sin(t * 0.22) * 0.22, wide = innerWidth > 620 && innerWidth > innerHeight;        // (three columns, the hero between them: see the select screen's rules in ui.css)
     const D = wide ? 5.6 : 8.4, a = 0.18 + sway;
     return { pos: [p.x + Math.sin(a) * D, y + (wide ? 1.25 : 1.5), p.z + Math.cos(a) * D], look: [p.x, y + (wide ? 0.72 : -0.75), p.z], lens: (wide ? 32 : 30) * Math.PI / 180, mix: 1 };
   };
@@ -409,7 +450,7 @@ export function createUI(game) {
     if (boss) {
       set('bossName', el.bossName, 'textContent', boss.name);
       set('bossSub', $('boss-sub'), 'textContent', boss.enraged ? 'Wounded, and faster for it' : boss.def.epithet || '');
-      set('bossFace', $('boss-face'), 'src', art('elder-' + boss.defId));
+      set('bossFace', $('boss-face'), 'src', elderPic(boss.defId));
       if (last.bossMad !== !!boss.enraged) { last.bossMad = !!boss.enraged; el.boss.classList.toggle('mad', !!boss.enraged); }
       scale('bossHp', el.bossFill, boss.hp / boss.maxHp);
     }

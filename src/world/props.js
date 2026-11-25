@@ -1232,3 +1232,179 @@ void mat_banner(vec3 q, float mat, Prop pr, inout Surf s) {
   if (ring < 0.0) s.cover = 0.08;
 }`,
 });
+
+// ---------------------------------------------------------------- the Underhalls
+
+registerProp({
+  id: 'column', reach: 0.62, height: 3.6, collide: 0.45, scale: [0.95, 1.15], map: [0.7, 0.66, 0.6],
+  glsl: /* glsl */ `
+float sdf_column(vec3 q, Prop pr, out float mat) {
+  // a dressed column: a square plinth, a fluted shaft, a square cap. One in four has lost its top.
+  mat = 0.0;
+  bool whole = pr.seed < 0.75;
+  float h = whole ? 3.2 : 1.3 + 1.2 * fract(pr.seed * 7.0);
+  float shaft = sdCylinder(q, 0.27 + 0.016 * cos(atan(q.z, q.x) * 12.0), h);
+  if (!whole) shaft = max(shaft, dot(q - vec3(0.0, h - 0.12, 0.0), vec3(0.43, 0.86, 0.26)));
+  float ends = sdBox(q - vec3(0.0, 0.14, 0.0), vec3(0.42, 0.14, 0.42));
+  if (whole) ends = min(ends, sdBox(q - vec3(0.0, 3.3, 0.0), vec3(0.44, 0.13, 0.44)));
+  return min(shaft, ends) * 0.9;
+}
+void mat_column(vec3 q, float mat, Prop pr, inout Surf s) {
+  s.albedo = mix(P_STONE, P_CREAM, 0.35 + 0.25 * vnoise(q.xy * 3.0 + pr.seed * 9.0));
+  s.cover = 0.5;
+  s.ink = max(penLine((abs(fract(atan(q.z, q.x) * 1.9) - 0.5)) / 1.9 * 0.27) * 0.5 * step(0.3, q.y) * step(q.y, 3.15),
+              max(penLine(q.y - 0.28), penLine(q.y - 3.17)) * 0.8);
+  if (q.y > 2.85 && q.y < 3.0) { s.albedo = P_HONEY; s.cover = 0.8; }       // a band of the builders' colour under the cap
+}`,
+});
+
+registerProp({
+  id: 'brazier', reach: 0.6, height: 2.0, collide: 0.42, map: [0.95, 0.65, 0.3],
+  light: { color: [1.0, 0.75, 0.4], radius: 10.5, y: 1.5, always: true },
+  glsl: /* glsl */ `
+float sdf_brazier(vec3 q, Prop pr, out float mat) {
+  // an iron bowl on three legs, and a fire redrawn twelve times a second
+  vec3 e = q; float a = atan(e.x, e.z), k = TAU / 3.0;
+  a = mod(a + k * 0.5, k) - k * 0.5;
+  e.xz = length(q.xz) * vec2(sin(a), cos(a));
+  float legs = sdCapsule(e, vec3(0.0, 0.0, 0.42), vec3(0.0, 1.0, 0.16), 0.035);
+  float bowl = max(sdEllipsoid(q - vec3(0.0, 1.18, 0.0), vec3(0.44, 0.27, 0.44)), q.y - 1.22);
+  bowl = max(bowl, -(length(q - vec3(0.0, 1.3, 0.0)) - 0.36));
+  float tk = floor(uTime * 12.0);
+  float fl = 0.62 + 0.14 * sin(tk * 2.1 + pr.seed * 9.0);
+  vec3 f = q - vec3(0.035 * sin(tk * 1.7 + pr.seed * 5.0), 1.16, 0.0);
+  float flame = sdEllipsoid(f - vec3(0.0, fl * 0.5, 0.0), vec3(0.21, fl * 0.55, 0.21));
+  mat = 0.0;
+  float d = min(legs, bowl);
+  if (flame < d) { d = flame; mat = 1.0; }
+  return d * 0.85;
+}
+void mat_brazier(vec3 q, float mat, Prop pr, inout Surf s) {
+  if (mat < 0.5) { s.albedo = P_CHARCOAL; s.cover = 0.86; s.ink = penLine(q.y - 1.2) * 0.6; return; }
+  // fire is the paper with a rim of sun and poppy
+  float rim = smoothstep(0.04, 0.17, length(q.xz));
+  s.albedo = mix(P_SUN, P_POPPY, smoothstep(1.3, 1.8, q.y));
+  s.cover = mix(0.06, 0.85, rim);
+  s.glow = 0.3 + 0.6 * (1.0 - rim);
+  s.soft = 1.0;
+}`,
+});
+
+registerProp({
+  id: 'urn', reach: 0.55, height: 1.2, collide: 0.36, scale: [0.8, 1.3], map: [0.75, 0.6, 0.5],
+  glsl: /* glsl */ `
+float urnOne(vec3 q, float sc) {
+  q /= sc;
+  float body = sdEllipsoid(q - vec3(0.0, 0.42, 0.0), vec3(0.3, 0.42, 0.3));
+  float neck = sdCylinder(q - vec3(0.0, 0.74, 0.0), 0.13, 0.2);
+  float lip = sdTorusY(q - vec3(0.0, 0.95, 0.0), 0.14, 0.035);
+  return min(smin(body, neck, 0.08), lip) * sc;
+}
+float sdf_urn(vec3 q, Prop pr, out float mat) {
+  // a tall jar with a narrow neck; as often as not a smaller one stands by it
+  mat = 0.0;
+  float d = urnOne(q, 1.0);
+  if (pr.seed > 0.45) d = min(d, urnOne(q - vec3(0.36, 0.0, 0.16), 0.62));
+  return d * 0.9;
+}
+void mat_urn(vec3 q, float mat, Prop pr, inout Surf s) {
+  s.albedo = pr.seed < 0.5 ? P_CLAY : mix(P_TAN, P_PEACH, 0.5); s.cover = 0.62;
+  // a painted band round the shoulder
+  float band = abs(q.y - 0.62) - 0.035;
+  if (band < 0.0 && length(q.xz) < 0.34) { s.albedo = P_TEAL; s.cover = 0.85; }
+  s.ink = penLine(band) * 0.7;
+}`,
+});
+
+// ---------------------------------------------------------------- the Shatter
+
+registerProp({
+  id: 'shard', reach: 1.5, height: 5.4, collide: 0.6, scale: [0.75, 1.15], map: [0.6, 0.58, 0.7],
+  glsl: /* glsl */ `
+float sdf_shard(vec3 q, Prop pr, out float mat) {
+  // a splinter of the moon standing on end, and a smaller one leaning on it
+  mat = 0.0;
+  vec3 a = q; a.xy = rot2(0.16 + 0.2 * (pr.seed - 0.5)) * a.xy;
+  float d = crystalShard(a, 0.42, 3.4 + 1.6 * pr.seed);
+  vec3 b = q - vec3(0.5, 0.0, 0.2); b.zy = rot2(-0.45) * b.zy; b.xy = rot2(-0.3) * b.xy;
+  return min(d, crystalShard(b, 0.26, 1.7));
+}
+void mat_shard(vec3 q, float mat, Prop pr, inout Surf s) {
+  // pale rock in flat faces, some left nearly bare, its bedding drawn across it
+  float face = vnoise(vec2(atan(q.x, q.z) * 2.0, q.y * 0.7 + pr.seed * 9.0));
+  s.albedo = uRockCol; s.cover = mix(0.28, 0.74, step(0.5, face));
+  s.ink = penLine((fract(q.y * 0.45 + 0.3 * vnoise(q.xz * 2.0)) - 0.5) / 0.45) * 0.35;
+  // a seam of crystal up one face, lit from inside
+  float seam = abs(q.x + 0.1 * sin(q.y * 3.0) - 0.05) - 0.035;
+  if (seam < 0.0 && q.z > 0.0) { s.albedo = mix(P_TEAL, P_SKY, 0.5); s.cover = 0.3; s.glow = 0.5; s.ink = 0.0; }
+}`,
+});
+
+registerProp({
+  id: 'floater', reach: 1.1, height: 3.9, collide: 0, scale: [0.7, 1.3], map: [0.6, 0.58, 0.7],
+  glsl: /* glsl */ `
+float sdf_floater(vec3 q, Prop pr, out float mat) {
+  // a boulder that has not come down: it hangs over its own shadow, turning, with two pebbles for company
+  mat = 0.0;
+  float bob = 0.18 * sin(uTime * 0.7 + pr.seed * 20.0);
+  vec3 c = q - vec3(0.0, 2.0 + 0.7 * pr.seed + bob, 0.0);
+  c.xz = rot2(uTime * 0.25 + pr.seed * 6.0) * c.xz;
+  float d = length(c * vec3(1.0, 1.25, 0.9)) - 0.62;
+  d = max(d, dot(c, vec3(0.6, 0.7, 0.38)) - 0.4);
+  d = max(d, dot(c, vec3(-0.7, 0.3, -0.64)) - 0.42);
+  d = max(d, dot(c, vec3(0.1, -0.9, 0.42)) - 0.38);
+  vec3 p1 = q - vec3(0.75, 1.3 + 0.5 * pr.seed - bob * 0.6, 0.3), p2 = q - vec3(-0.6, 3.0 + bob * 0.8, -0.45);
+  return min(d, min(length(p1) - 0.2, length(p2) - 0.15)) * 0.8;
+}
+void mat_floater(vec3 q, float mat, Prop pr, inout Surf s) {
+  s.albedo = uRockCol; s.cover = mix(0.3, 0.7, step(0.5, vnoise(q.xy * 2.3 + pr.seed * 9.0)));
+  s.ink = step(0.8, vnoise(q.xz * 7.0 + q.y * 3.0)) * 0.35;
+}`,
+});
+
+registerProp({
+  id: 'wreck', reach: 1.8, height: 1.9, collide: 1.0, scale: [0.9, 1.2], map: [0.85, 0.85, 0.9],
+  glsl: /* glsl */ `
+float sdf_wreck(vec3 q, Prop pr, out float mat) {
+  // what is left of a survey craft: two ribs of its hull standing out of the dust, a plate of its skin against them
+  vec3 a = q - vec3(0.0, 0.0, -0.5), b = q - vec3(0.0, 0.0, 0.6);
+  float rib = max(abs(length(a.xy - vec2(0.0, 0.2)) - 1.5) - 0.07, abs(a.z) - 0.07);
+  rib = min(rib, max(abs(length(b.xy - vec2(0.15, 0.1)) - 1.25) - 0.07, abs(b.z) - 0.07));
+  rib = max(rib, -q.y);
+  vec3 c = q - vec3(-0.5, 0.75, 0.05); c.xy = rot2(0.5) * c.xy;
+  float skin = sdBox(c, vec3(0.03, 0.7, 0.55)) - 0.02;
+  mat = skin < rib ? 1.0 : 0.0;
+  return min(rib, skin) * 0.85;
+}
+void mat_wreck(vec3 q, float mat, Prop pr, inout Surf s) {
+  if (mat < 0.5) { s.albedo = P_SLATE; s.cover = 0.72; s.ink = step(0.75, fract(atan(q.y, q.x) * 5.0)) * 0.3; return; }
+  // the craft's skin: pale plate, a band of the corps' red, a row of rivets
+  s.albedo = P_SKY; s.cover = 0.12; s.wrap = 0.25;
+  if (abs(q.y - 1.05) < 0.07) { s.albedo = P_VERMILION; s.cover = 0.8; }
+  s.ink = max(penLine(q.y - 0.55) * 0.6, smoothstep(0.045, 0.025, length(vec2(fract(q.z * 4.0) - 0.5, (q.y - 0.4) * 4.0))) * 0.6);
+}`,
+});
+
+registerProp({
+  id: 'dish', reach: 1.15, height: 3.3, collide: 0.4, map: [0.85, 0.9, 0.95],
+  light: { color: [0.6, 0.9, 1.0], radius: 5, y: 2.7, always: true },
+  glsl: /* glsl */ `
+float sdf_dish(vec3 q, Prop pr, out float mat) {
+  // a survey aerial still standing: a mast, a dish turned up to the ringed world, a light at its feed that has not gone out
+  float mast = min(sdTaper(q, vec3(0.0), vec3(0.0, 1.9, 0.0), 0.1, 0.06), sdCylinder(q, 0.3, 0.1));
+  vec3 c = q - vec3(0.0, 2.1, 0.0); c.zy = rot2(-0.75) * c.zy;
+  float bowl = max(abs(length(c - vec3(0.0, 0.9, 0.0)) - 1.1) - 0.03, c.y - 0.35);
+  float arm = sdCapsule(c, vec3(0.0, -0.18, 0.0), vec3(0.0, 0.75, 0.0), 0.025);
+  float feed = length(c - vec3(0.0, 0.8, 0.0)) - 0.09;
+  float d = min(min(mast, bowl), arm);
+  mat = 0.0;
+  if (feed < d) { d = feed; mat = 1.0; }
+  return d * 0.85;
+}
+void mat_dish(vec3 q, float mat, Prop pr, inout Surf s) {
+  if (mat > 0.5) { s.albedo = P_SKY; s.cover = 0.1; s.glow = 0.8; return; }
+  s.albedo = mix(P_STONE, P_CREAM, 0.6); s.cover = 0.3; s.soft = 1.0;
+  s.ink = penLine(q.y - 0.45) * 0.6;
+  if (q.y > 0.55 && q.y < 0.72 && length(q.xz) < 0.2) { s.albedo = P_VERMILION; s.cover = 0.8; }
+}`,
+});

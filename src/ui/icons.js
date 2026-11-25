@@ -37,6 +37,10 @@ export const GEAR_ICONS = {
  * themselves (app/portrait.js: the very shapes the hero carries and wears), the tile shows that; until then,
  * and for an empty slot, the line drawing above for its family or slot.
  */
+const ELDER_ART = {};
+/** A picture of an elder on nothing (app/portrait.js draws them once the game has begun). */
+export function setElderArt(byId) { Object.assign(ELDER_ART, byId); }
+export const elderPic = (id) => ELDER_ART[id] || '';
 const GEAR_ART = {};
 export function setGearArt(byBase) { Object.assign(GEAR_ART, byBase); }
 export const gearIcon = (base) => (GEAR_ART[base.id] ? `<img class="gear-art" src="${GEAR_ART[base.id]}" alt="" draggable="false" />` : GEAR_ICONS[base.family] || GEAR_ICONS[base.slot] || GEAR_ICONS.unit);
@@ -61,6 +65,8 @@ export const SET_ICONS = {
   controls: svg(`<path d="M15 5h10v10h10v10H25v10H15V25H5V15h10z" fill="#1c3a80"/><circle cx="20" cy="20" r="3" fill="#ffc45e" stroke-width="1.2"/>`),
   access: svg(`<circle cx="20" cy="20" r="16"/><circle cx="20" cy="11" r="2.600" fill="#dff0ff" stroke-width="1"/><path d="M11 16.500h18M20 16.500v8M20 24.500l-5 8M20 24.500l5 8" stroke-width="2.4"/>`),
 };
+
+SET_ICONS.saves = svg(`<path d="M7 6h21l6 6v22H7z" fill="#1c3a80"/><path d="M12 6v9h13V6" stroke-width="1.6"/><rect x="12" y="21" width="16" height="13" fill="#f1ebdc" stroke-width="1.4"/><path d="M15 26h10M15 30h6" stroke="#14295f" stroke-width="1.6"/>`);
 
 export const MENU_ICONS = {
   gear: GEAR_ICONS.frame,

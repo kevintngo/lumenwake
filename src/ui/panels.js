@@ -26,7 +26,7 @@ import { CREATURES } from '../content/creatures.js';
 import { BOONS } from '../content/sites.js';
 import { LUMENS, TEMPERS, FOODS, LUMEN_STAGES, LUMEN_MAX, LUMEN_STEP } from '../content/companions.js';
 import { lumenLevel, lumenToNext, lumenStage, lumenMods, lumenTotal } from '../sim/lumen.js';
-import { SKILL_ICONS, MENU_ICONS, ATTR_ICONS, TEMPER_ICONS, GEAR_ICONS, itemIcon, gearIcon , setGearArt } from './icons.js';
+import { SKILL_ICONS, MENU_ICONS, ATTR_ICONS, TEMPER_ICONS, GEAR_ICONS, itemIcon, gearIcon , setGearArt, setElderArt, elderPic } from './icons.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const pct = (v) => `${Math.round(v * 100)}%`;
@@ -70,7 +70,7 @@ export class Panels {
       npc.said = ((npc.said ?? -1) + 1) % says.length;
       bus.emit('talk', { npc, line: says[npc.said] });
     });
-    bus.on('portrait', (d) => { if (d.gear) setGearArt(d.gear); });        // (before the refresh below: the tiles are redrawn with them)
+    bus.on('portrait', (d) => { if (d.gear) setGearArt(d.gear); if (d.elders) setElderArt(d.elders); });        // (before the refresh below: the tiles are redrawn with them)
     for (const ev of ['lumen:changed', 'lumen:level', 'lumen:ready', 'lumen:burst', 'bag:changed', 'levelup', 'trade', 'xp', 'boon', 'talent', 'portrait',
       'mission:taken', 'mission:begin', 'mission:progress', 'mission:done', 'room:clear', 'site:used', 'class', 'people']) bus.on(ev, () => this.refresh());
     bus.on('zone', () => this.close());
@@ -261,7 +261,7 @@ export class Panels {
    * clear where the figure is not, so a staff may swing out over the margin; the box is what takes the pointer.)
    */
   stage(what, label) {
-    return `<div class="figure live stage-${what}" data-stage="${what}" tabindex="0" role="img" aria-label="${label} Drag it, or press the left and right arrow keys, to turn it.">
+    return `<div class="figure live stage-${what.split(':')[0]}" data-stage="${what}" tabindex="0" role="img" aria-label="${label} Drag it, or press the left and right arrow keys, to turn it.">
       <svg class="floor" viewBox="0 0 200 200" preserveAspectRatio="none" aria-hidden="true"><ellipse class="disc" cx="100" cy="100" rx="64" ry="64"/><ellipse class="ring-a" cx="100" cy="100" rx="98" ry="98"/><ellipse class="ring-b" cx="100" cy="100" rx="80" ry="80"/></svg>
       <canvas class="stage" aria-hidden="true"></canvas>
       <span class="turn-hint" aria-hidden="true">Drag to turn</span></div>`;
@@ -486,18 +486,25 @@ export class Panels {
     }
     const time = a ? `${Math.floor(a.time / 60)}:${String(Math.floor(a.time % 60)).padStart(2, '0')}` : '';
     const boon = s.boon && BOONS[s.boon] ? `<div class="card boon-card"><div class="label">Boon</div><p><strong class="c-good">${BOONS[s.boon].name}</strong> ${BOONS[s.boon].desc}</p></div>` : '';
-    return `<div class="contractview">
-      <section class="contract-pic"><img src="${art('place-' + o.biome)}" alt="" />${elder ? `<img class="elder" src="${art('elder-' + B.boss)}" alt="" />` : ''}</section>
-      <section class="contract-info">
-        <div class="label">${a ? (a.done ? 'Done: lifting out' : 'On contract') : 'Contract taken'}</div>
-        <h3>${esc(o.name)}</h3>
-        <p><b class="c-place">${esc(B.name)}</b> · <b class="c-goal-${o.goal}">${goal.name}</b> · Level <b class="c-num">${o.tier}</b></p>
-        ${a ? '' : '<p class="quiet">Step onto the pad at the south gate to go down.</p>'}
-        ${rows ? `<div class="progs">${rows}</div>` : ''}
+    const state = a ? (a.done ? 'Done: lifting out' : 'On contract') : 'Contract taken';
+    // A banner of the place with the contract's name on it; under it how far along it is and what it pays; and
+    // down the right side, on a hunt, the elder itself standing on nothing (app/portrait.js: it can be turned).
+    return `<div class="contractview${elder ? ' has-elder' : ''}">
+      <header class="contract-banner"><img src="${art('place-' + o.biome)}" alt="" />
+        <div class="banner-words"><span class="chip${a && !a.done ? ' hot' : ''}">${state}</span>
+          <h3>${esc(o.name)}</h3>
+          <p><b class="c-place">${esc(B.name)}</b> · <b class="c-goal-${o.goal}">${goal.name}</b> · Level <b class="c-num">${o.tier}</b></p></div>
+      </header>
+      <section class="contract-progress">
+        ${rows ? `<h3 class="label">Progress</h3><div class="progs">${rows}</div>` : `<h3 class="label">The job</h3><p>${esc(goal.brief)}</p><p class="quiet">Step onto the pad at the south gate to go down.</p>`}
         ${boon}
-        <div class="stats pay"><div><span>Experience</span><b class="c-xp">${o.xp}</b></div><div><span>Glint</span><b class="c-coin">${o.glint}</b></div>${a ? `<div><span>Time</span><b>${time}</b></div><div><span>Felled</span><b class="c-foe">${a.kills}</b></div>` : '<div><span>Also pays</span><b>A piece of gear</b></div>'}</div>
-        ${a ? '' : '<div class="detail-foot"><span></span><button type="button" class="btn" data-act="abandon">Hand it back</button></div>'}
+        <div class="contract-pay"><h3 class="label">Pays</h3>
+          <div class="stats pay"><div><span>Experience</span><b class="c-xp">${o.xp}</b></div><div><span>Glint</span><b class="c-coin">${o.glint}</b></div>${a ? `<div><span>Time</span><b>${time}</b></div><div><span>Felled</span><b class="c-foe">${a.kills}</b></div>` : '<div><span>Also</span><b>Gear</b></div>'}</div>
+          ${a ? '' : '<button type="button" class="btn" data-act="abandon">Hand it back</button>'}</div>
       </section>
+      ${elder ? `<aside class="contract-elder" aria-label="The elder">${this.stage('elder:' + B.boss, esc(elder.name) + '.')}
+        <div class="who-card"><strong class="c-foe">${esc(elder.name)}</strong><small>${esc(elder.epithet || 'An elder')}</small>
+          <div class="who-level"><span class="quiet">${a ? 'Holds the last island' : 'Waits on the last island'}</span><span class="${a && a.done ? 'c-good' : 'c-foe'}">${a && a.done ? 'Down' : 'Standing'}</span></div></div></aside>` : ''}
     </div>`;
   }
 
@@ -554,10 +561,11 @@ export class Panels {
     const card = (o, i) => {
       const B = biomeById(o.biome), elder = o.goal === 'hunt' && B.boss ? CREATURES[B.boss] : null;
       return `<div class="contract${taken === o ? ' taken' : ''}">
-        <div class="contract-art"><img src="${art('place-' + o.biome)}" alt="" />${elder ? `<img class="elder" src="${art('elder-' + B.boss)}" alt="" />` : ''}<span class="tier">Level <b class="c-num">${o.tier}</b></span></div>
+        <div class="contract-art"><img src="${art('place-' + o.biome)}" alt="" /><span class="tier">Level <b class="c-num">${o.tier}</b></span></div>
         <div class="contract-words"><strong>${esc(o.name)}</strong>
           <small><b class="c-place">${esc(B.name)}</b></small>
-          <small><b class="c-goal-${o.goal}">${GOALS[o.goal].name}</b>${elder ? `: <b class="c-foe">${esc(elder.name)}</b>` : ''}</small></div>
+          <small><b class="c-goal-${o.goal}">${GOALS[o.goal].name}</b>${elder ? `: <b class="c-foe">${esc(elder.name)}</b>` : ''}</small>
+          ${elder && elderPic(B.boss) ? `<img class="elder-chip" src="${elderPic(B.boss)}" alt="" />` : ''}</div>
         <div class="stats pay"><div><span>Experience</span><b class="c-xp">${o.xp}</b></div><div><span>Glint</span><b class="c-coin">${o.glint}</b></div><div><span>Islands</span><b>${o.rooms}</b></div><div><span>Also</span><b>Gear</b></div></div>
         ${taken === o ? '<button type="button" class="btn" data-act="abandon">Hand it back</button>' : `<button type="button" class="btn${taken ? '' : ' primary'}" data-act="accept" data-arg="${i}" aria-label="Take ${esc(o.name)}">Take it</button>`}</div>`;
     };

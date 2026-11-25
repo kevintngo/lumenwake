@@ -20,7 +20,7 @@ import { Camera } from '../gfx/camera.js';
 import { Entities, makeEntity, pencils } from '../sim/entities.js';
 import { createEnv, updateEnv } from './environment.js';
 import { derive, newPlayerSheet } from '../sim/stats.js';
-import { issue } from '../sim/items.js';
+import { issue, claimUids } from '../sim/items.js';
 import { CLASSES } from '../content/classes.js';
 import { PEOPLES } from '../content/peoples.js';
 import { Fx } from './fx.js';
@@ -41,7 +41,7 @@ import { Companion } from '../sim/systems/companion.js';
 import { hubSpec } from '../world/layout.js';
 import { Tutorial } from './tutorial.js';
 import { Hazards } from '../sim/systems/hazards.js';
-import { loadSave, writeSave } from './save.js';
+import { SaveStore } from './save.js';
 
 const HOLD_MAX = 0.14;     // seconds: the longest the world is ever held for one blow
 const HOLD_RATE = 0.06;    // how fast time runs while it is held
@@ -53,13 +53,19 @@ export class Game {
     this.touch = DEVICE.touch;      // fingers are the way in: the interface lays itself out for thumbs
     this.bus = new EventBus();
     this.input = new Input(canvas);
-    const save = null;        // (journeys are not kept between visits yet: each one starts on the ship with a class to choose)
+    // What is kept between visits (app/save.js): every surveyor this browser has, and which one is being played.
+    // `?new` in the address starts as if there were none (it is dropped from the address so a reload continues).
+    this.store = new SaveStore();
+    this.account = this.store.loadAccount();
+    this.hero = null;
+    this.fresh = new URLSearchParams(location.search).has('new');
+    if (this.fresh) { const q = new URLSearchParams(location.search); q.delete('new'); const left = q.toString(); history.replaceState(null, '', location.pathname + (left ? '?' + left : '') + location.hash); }
     this.world = new World(hubSpec(TOWN));        // every journey starts, and is picked up again, on the ship
     this.renderer = new Renderer(canvas, this.world, { lite: DEVICE.touch });
     this.camera = new Camera();
     this.env = createEnv();
     this.hour = this.world.biome().hour;
-    this.savedView = Array.isArray(save?.view) ? save.view : null;      // the view the journey was last seen from
+    this.savedView = null;      // the view the journey was last seen from
     this.entities = new Entities();
     this.monsters = [];
     this.look = { hurt: 0, fade: 0, fadeGoal: 1, veil: 0 };   // fade: how far the page has been drawn in; veil: a cinematic's own fade over it
@@ -115,6 +121,8 @@ export class Game {
     this.resize();
     addEventListener('resize', () => this.resize());
     addEventListener('beforeunload', () => this.save());
+    addEventListener('pagehide', () => this.save());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.save(); });        // (a phone may never say more than this before the page is gone)
     // fill the whole window of world data before the first frame
     while (this.renderer.worldTex.update(px, pz, 16) > 0);
   }
@@ -168,7 +176,8 @@ export class Game {
 
     this.biome = w.biome(p.x, p.z);
     updateEnv(this.env, this.hour, this.biome.rock);
-    this.env.pave = 1;        // whatever the corps paves is deck plate: the ship, the pads, the bridges
+    this.env.pave = this.biome.realm === 1 ? 0 : 1;        // whatever the corps paves is deck plate (the ship, the pads, the bridges); the old halls are flagged
+    this.env.realm = this.biome.realm || 0; this.env.wall = this.biome.walls || 0;
     // the weather drifts a little about what is usual for the place
     this.env.cloud = this.biome.cloud + 0.16 * Math.sin(this.time / 83 + p.x * 0.002) * Math.cos(this.time / 131 + p.z * 0.0017);
     // Low on health: the red scribble at the page's edges stays, breathing slowly, until it is mended.
@@ -194,7 +203,40 @@ export class Game {
   }
 
   /** Journeys are not kept yet. (When they are: write p.sheet, with a version number, from here.) */
-  save() {}
+  /**
+   * Keeps the journey as it stands: the surveyor's sheet, how long they have been played, the view, and the
+   * contract taken. Every few seconds, when a contract ends, and whenever the page is hidden or left.
+   */
+  save() {
+    const h = this.hero;
+    if (!h || !this.started) return;
+    const now = performance.now();
+    h.played += Math.min(60, Math.max(0, (now - (this.playedAt || now)) / 1000));        // (a tab left asleep is not time played)
+    this.playedAt = now;
+    h.sheet = this.player.sheet;
+    h.saved = Date.now();
+    h.view = [this.camera.goal.pitch, this.camera.goal.distance];
+    const o = this.missions.pending || (this.missions.active && this.missions.active.offer);
+    h.pending = o && !o.first ? { seed: o.seed, biome: o.biome } : null;
+    this.store.saveHero(h, this.account);
+  }
+
+  /** Picks a kept journey up again: the surveyor as they were left, on the ship. (Called by the title screen.) */
+  load(h) {
+    const p = this.player;
+    this.hero = h;
+    p.sheet = h.sheet;
+    claimUids(h.sheet);
+    this.choosePeople(h.sheet.people || 'unit');
+    derive(p);
+    p.hp = p.maxHp; p.focus = p.maxFocus;
+    this.missions.refresh();
+    const o = h.pending && this.missions.offers.find((x) => x.seed === h.pending.seed && x.biome === h.pending.biome);
+    this.missions.pending = o || null;
+    this.savedView = h.view;
+    this.bus.emit('class', { id: h.sheet.cls, cls: CLASSES[h.sheet.cls] });
+    this.bus.emit('mission:taken', this.missions.pending);
+  }
 
   /**
    * Leaves the zone the hero is in for another (the ship, or the place a mission is in): a new world,
@@ -247,8 +289,11 @@ export class Game {
   /** Called by the title screen. */
   begin() {
     if (this.started) return;
+    if (!this.hero) this.hero = this.store.newHero(this.player.sheet);        // a new surveyor: kept from this moment
+    this.playedAt = performance.now();
     this.started = true;
     this.paused = false;
     this.bus.emit('begin');
+    this.save();
   }
 }

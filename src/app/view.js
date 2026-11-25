@@ -123,6 +123,10 @@ export class View {
       L.push({ x: pr.x + fwdX * o, y: pr.y + l.y * pr.scale, z: pr.z + fwdZ * o, r: l.radius, k: k * (l.always ? 0.55 : 1) });
     });
     for (const m of g.monsters) if (m.def.glow && !m.dead && night > 0.05) L.push({ x: m.x, y: m.y + 1, z: m.z, r: 4.5, k: night * 0.7 });
+    // where there is no sky the lumen is the surveyor's own lamp, and an elder that carries a light carries it for everyone
+    const lu = g.companion && g.companion.e;
+    if (g.biome.realm === 1 && lu && !lu.gone && lu.grow > 0.5) L.push({ x: lu.x, y: lu.y, z: lu.z, r: 9, k: 1 });
+    for (const m of g.monsters) if (m.def.lamp && !m.dead && night > 0.05) L.push({ x: m.x, y: m.y + m.def.lamp[0], z: m.z, r: m.def.lamp[1], k: night });
     for (const l of g.fx.lights) L.push({ x: l.x, y: l.y, z: l.z, r: l.r, k: (l.life / l.max) * (0.25 + 0.75 * night) });
     for (const l of L) l.d = Math.hypot(l.x - p.x, l.z - p.z);
     L.sort((a, b) => a.d - b.d);

@@ -8,6 +8,8 @@
 //   a stage      a figure alive on nothing, in the menu: the hero, or their lumen. It breathes, it turns when
 //                dragged, and where it is not, the picture is clear, so it stands on the menu itself. The page
 //                gives a <canvas>; `mount` takes it, and from then on it is drawn afresh twelve times a second.
+//   elders       each elder on nothing (no sheet behind it), for the board, the bar over a fight and the Contract tab,
+//                where the one being hunted also stands alive on a stage.
 //   gear         a drawing of every piece of gear for the interface's tiles, made from the very shapes the hero
 //                carries and wears (gfx/archetypes/gear.js), in the hero's own colours.
 
@@ -15,6 +17,8 @@ import { Camera } from '../gfx/camera.js';
 import { INSTANCE_FLOATS } from '../gfx/passes/entities.js';
 import { BASES } from '../content/gear.js';
 import { FAMILIES } from '../content/classes.js';
+import { CREATURES } from '../content/creatures.js';
+import { pencils } from '../sim/entities.js';
 
 const RAD = Math.PI / 180;
 const UP = 15.5 * RAD;          // how far below the figure the camera stands
@@ -54,10 +58,12 @@ export class Portraits {
     this.bust = '';
     this.stages = {};            // by what stands on them: 'hero', 'lumen'
     this.gear = {};              // base id -> a picture of it (a data URL)
+    this.elders = {};            // creature id -> a picture of that elder on nothing
     this.gearDue = false;
     this.last = 0;
     for (const ev of ['people', 'class', 'equip']) game.bus.on(ev, () => { this.due = true; });
     for (const ev of ['begin', 'people', 'class']) game.bus.on(ev, () => { this.gearDue = true; });
+    game.bus.on('begin', () => { this.eldersDue = true; });
   }
 
   /** Once a frame, before the frame the player sees is drawn. */
@@ -71,6 +77,10 @@ export class Portraits {
     if (this.gearDue && g.started) {
       this.gearDue = false;
       try { this.drawGear(); } catch (err) { console.warn('Gear not drawn:', err); }
+    }
+    if (this.eldersDue && g.started && g.warmed) {        // (once every figure's shader is built: the elders' are the heaviest)
+      this.eldersDue = false;
+      try { this.drawElders(); } catch (err) { console.warn('Elders not drawn:', err); }
     }
     const now = performance.now() / 1000, dt = Math.min(0.1, now - (this.last || now));
     this.last = now;
@@ -90,6 +100,13 @@ export class Portraits {
   /** Who stands on a stage, as the entity pass needs them, and how much room they take. */
   subject(what) {
     const g = this.game, p = g.player;
+    if (what.startsWith('elder:')) {
+      // an elder, as it stands waiting: all of it in the picture, however it is turned
+      const d = CREATURES[what.slice(6)];
+      if (!d) return null;
+      const [, tall, mid] = d.sit || [0, d.height * 1.4, d.height * 0.5];
+      return { archetype: d.archetype, scale: 1, seed: 0.37, colors: pencils(d.colors), extra: 0, kit: 0, tall, wide: tall * 1.25, mid, floor: 0, ring: d.radius * 1.7, lens: 24 * RAD, pitch: -6 * RAD, heavy: true };
+    }
     if (what === 'lumen') {
       const e = g.companion && g.companion.e, l = p.sheet.lumen;
       if (!e) return null;
@@ -102,7 +119,7 @@ export class Portraits {
 
   /** The page hands over a box (with a canvas in it) for a figure to stand in. The figure keeps the way it was last turned. */
   mount(box, what) {
-    const st = this.stages[what] || (this.stages[what] = { what, yaw: what === 'lumen' ? 0.3 : -0.5, spin: 0, drag: null, tick: -1, cam: new Camera() });
+    const st = this.stages[what] || (this.stages[what] = { what, yaw: what === 'lumen' ? 0.3 : what === 'hero' ? -0.5 : -0.45, spin: 0, drag: null, tick: -1, cam: new Camera() });
     if (st.box === box) return;
     st.box = box; st.canvas = box.querySelector('canvas'); st.drag = null; st.dirty = true;
     box.addEventListener('pointerdown', (e) => {
@@ -130,10 +147,10 @@ export class Portraits {
     const g = this.game, cv = st.canvas, sub = this.subject(st.what);
     const box = cv.getBoundingClientRect();
     if (!sub || box.width < 8 || box.height < 8) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, g.renderer.quality === 'low' ? 1.5 : 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, g.renderer.quality === 'low' ? (sub.heavy ? 1 : 1.5) : (sub.heavy ? 1.5 : 2));
     const w = Math.round(box.width * dpr), h = Math.round(box.height * dpr);
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-    const across = stand(st.cam, w / h, sub.tall, sub.wide, sub.mid, STAGE_LENS, STAGE_PITCH);
+    const across = stand(st.cam, w / h, sub.tall, sub.wide, sub.mid, sub.lens || STAGE_LENS, sub.pitch ?? STAGE_PITCH);
     const bytes = g.renderer.figure({
       width: w, height: h, dpr, camera: st.cam, env: this.daylight(), time,
       batches: new Map([[sub.archetype, { data: pack({ ...sub, yaw: st.yaw }), count: 1 }]]),
@@ -150,7 +167,25 @@ export class Portraits {
   }
 
   /** The light figures are drawn by when they stand alone: plain day, whatever the hour is outside. */
-  daylight() { return { ...this.game.env, night: 0, gold: 0 }; }
+  daylight() { return { ...this.game.env, night: 0, gold: 0, realm: 0 }; }
+
+  // ---------------------------------------------------------------- the elders, each on nothing
+  drawElders() {
+    const g = this.game, W = 520, H = 400;
+    const cam = this.elderCam || (this.elderCam = new Camera());
+    const sheet = Object.assign(document.createElement('canvas'), { width: W, height: H }), ctx = sheet.getContext('2d'), env = this.daylight();
+    for (const id in CREATURES) {
+      const d = CREATURES[id];
+      if (!d.boss || !d.giant) continue;
+      const [action, tall, mid] = d.sit || [0, d.height * 1.4, d.height * 0.5];
+      stand(cam, W / H, tall, tall * W / H, mid, 24 * RAD, -9 * RAD);        // from a little below, as the hero sees it
+      const fig = { archetype: d.archetype, scale: 1, seed: 0.37, colors: pencils(d.colors), yaw: -0.5, action, actionT: 0.5 };
+      const bytes = g.renderer.figure({ width: W, height: H, dpr: 1.4, camera: cam, env, time: 0.4, batches: new Map([[d.archetype, { data: pack(fig), count: 1 }]]) });
+      ctx.putImageData(new ImageData(new Uint8ClampedArray(bytes.buffer, bytes.byteOffset, W * H * 4), W, H), 0, 0);
+      this.elders[id] = sheet.toDataURL('image/png');
+    }
+    g.bus.emit('portrait', { bust: this.bust, elders: this.elders });
+  }
 
   // ---------------------------------------------------------------- the gear tiles
   drawGear() {
