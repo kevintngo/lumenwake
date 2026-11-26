@@ -204,7 +204,8 @@ export class Missions implements MissionsLike {
         glint: Math.round((22 + rooms * 9) * (1 + 0.25 * (tier - 1)) * pay),
       };
     });
-    if (s.first) this.offers[0] = { ...FIRST };
+    // during the first steps the board holds First Light alone: the steps are written for its islands and its elder
+    if (s.first) this.offers = [{ ...FIRST }];
   }
 
   accept(i: number): void {

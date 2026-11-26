@@ -211,7 +211,9 @@ export function GameWindow({
       ? 'Flasks, and whatever came up on the last lift.'
       : taken
         ? 'The pad is warm. South gate.'
-        : 'Three places want a surveyor. Pick one.';
+        : s.first
+          ? 'Your first job: First Light. Take it.'
+          : 'Three places want a surveyor. Pick one.';
 
   const updateTipFromTarget = (target: EventTarget | null): void => {
     const t = target instanceof Element ? target.closest<HTMLElement>('[data-tip]') : null;

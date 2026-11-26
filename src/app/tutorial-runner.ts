@@ -38,6 +38,10 @@ export class Tutorial implements TutorialLike {
     bus.on('mission:report', (r) => {
       if (this.running && !r.won) this.go(STEPS.findIndex((s) => s.id === 'talk'));
     });
+    // should any other contract begin while the steps run, they could never finish there: put them away
+    bus.on('mission:begin', (d) => {
+      if (this.running && !d.offer.first) this.finish(true);
+    });
   }
 
   get running(): boolean {
@@ -63,8 +67,13 @@ export class Tutorial implements TutorialLike {
 
   private start(): void {
     const g = this.game;
+    const ms = g.missions;
     g.player.sheet.first = true;
-    if (!g.missions.active && !g.missions.pending) g.missions.refresh();
+    if (!ms.active) {
+      // the steps are written for First Light: another contract already in hand goes back on the board
+      if (ms.pending && !ms.pending.first) ms.drop();
+      if (!ms.pending) ms.refresh();
+    }
     this.go(0);
   }
 

@@ -93,7 +93,7 @@ export function BountyView({ game, onMutate }: BountyViewProps) {
           </div>
         );
       })}
-      <p class="board-note">
+      <p class="board-note" hidden={game.player.sheet.first}>
         After the last island you can lift out with the haul, or go deeper: another place below, harder each time,
         with a stronger elder and more pay. Fall down there and half the haul is lost.
         {(game.player.sheet.deepest || 0) > 1 && (
