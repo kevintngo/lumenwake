@@ -13,6 +13,10 @@ export interface RenderEnv {
   pave?: number;
   realm?: number;
   wall?: number;
+  /** the far islands behind a place: x picks their layout, y how many show (0 for none) */
+  sky?: [number, number];
+  /** the color of the far islands' tops */
+  skyTop?: RgbTuple;
 }
 
 export interface LookState {

@@ -11,6 +11,7 @@ import { GameWindow } from './game-window';
 import { Hotbar, type HotbarSnapshot } from './hotbar';
 import type { PickContext } from './item-detail';
 import { PauseModal, type PauseState } from './pause-modal';
+import { DepthChoice, type DepthChoiceState } from './depth-choice';
 import { ReportModal } from './report-modal';
 import type { SettingsSectionId } from './settings-modal';
 import { StatusPlates, type StatusSnapshot } from './status-plates';
@@ -57,6 +58,7 @@ interface HudProps {
   touch: boolean;
   logs: LogEntry[];
   toast: ToastState;
+  choice: DepthChoiceState | null;
   talk: TalkState | null;
   report: MissionReport | null;
   windowKind: WindowKind | null;
@@ -102,6 +104,7 @@ export function Hud({
   touch,
   logs,
   toast,
+  choice,
   talk,
   report,
   windowKind,
@@ -254,6 +257,8 @@ export function Hud({
           <p id="talk-line">{talk ? `“${talk.line}”` : ''}</p>
         </div>
       </section>
+
+      <DepthChoice game={game} choice={report ? null : choice} touch={touch} />
 
       <ReportModal game={game} report={report} onClose={onCloseReport} />
 

@@ -13,7 +13,7 @@ const REPEAT_GAP = 0.035;
 const REPEAT_GAPS: Partial<Record<keyof GameEventMap, number>> = { step: 0.13, 'charge:dust': 0.1 };
 const MAX_STAGGER = 0.12;
 const TICK = 0.1;
-const SAMPLE_DIR = '/sfx/';
+const SAMPLE_DIR = `${import.meta.env.BASE_URL}sfx/`;
 
 type AudioContextCtor = typeof AudioContext;
 type LevelKey = 'master' | 'music' | 'sfx' | 'ambience';

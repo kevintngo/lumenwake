@@ -1,10 +1,10 @@
-import { mulberry32 } from '../../core/rng';
+import { hash01, mulberry32 } from '../../core/rng';
 import { MISSION_BIOMES, biomeById } from '../../data/biomes';
 import { CLASSES } from '../../data/classes';
 import { CREATURES } from '../../data/creatures';
 import { THREATS, THREAT_MAX } from '../../data/threat';
 import { TOWN } from '../../data/town';
-import type { CreatureId, GoalId, SlotKind } from '../../types/domain';
+import type { CreatureId, GoalId, MissionBiomeId, SlotKind } from '../../types/domain';
 import type { MonsterEntity } from '../../types/entity';
 import type { GameContext, MissionsLike } from '../../types/game-context';
 import type {
@@ -13,12 +13,13 @@ import type {
   GoalDef,
   MissionReport,
   RoomRuntimeState,
+  RunState,
   ThreatProfile,
 } from '../../types/mission';
 import type { GearItem } from '../../types/sheet';
 import type { WorldLike } from '../../types/world';
 import { firstSpec, hubSpec, missionSpec, rimAt } from '../../world/layout';
-import { derive } from '../character/stats';
+import { BAG_GEAR, derive } from '../character/stats';
 import { provokeMonster } from '../combat/monster-specials';
 import { rollItem } from '../inventory/gear-service';
 import { rand, seedSim } from '../sim-rng';
@@ -83,6 +84,55 @@ interface MissionRoomState extends RoomRuntimeState {
   wait?: number;
 }
 
+/** titles an elder earns each depth below the contract */
+const ELDER_TITLES: readonly string[] = ['Risen', 'Wrathful', 'Ancient', 'Dread', 'Undying'];
+const ROMAN: readonly string[] = ['', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+/** the accent an upgraded elder's markings take on, by title */
+const ELDER_MARKS: readonly (readonly [number, number, number])[] = [
+  [0.86, 0.3, 0.32],
+  [0.62, 0.38, 0.9],
+  [0.95, 0.84, 0.5],
+  [0.3, 0.78, 0.74],
+  [0.98, 0.96, 0.92],
+];
+
+export function elderTitle(depth: number, name: string): string {
+  const e = depth - 1;
+  if (e < 1) return name;
+  const bare = name.replace(/^The /, '');
+  const t = ELDER_TITLES[Math.min(ELDER_TITLES.length, e) - 1];
+  const n = e - ELDER_TITLES.length;
+  return `${t} ${bare}${n > 0 ? ' ' + (ROMAN[Math.min(n, 9)] || String(n + 1)) : ''}`;
+}
+
+/** what going one depth further pays on top of the contract, and how much past the top threat rank it grows */
+export const depthPay = (depth: number): number => 1 + 0.2 * Math.max(0, depth - 1);
+
+/** the places a run passes through, starting with the contract's own: the same contract always descends the same way */
+function descentOrder(base: ContractOffer): MissionBiomeId[] {
+  const rest = MISSION_BIOMES.filter((b) => b !== base.biome);
+  const rnd = mulberry32((base.seed ^ 0x6d2b79f5) >>> 0);
+  for (let i = rest.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [rest[i], rest[j]] = [rest[j], rest[i]];
+  }
+  return [base.biome, ...rest];
+}
+
+function newRun(base: ContractOffer): RunState {
+  return {
+    base,
+    depth: base.depth || 1,
+    cleared: 0,
+    haul: { glint: 0, payGlint: 0, payXp: 0, items: [], relics: [] },
+    kills: 0,
+    time: 0,
+    marks: 0,
+    markNeed: 0,
+    prizes: [],
+  };
+}
+
 export class Missions implements MissionsLike {
   private readonly game: GameContext;
   offers: ContractOffer[] = [];
@@ -91,12 +141,21 @@ export class Missions implements MissionsLike {
   report: MissionReport | null = null;
   threat: ThreatProfile | null = null;
   stock: GearItem[] = [];
+  /** the contract and every depth below it taken in one go, until the hero lifts out or falls */
+  run: RunState | null = null;
   private padT = 0;
 
   constructor(game: GameContext) {
     this.game = game;
     game.bus.on('relic:found', (d) => {
       if (this.active) this.active.relic = d.item;
+      if (this.run) this.run.haul.relics.push(d.item);
+    });
+    game.bus.on('pickup', (d) => {
+      const r = this.run;
+      if (!r || !this.active) return;
+      if (d.item === 'glint') r.haul.glint += d.n || 0;
+      if (d.gear && !d.gear.relic) r.haul.items.push(d.gear.uid);
     });
     game.bus.on('player:respawn', () => {
       if (this.active) this.home(false);
@@ -159,6 +218,74 @@ export class Missions implements MissionsLike {
     this.game.bus.emit('mission:taken', null);
   }
 
+  /** the islands one depth below where the run is now: another place, a level and a threat rank harder, always ending in an elder */
+  deeperOffer(): ContractOffer | null {
+    const r = this.run;
+    if (!r || r.base.first) return null;
+    const base = r.base;
+    const depth = r.depth + 1;
+    const e = depth - 1;
+    const order = descentOrder(base);
+    const biome = order[e % order.length];
+    const seed = Math.floor(hash01(base.seed & 0xffff, depth, base.seed >>> 16) * 2 ** 31);
+    const baseThreat = base.threat ?? 0;
+    const threat = Math.min(THREAT_MAX, baseThreat + e);
+    // a level a depth in all: the threat rank's own levels count toward it
+    const tier = base.tier + e - (Math.floor(threat / 2) - Math.floor(baseThreat / 2));
+    const rooms = Math.min(6, 3 + Math.floor(depth / 2));
+    const pay = THREATS[threat].pay * depthPay(depth);
+    return {
+      seed,
+      biome,
+      goal: 'hunt',
+      tier,
+      rooms,
+      threat,
+      conditions: rollConditions(threat, { biome, goal: 'hunt' }, mulberry32((seed ^ 0x51ed270b) >>> 0)),
+      name: base.name,
+      xp: Math.round((30 + rooms * 14) * (1 + 0.3 * (tier + e - 1)) * 1.3 * pay),
+      glint: Math.round((22 + rooms * 9) * (1 + 0.25 * (tier + e - 1)) * pay),
+      depth,
+    };
+  }
+
+  /** past the top threat rank, creatures keep growing a little with every depth */
+  private overRank(): number {
+    const a = this.active;
+    const r = this.run;
+    if (!a || !r) return 0;
+    return Math.max(0, (r.base.threat ?? 0) + (a.offer.depth || 1) - 1 - THREAT_MAX);
+  }
+
+  /** an elder met below the contract is a stronger, quicker, angrier version of itself, and looks it */
+  private upgradeElder(m: MonsterEntity, depth: number): void {
+    const e = depth - 1;
+    if (e < 1) return;
+    m.maxHp = m.hp = Math.round(m.maxHp * (1 + 0.15 * e));
+    m.atk *= 1 + 0.05 * e;
+    m.quick = Math.min(1.5, (m.quick || 1) * (1 + 0.07 * e));
+    m.rageAt = Math.min(0.8, (m.rageAt || 0.5) + 0.06 * e);
+    m.luck = (m.luck || 0) + 0.25 * e;
+    m.scale *= Math.min(1.22, 1 + 0.045 * e);
+    const def = m.def;
+    m.def = {
+      ...def,
+      epithet: `Depth ${depth}. ${def.epithet || ''}`.trim(),
+      specials: def.specials.map((sp) => ({
+        ...sp,
+        every: sp.every / (1 + 0.08 * e),
+        ...(sp.kind === 'barrage' && sp.count ? { count: sp.count + Math.min(6, e) } : {}),
+        ...(sp.kind === 'summon' && sp.count ? { count: sp.count + Math.floor(e / 2) } : {}),
+        ...((sp.kind === 'slam' || sp.kind === 'cloud') && sp.r ? { r: sp.r * (1 + 0.04 * Math.min(5, e)) } : {}),
+      })),
+    };
+    m.name = elderTitle(depth, def.name);
+    const mark = ELDER_MARKS[Math.min(ELDER_MARKS.length, e) - 1];
+    const dark = Math.min(0.32, 0.08 * e);
+    m.colors[0] = m.colors[0].map((c) => c * (1 - dark));
+    m.colors[1] = m.colors[1].map((c, i) => c * 0.35 + mark[i] * 0.65);
+  }
+
   deploy(): void {
     const g = this.game;
     const offer = this.pending;
@@ -194,6 +321,8 @@ export class Missions implements MissionsLike {
       rooms: rooms.map((r) => ({ state: r.waves.length ? 'asleep' : 'clear', wave: -1, alive: [] })),
     };
     this.pending = null;
+    if (!this.run || (offer.depth || 1) <= 1) this.run = newRun(offer);
+    this.run.depth = offer.depth || 1;
     this.openGates(0);
     const T = (this.threat = threatOf(offer));
     if (T.hour != null) g.hour = T.hour;
@@ -392,6 +521,7 @@ export class Missions implements MissionsLike {
       if (lead) led = true;
       const m = g.spawner.spawnMonster(id, x, z, level + (boss ? 1 : 0), lead);
       this.temper(m);
+      if (boss) this.upgradeElder(m, a.offer.depth || 1);
       m.room = i;
       if (boss) m.yaw = Math.atan2(-(p.x - x), p.z - z);
       if (boss && a.offer.first) {
@@ -407,6 +537,11 @@ export class Missions implements MissionsLike {
 
   temper(m: MonsterEntity): MonsterEntity {
     const T = this.threat;
+    const over = this.overRank();
+    if (over) {
+      m.maxHp = m.hp = Math.round(m.maxHp * (1 + 0.1 * over));
+      m.atk *= 1 + 0.05 * over;
+    }
     if (!T || !this.active || (!T.rank && !T.list.length)) return m;
     m.maxHp = m.hp = Math.round(m.maxHp * T.hp);
     m.atk *= T.atk;
@@ -469,10 +604,12 @@ export class Missions implements MissionsLike {
     const a = this.active;
     const w = this.game.world;
     if (!a) return this.pending ? `${this.pending.name}: step onto the pad` : '';
+    const depth = (a.offer.depth || 1) > 1 ? `Depth ${a.offer.depth} · ` : '';
+    if (a.choosing) return `${depth}Done: lift out, or go deeper`;
     if (a.done) return a.over > 3 ? `Done: lifting out in ${Math.ceil(a.over)}` : 'Done: lifting out';
     const side =
       a.markNeed && a.marks < a.markNeed ? ` · Survey marks ${a.marks} of ${a.markNeed}` : '';
-    return this.goalLine(a, w) + side;
+    return depth + this.goalLine(a, w) + side;
   }
 
   private goalLine(a: ActiveMission, w: WorldLike): string {
@@ -491,8 +628,81 @@ export class Missions implements MissionsLike {
     const a = this.active;
     if (!a || a.done) return;
     a.done = true;
-    a.over = a.offer.goal === 'hunt' ? 10 : 2.6;
-    this.game.bus.emit('mission:done', { offer: a.offer });
+    const r = this.run;
+    if (a.offer.first || !r) {
+      a.over = a.offer.goal === 'hunt' ? 10 : 2.6;
+      this.game.bus.emit('mission:done', { offer: a.offer, choose: false });
+      return;
+    }
+    this.payDepth(a, r);
+    a.choosing = true;
+    this.game.bus.emit('mission:done', { offer: a.offer, choose: true });
+  }
+
+  /** a cleared depth earns its pay and a prize into the haul; both are only safe once the hero lifts out */
+  private payDepth(a: ActiveMission, r: RunState): void {
+    const g = this.game;
+    const s = g.player.sheet;
+    const depth = a.offer.depth || 1;
+    const extra = 1 + 0.15 * a.marks;
+    const all = a.markNeed > 0 && a.marks >= a.markNeed;
+    r.cleared = Math.max(r.cleared, depth);
+    r.haul.payGlint += Math.round(a.offer.glint * extra);
+    r.haul.payXp += Math.round(a.offer.xp * extra);
+    const T = this.threat || threatOf(a.offer);
+    const prize = rollItem({
+      ilvl: a.offer.tier + Math.max(0, depth - 1),
+      cls: s.cls,
+      family: CLASSES[s.cls].family,
+      rarity: Math.min(3, (a.offer.goal === 'hunt' ? 2 : 1) + (all ? 1 : 0) + (depth >= 3 ? 1 : 0)),
+      luck: 0.4 + T.luck + 0.2 * (depth - 1),
+    });
+    if (s.gear.length < BAG_GEAR) {
+      s.gear.push(prize);
+      r.prizes.push(prize);
+      r.haul.items.push(prize.uid);
+      g.bus.emit('bag:changed');
+    }
+  }
+
+  /** the hero's answer once a depth is done */
+  choose(deeper: boolean): void {
+    const a = this.active;
+    if (!a || !a.choosing) return;
+    a.choosing = false;
+    if (deeper && this.deeperOffer()) this.descend();
+    else {
+      a.over = 2.6;
+      this.game.bus.emit('mission:done', { offer: a.offer, choose: false });
+    }
+  }
+
+  private foldActive(): void {
+    const a = this.active;
+    const r = this.run;
+    if (!a || !r) return;
+    r.kills += a.kills;
+    r.time += a.time;
+    r.marks += a.marks;
+    r.markNeed += a.markNeed;
+    a.kills = a.time = a.marks = a.markNeed = 0;
+  }
+
+  /** down to the next island chain, keeping the haul */
+  private descend(): void {
+    const g = this.game;
+    const p = g.player;
+    const next = this.deeperOffer();
+    const r = this.run;
+    if (!next || !r) return;
+    g.loot.gather();
+    this.foldActive();
+    this.active = null;
+    this.pending = next;
+    g.bus.emit('run:deeper', { depth: next.depth || 2 });
+    this.deploy();
+    p.hp = p.maxHp;
+    p.focus = p.maxFocus;
   }
 
   home(won: boolean): void {
@@ -501,54 +711,114 @@ export class Missions implements MissionsLike {
     const a = this.active;
     if (!a) return;
     const s = p.sheet;
-    const extra = 1 + 0.15 * a.marks;
-    const all = a.markNeed > 0 && a.marks >= a.markNeed;
+    const r = a.offer.first ? null : this.run;
+    if (r) this.foldActive();
+    const kills = r ? r.kills : a.kills;
+    const time = r ? r.time : a.time;
+    const marks = r ? r.marks : a.marks;
+    const markNeed = r ? r.markNeed : a.markNeed;
+    // a run that cleared its first depth is a done contract, even if the hero fell further down
+    const done = r ? r.cleared > 0 : won;
+    // a fall while choosing (something left burning on the arena) still counts as lifting out
+    const fell = Boolean(r && !won && r.depth > 1 && !a.choosing);
+    let xp = 0;
+    let glint = 0;
+    const lost = { glint: 0, xp: 0, items: [] as GearItem[] };
+    if (r && done) {
+      xp = r.haul.payXp;
+      glint = r.haul.payGlint;
+      if (fell) {
+        lost.xp = Math.ceil(xp / 2);
+        lost.glint = Math.ceil(glint / 2);
+        xp -= lost.xp;
+        glint -= lost.glint;
+        const picked = Math.min(s.glint, Math.ceil(r.haul.glint / 2));
+        s.glint -= picked;
+        lost.glint += picked;
+        const worn = new Set(
+          Object.values(s.equip)
+            .filter((it): it is GearItem => Boolean(it))
+            .map((it) => it.uid),
+        );
+        const loose = s.gear.filter((it) => r.haul.items.includes(it.uid) && !worn.has(it.uid) && !it.relic);
+        // which half is lost is down to chance
+        for (let k = Math.ceil(loose.length / 2); k > 0; k--) {
+          lost.items.push(loose.splice(Math.floor(rand() * loose.length), 1)[0]);
+        }
+        s.gear = s.gear.filter((it) => !lost.items.includes(it));
+        g.bus.emit('bag:changed');
+      }
+    } else if (!r && won) {
+      const extra = 1 + 0.15 * marks;
+      xp = Math.round(a.offer.xp * extra);
+      glint = Math.round(a.offer.glint * extra);
+    }
+    const best = r
+      ? r.prizes.filter((it) => !lost.items.includes(it)).sort((x, y) => y.rarity - x.rarity)[0]
+      : undefined;
+    const record = Boolean(r && r.cleared > 1 && r.cleared > (s.deepest || 0));
+    if (r) s.deepest = Math.max(s.deepest || 0, r.cleared);
     this.report = {
-      won,
-      offer: a.offer,
-      relic: a.relic || null,
-      kills: a.kills,
-      time: a.time,
-      xp: won ? Math.round(a.offer.xp * extra) : 0,
-      glint: won ? Math.round(a.offer.glint * extra) : 0,
-      marks: a.marks,
-      markNeed: a.markNeed,
+      won: done,
+      offer: r ? r.base : a.offer,
+      relic: r ? r.haul.relics[0] || null : a.relic || null,
+      kills,
+      time,
+      xp,
+      glint,
+      marks,
+      markNeed,
+      ...(r
+        ? {
+            depth: r.depth,
+            cleared: r.cleared,
+            record,
+            found: r.haul.items.length,
+            ...(fell ? { lost } : {}),
+            ...(best ? { prize: best } : {}),
+          }
+        : {}),
     };
+    const base = r ? r.base : a.offer;
     const T = this.threat || threatOf(a.offer);
     this.threat = null;
-    if (!a.offer.first) {
+    if (!base.first) {
       s.threat = s.threat || {};
-      const was = (s.threat[a.offer.biome] ?? 0) | 0;
-      const now = Math.max(0, Math.min(THREAT_MAX, was + (won ? 1 : -1)));
-      s.threat[a.offer.biome] = now;
+      const was = (s.threat[base.biome] ?? 0) | 0;
+      const now = Math.max(0, Math.min(THREAT_MAX, was + (done ? 1 : -1)));
+      s.threat[base.biome] = now;
       if (now !== was) this.report.threat = { was, now, name: THREATS[now].name };
     }
     s.boon = null;
     if (won) g.loot.gather();
     this.active = null;
+    this.run = null;
     g.enter(hubSpec(TOWN));
     this.arrive();
-    if (won) {
+    if (done) {
       s.board = (s.board || 0) + 1;
       s.missions = (s.missions || 0) + 1;
       if (a.offer.first) {
         s.first = false;
         g.loot.add('wisp_ember', 6);
       }
-      s.glint += this.report.glint;
-      const prize = rollItem({
-        ilvl: a.offer.tier,
-        cls: s.cls,
-        family: CLASSES[s.cls].family,
-        rarity: Math.min(3, (a.offer.goal === 'hunt' ? 2 : 1) + (all ? 1 : 0)),
-        luck: 0.4 + T.luck,
-      });
-      if (s.gear.length < 20) {
-        s.gear.push(prize);
-        this.report.prize = prize;
+      s.glint += glint;
+      if (!r) {
+        const all = markNeed > 0 && marks >= markNeed;
+        const prize = rollItem({
+          ilvl: a.offer.tier,
+          cls: s.cls,
+          family: CLASSES[s.cls].family,
+          rarity: Math.min(3, (a.offer.goal === 'hunt' ? 2 : 1) + (all ? 1 : 0)),
+          luck: 0.4 + T.luck,
+        });
+        if (s.gear.length < 20) {
+          s.gear.push(prize);
+          this.report.prize = prize;
+        }
       }
       this.refresh();
-      g.combat.grantXp(this.report.xp);
+      g.combat.grantXp(xp);
     }
     derive(p);
     p.hp = p.maxHp;

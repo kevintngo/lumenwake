@@ -178,6 +178,7 @@ function mendHero(raw: unknown): SaveHero | null {
 
   s.parts = int(r.parts, 0, 1e9, 0);
   s.relicDry = int(r.relicDry, 0, 99, 0);
+  s.deepest = int(r.deepest, 0, 9999, 0);
 
   const rawRelics = (r.relics && typeof r.relics === 'object' ? r.relics : {}) as Record<string, unknown>;
   for (const id of Object.keys(rawRelics)) {

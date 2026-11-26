@@ -3,7 +3,9 @@ import { biomeById } from '../../data/biomes';
 import { GOALS } from '../../sim/missions/missions-system';
 import type { GameContext } from '../../types/game-context';
 import type { MissionReport } from '../../types/mission';
+import { TOOL_ICONS } from '../icons';
 import { art, formatDuration } from '../ui-helpers';
+import { describe } from '../../sim/inventory/gear-service';
 import { ItemCard } from './item-detail';
 
 interface ReportModalProps {
@@ -36,7 +38,7 @@ export function ReportModal({ game, report, onClose }: ReportModalProps) {
     <section
       ref={boxRef}
       id="report"
-      class={report && !report.won ? 'plate lost' : 'plate'}
+      class={report && (!report.won || report.lost) ? 'plate lost' : 'plate'}
       role="dialog"
       aria-labelledby="report-name"
       hidden={!report}
@@ -54,7 +56,7 @@ export function ReportModal({ game, report, onClose }: ReportModalProps) {
       <div class="report-art">
         <img id="report-art" src={report ? art(`place-${report.offer.biome}`) : undefined} alt="" />
         <div class="stamp" id="report-kind">
-          {report ? (report.won ? 'Paid' : 'Lifted out') : ''}
+          {report ? (report.lost ? 'Fell' : report.won ? 'Paid' : 'Lifted out') : ''}
         </div>
       </div>
       <div class="report-body">
@@ -68,6 +70,13 @@ export function ReportModal({ game, report, onClose }: ReportModalProps) {
                 <>
                   {' '}
                   · <span class="c-bad">Not paid: it is still on the board</span>
+                </>
+              )}
+              {(report.cleared || 0) > 1 && (
+                <>
+                  {' '}
+                  · Down to depth <b class="c-num">{report.cleared}</b>
+                  {report.record && <b class="c-good"> (your deepest yet)</b>}
                 </>
               )}
               {report.won && report.markNeed > 0 && (
@@ -115,6 +124,30 @@ export function ReportModal({ game, report, onClose }: ReportModalProps) {
             </>
           )}
         </div>
+        {report?.lost && (
+          <p class="report-lost">
+            {TOOL_ICONS.warn()}
+            <span>
+              You fell at depth <b class="c-num">{report.depth}</b> and lost half the haul:{' '}
+              <b class="c-coin">{report.lost.glint} glint</b>, <b class="c-xp">{report.lost.xp} xp</b>
+              {report.lost.items.length > 0 && (
+                <>
+                  {' '}
+                  and {report.lost.items.length === 1 ? 'a piece' : `${report.lost.items.length} pieces`}
+                  {' ('}
+                  {report.lost.items.map((it, i) => (
+                    <>
+                      {i > 0 && ', '}
+                      <b style={{ color: describe(it).color }}>{describe(it).name}</b>
+                    </>
+                  ))}
+                  {')'}
+                </>
+              )}
+              . What you wore came home with you.
+            </span>
+          </p>
+        )}
         <div id="report-prize">
           {report?.relic && (
             <>
@@ -126,7 +159,9 @@ export function ReportModal({ game, report, onClose }: ReportModalProps) {
           )}
           {report?.prize && (
             <>
-              <div class="label">Also paid</div>
+              <div class="label">
+                {(report.cleared || 0) > 1 ? 'Best piece paid on the way' : 'Also paid'}
+              </div>
               <div class="gear item-card">
                 <ItemCard game={game} item={report.prize} />
               </div>

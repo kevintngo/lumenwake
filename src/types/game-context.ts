@@ -25,7 +25,7 @@ import type {
   PlayerProjectile,
 } from './entity';
 import type { GameEventMap } from './events';
-import type { ActiveMission, ContractOffer, MissionReport, ThreatProfile } from './mission';
+import type { ActiveMission, ContractOffer, MissionReport, RunState, ThreatProfile } from './mission';
 import type {
   CameraLike,
   FxRenderSource,
@@ -259,6 +259,9 @@ export interface MissionsLike extends SimSystem {
   met(): boolean;
   track(): string;
   home(won: boolean): void;
+  run: RunState | null;
+  choose(deeper: boolean): void;
+  deeperOffer(): ContractOffer | null;
 }
 
 export interface HazardsLike extends SimSystem {

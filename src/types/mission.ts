@@ -58,6 +58,33 @@ export interface ContractOffer {
   xp: number;
   glint: number;
   first?: boolean;
+  /** 1 for the contract itself; 2 and on are the islands below it, reached by going deeper */
+  depth?: number;
+}
+
+/** what a run has gathered and not yet brought home: a fall below the first depth costs half of it */
+export interface RunHaul {
+  /** glint picked up on the islands */
+  glint: number;
+  /** contract pay earned at each cleared depth, paid on lifting out */
+  payGlint: number;
+  payXp: number;
+  /** gear found or paid on the way (by uid) */
+  items: number[];
+  relics: GearItem[];
+}
+
+export interface RunState {
+  base: ContractOffer;
+  depth: number;
+  /** depths whose elder (or far pad) was reached */
+  cleared: number;
+  haul: RunHaul;
+  kills: number;
+  time: number;
+  marks: number;
+  markNeed: number;
+  prizes: GearItem[];
 }
 
 export interface RoomRuntimeState {
@@ -79,6 +106,8 @@ export interface ActiveMission {
   revealed: boolean;
   relic?: GearItem;
   rooms: RoomRuntimeState[];
+  /** set when the depth is done and the hero has to choose: lift out or go deeper */
+  choosing?: boolean;
 }
 
 export interface MissionReport {
@@ -97,4 +126,11 @@ export interface MissionReport {
     name: string;
   };
   prize?: GearItem;
+  /** the deepest depth reached on this run, and whether it beat the hero's record */
+  depth?: number;
+  cleared?: number;
+  record?: boolean;
+  /** pieces found on the run; on a fall below the first depth, the ones lost */
+  found?: number;
+  lost?: { glint: number; xp: number; items: GearItem[] };
 }

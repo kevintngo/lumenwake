@@ -19,6 +19,7 @@ import { boxOf, createSettings } from '../settings';
 import { getSkillList, highlightNumbers, parseLogText, type LogSegment } from '../ui-helpers';
 import { CinemaOverlay } from './cinema-overlay';
 import { handleWindowKey, TAB_OF, WINDOW_TABS } from './game-window';
+import { type DepthChoiceState, readDepthChoice } from './depth-choice';
 import { Hud, type HudSnapshot, type LogEntry, type TalkState, type ToastState } from './hud';
 import type { PickContext } from './item-detail';
 import type { PauseState } from './pause-modal';
@@ -102,7 +103,11 @@ function readHudSnapshot(game: GameContext): HudSnapshot {
     bossMad: Boolean(boss?.enraged),
     bossRatio: boss ? quantRatio(boss.hp / Math.max(1, boss.maxHp)) : 0,
     zoneName: ms.active ? ms.active.offer.name : game.biome.name,
-    clockText: ms.active ? game.biome.name : 'Aloft',
+    clockText: ms.active
+      ? (ms.active.offer.depth || 1) > 1
+        ? `Depth ${ms.active.offer.depth} · ${game.biome.name}`
+        : game.biome.name
+      : 'Aloft',
     missionActive: Boolean(ms.active),
   };
 }
@@ -191,6 +196,7 @@ export function UiRoot({ game }: UiRootProps) {
   const [toast, setToast] = useState<ToastState>({ title: '', sub: '', show: false });
   const [talk, setTalk] = useState<TalkState | null>(null);
   const [report, setReport] = useState<MissionReport | null>(null);
+  const [choice, setChoice] = useState<DepthChoiceState | null>(null);
   const [windowKind, setWindowKind] = useState<WindowKind | null>(null);
   const [windowTab, setWindowTab] = useState<MenuTabId>('character');
   const [trader, setTrader] = useState<NpcEntity | null>(null);
@@ -425,6 +431,7 @@ export function UiRoot({ game }: UiRootProps) {
         : () => {};
 
     const bus = game.bus;
+    let choiceTimer = 0;
     const refreshIfOpen = (): void => {
       if (windowKindRef.current) setWindowRev((n) => n + 1);
     };
@@ -692,8 +699,23 @@ export function UiRoot({ game }: UiRootProps) {
           { text: '.' },
         ]);
       }),
-      bus.on('mission:done', () => {
-        showToast('Contract done', 'Lifting out…', 2.6);
+      bus.on('mission:done', (d) => {
+        window.clearTimeout(choiceTimer);
+        if (!d.choose) {
+          setChoice(null);
+          showToast(d.offer.depth && d.offer.depth > 1 ? `Depth ${d.offer.depth} done` : 'Contract done', 'Lifting out…', 2.6);
+          return;
+        }
+        // a moment for the elder to fall and its drops to land before the choice comes up
+        choiceTimer = window.setTimeout(() => setChoice(readDepthChoice(game)), 1800);
+      }),
+      bus.on('run:deeper', () => {
+        window.clearTimeout(choiceTimer);
+        setChoice(null);
+      }),
+      bus.on('mission:report', () => {
+        window.clearTimeout(choiceTimer);
+        setChoice(null);
       }),
       bus.on('lumen:ready', () => {
         const burstName = LUMENS[game.player.sheet.lumen.kind].burst.name;
@@ -808,6 +830,7 @@ export function UiRoot({ game }: UiRootProps) {
 
     return () => {
       for (const off of unsubs) off();
+      clearTimeout(choiceTimer);
       removeEventListener('keydown', onKeyDown, true);
       removeEventListener('resize', layout);
       canvasRo?.disconnect();
@@ -850,6 +873,7 @@ export function UiRoot({ game }: UiRootProps) {
         touch={touch}
         logs={logs}
         toast={toast}
+        choice={choice}
         talk={talk}
         report={report}
         windowKind={windowKind}

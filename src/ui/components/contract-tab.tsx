@@ -88,7 +88,17 @@ export function ContractTab({ game, onMutate }: ContractTabProps) {
   const elder = bossId ? CREATURES[bossId] : null;
   const T = threatOf(o);
   const boon = s.boon && BOONS[s.boon] ? BOONS[s.boon] : null;
-  const stateLabel = a ? (a.done ? 'Done: lifting out' : 'On contract') : 'Contract taken';
+  const depth = a?.offer.depth || 1;
+  const run = ms.run;
+  const stateLabel = a
+    ? a.choosing
+      ? 'Done: lift out, or go deeper'
+      : a.done
+        ? 'Done: lifting out'
+        : depth > 1
+          ? `Depth ${depth}`
+          : 'On contract'
+    : 'Contract taken';
   const elderRelics = bossId && !o.first ? relicsOf(bossId) : [];
 
   const fights = a ? a.rooms.filter((_, i) => w.rooms[i]?.kind === 'fight') : [];
@@ -136,6 +146,15 @@ export function ContractTab({ game, onMutate }: ContractTabProps) {
                 </div>
               )}
               {a.markNeed > 0 && renderProgressRow('Survey marks', a.marks, a.markNeed)}
+              {run && depth > 1 && (
+                <div class="prog">
+                  <span>Haul so far</span>
+                  <b>
+                    <span class="c-coin">{run.haul.payGlint + run.haul.glint} glint</span> ·{' '}
+                    <span class="c-num">{run.haul.items.length} pieces</span>
+                  </b>
+                </div>
+              )}
               <div class="prog">
                 <span>Beacon</span>
                 <b class={a.revealed ? 'c-good' : 'quiet'}>
@@ -148,7 +167,10 @@ export function ContractTab({ game, onMutate }: ContractTabProps) {
           <>
             <h3 class="label">The job</h3>
             <p>{goal.brief}</p>
-            <p class="quiet">Step onto the pad at the south gate to go down.</p>
+            <p class="quiet">
+              Step onto the pad at the south gate to go down. Once it is done you can lift out, or go deeper for
+              more.
+            </p>
           </>
         )}
 

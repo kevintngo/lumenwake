@@ -6,7 +6,17 @@ export type WeaponFamilyId = 'blade' | 'rifle' | 'wand';
 
 export type PeopleId = 'unit' | 'human' | 'veiled' | 'karn' | 'lynd';
 
-export type BiomeId = 'town' | 'glasswood' | 'ember' | 'hush' | 'rime' | 'vault' | 'shatter';
+export type BiomeId =
+  | 'town'
+  | 'glasswood'
+  | 'ember'
+  | 'hush'
+  | 'rime'
+  | 'vault'
+  | 'shatter'
+  | 'bloomfall'
+  | 'saltglass'
+  | 'amberwood';
 
 export type MissionBiomeId = Exclude<BiomeId, 'town'>;
 
@@ -152,7 +162,10 @@ export type CreatureId =
   | 'matron'
   | 'sentinel'
   | 'keeper'
-  | 'drifter';
+  | 'drifter'
+  | 'thornmother'
+  | 'saltcolossus'
+  | 'ambersentinel';
 
 export type BossId = 'warden' | 'matron' | 'sentinel' | 'keeper' | 'drifter';
 
@@ -240,7 +253,12 @@ export type PropId =
   | 'shard'
   | 'floater'
   | 'wreck'
-  | 'dish';
+  | 'dish'
+  | 'flowers'
+  | 'fern'
+  | 'tallgrass'
+  | 'pebbles'
+  | 'ruin';
 
 export type ArchetypeId =
   | 'humanoid'

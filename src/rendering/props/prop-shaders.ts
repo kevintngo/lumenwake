@@ -1,5 +1,6 @@
 import { PROPS } from '../../data/props';
 import { registerChunk } from '../shader-lib';
+import decorGlsl from '../shaders/props/decor.glsl?raw';
 import propHelpersGlsl from '../shaders/props/prop-helpers.glsl?raw';
 import rocksGlsl from '../shaders/props/rocks.glsl?raw';
 import sitesGlsl from '../shaders/props/sites.glsl?raw';
@@ -22,6 +23,7 @@ function buildPropsChunk(): string {
     rocksGlsl,
     structuresGlsl,
     sitesGlsl,
+    decorGlsl,
     `float propSdf(vec3 q, Prop pr, out float m) {\n  m = 0.0;\n  switch (pr.type) {\n${sdfCases}\n  }\n  return 1e3;\n}`,
     `bool propSeeThrough(int type, float mat) {\n  if (mat < 0.5 || mat > 1.5) return false;\n  return ${seeCases || 'false'};\n}`,
     `void propMat(vec3 q, float m, Prop pr, inout Surf s) {\n  switch (pr.type) {\n${matCases}\n  }\n}`,

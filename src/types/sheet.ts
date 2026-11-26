@@ -75,6 +75,8 @@ export interface PlayerSheet {
   threat: Partial<Record<MissionBiomeId, number>>;
   relics: Partial<Record<RelicId, number>>;
   relicDry: number;
+  /** the deepest island chain cleared on any contract (1 is the contract itself) */
+  deepest: number;
   boon: BoonId | null;
 }
 

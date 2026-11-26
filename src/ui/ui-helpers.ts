@@ -39,7 +39,8 @@ export const STAT_SHORT: Readonly<Record<StatKey, string>> = {
   lifeOnKill: 'Life on kill',
 };
 
-export const art = (name: string): string => `/art/${name}.webp`;
+// public files are served from the build's base: the site root on Vercel, /lumenwake/ on GitHub Pages
+export const art = (name: string): string => `${import.meta.env.BASE_URL}art/${name}.webp`;
 
 export const pct = (v: number): string => `${Math.round(v * 100)}%`;
 

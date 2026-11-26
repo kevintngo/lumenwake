@@ -85,6 +85,7 @@ export function newPlayerSheet(cls: ClassId = 'vanguard'): PlayerSheet {
     threat: {},
     relics: {},
     relicDry: 0,
+    deepest: 0,
     boon: null,
   };
 }

@@ -102,7 +102,8 @@ float shadowMarch(vec3 p, vec3 L) {
     if (t > 1.5) res = min(res, 16.0 * above / t);
     if (above < PROP_HMAX) {
       ivec2 cell = ivec2(floor(q.xz / CELL));
-      if (cell != last) { last = cell; has = cellProp(cell, pr); if (has) pm = propRot(pr); }
+      // the small plants and pebbles (types 35 to 38) cast no shadow worth the cost
+      if (cell != last) { last = cell; has = cellProp(cell, pr) && (pr.type < 35 || pr.type > 38); if (has) pm = propRot(pr); }
       if (has) {
         float m;
         float dp = propSdf(toProp(q, pr, pm), pr, m) * pr.scale;

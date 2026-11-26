@@ -279,6 +279,8 @@ export class Game implements GameContext {
     this.env.pave = this.biome.realm === 1 ? 0 : 1;
     this.env.realm = this.biome.realm || 0;
     this.env.wall = this.biome.walls || 0;
+    this.env.sky = [((w.spec.seed >>> 0) % 997) / 997, this.biome.realm ? 0 : 1];
+    this.env.skyTop = this.biome.ground2;
     this.env.cloud =
       this.biome.cloud + 0.16 * Math.sin(this.time / 83 + p.x * 0.002) * Math.cos(this.time / 131 + p.z * 0.0017);
 

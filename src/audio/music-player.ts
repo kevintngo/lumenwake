@@ -223,7 +223,10 @@ export function createMusic(kit: SynthKit, game: GameContext): MusicPlayer {
     const area = areaOf(game);
     const boss = (game.monsters || []).find((m) => m && m.boss && !m.dead);
     const elder = !!boss;
-    const theme = boss ? lookup<PreparedPiece | null>(BOSSES, boss.defId, null) : null;
+    // an elder of a newer place plays the theme of the elder whose shape it shares
+    const theme = boss
+      ? lookup<PreparedPiece | null>(BOSSES, boss.defId, null) || lookup<PreparedPiece | null>(BOSSES, boss.def.archetype, null)
+      : null;
     if (area === st.area && elder === st.elder && theme === st.theme) return;
     const moved = area !== st.area;
     const fallen = st.elder && !elder;

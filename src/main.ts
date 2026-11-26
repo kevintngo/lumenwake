@@ -6,6 +6,8 @@ const canvas = document.getElementById('view') as HTMLCanvasElement | null;
 try {
   if (!canvas) throw new Error('Canvas element #view not found');
   const game = new Game(canvas);
+  // (for the test scripts and the trailer, in the dev server only: never in a build)
+  if (import.meta.env.DEV) Object.assign(window, { __game: game });
   mountUI(game);
   try {
     createAudio(game);

@@ -9,3 +9,5 @@ uniform float uGold;
 uniform float uCloud;
 uniform vec2 uWind;
 uniform float uRealm;
+uniform vec2 uSky;
+uniform vec3 uSkyTop;

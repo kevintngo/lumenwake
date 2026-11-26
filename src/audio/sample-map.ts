@@ -113,7 +113,7 @@ const any = (...names: SampleName[]): SampleName => names[Math.floor(Math.random
 
 const surface = (game: GameContext): SurfaceKind => {
   const id = game.biome && game.biome.id;
-  return id === 'rime' ? 'snow' : id === 'town' || id === 'vault' || id === 'shatter' ? 'stone' : 'grass';
+  return id === 'rime' ? 'snow' : id === 'town' || id === 'vault' || id === 'shatter' || id === 'saltglass' ? 'stone' : 'grass';
 };
 
 const isMonster = (e: Entity | null | undefined): e is MonsterEntity => !!e && e.kind === 'monster';
@@ -213,6 +213,7 @@ export const SAMPLED: SampleMap = {
   'craft:pass': () => ({ name: 'shuttle-pass', gain: 0.5 }),
   'craft:land': () => ({ name: 'shuttle-land', gain: 0.5 }),
   'arrive:beam': () => ({ name: 'teleport', gain: 0.34, keep: true }),
+  'run:deeper': () => ({ name: 'shuttle-pass', gain: 0.36, rate: 0.8, keep: true }),
   'player:respawn': () => ({ name: 'teleport', gain: 0.32, keep: true }),
   'player:died': () => ({ name: 'hurt-2', gain: 0.5, rate: 0.7, keep: true }),
   equip: () => ({ name: 'equip', gain: 0.34 }),

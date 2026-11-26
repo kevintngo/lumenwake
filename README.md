@@ -7,7 +7,9 @@ A cel-shaded sky-island action RPG rendered in raw WebGL2 shaders. Arrive by shu
 ## Features
 
 - **Three classes & five peoples:** Vanguard (arc blade), Ranger (pulse rifle), and Adept (focus rod), playable as Scout Unit, Human, Veiled, Karn, or Lynd.
-- **Six contract biomes & escalating threat:** Glasswood Terraces, Ember Shelf, The Hush, Rime Steps, The Underhalls, and The Shatter, each with threat ranks, run conditions, landmarks, and giant elder colossi.
+- **Nine contract biomes & escalating threat:** Glasswood Terraces, Ember Shelf, The Hush, Rime Steps, The Underhalls, The Shatter, Bloomfall Gardens, Saltglass Flats, and Amberwood Hollow, each with threat ranks, run conditions, meadows and landmarks, and a giant elder colossus.
+- **Endless descent:** after a contract's last island, lift out with the haul or go deeper to another generated place below: a level and a threat rank harder each depth, with a titled, upgraded elder (Risen, Wrathful, Ancient, Dread, Undying) and bigger pay. A fall below the first depth costs half the unbanked haul; the deepest depth reached is kept as a record.
+- **Sky backdrop:** distant floating islands, some with waterfalls, over a sea of cloud, drawn by direction so they stay put as the camera turns.
 - **Ten-slot gear, relics, salvage & honing:** Paper-doll equipment with rarities, affixes, boss relics, salvage parts, honing, and item locks.
 - **Evolving Lumen companion:** Shoulder-mounted light companion with three tempers, eight forms, assist bolts, and rechargeable bursts.
 - **Procedural music & recorded SFX:** Per-biome and per-boss interactive Web Audio score layered with recorded sound effects.
@@ -51,6 +53,7 @@ Configured for zero-config static deployment on Vercel (`vercel.json` builds wit
 | `G` | Activate Lumen burst |
 | Right drag, `Q` / `E`, Wheel | Orbit, tilt, and zoom camera |
 | `C` / `B` / `L` / `J` / `H` | Open Character / Gear / Lumen / Contract / Guide (`Q`/`E` switch tabs) |
+| `O` / `N` | After a contract's last island: lift out / go deeper |
 | `M` / `V` | Toggle sound / camera preset |
 | `Esc` | Close window, clear target, or open pause menu |
 

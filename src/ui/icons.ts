@@ -258,6 +258,10 @@ export const TOOL_ICONS: Readonly<Record<string, () => IconNode>> = {
   swap: () => mini([p('M6 14h24l-6-6M34 26H10l6 6')]),
   warn: () => mini([p('M20 5l16 29H4z', { stroke: '#ffb3a3' }), p('M20 16v8M20 29v.5', { stroke: '#ffb3a3' })]),
   lend: () => mini([p('M20 4l4.5 10L35 15.5l-7.5 7.5 2 11L20 28.5 10.5 34l2-11L5 15.5 15.5 14z', { fill: '#ffc45e' })]),
+  lift: () => mini([p('M20 33V9M10 18l10-10 10 10', { stroke: '#10214f' }), p('M8 34h24', { stroke: '#10214f' })]),
+  deeper: () => mini([p('M20 5v24M10 20l10 10 10-10', { stroke: '#ffc45e' }), p('M6 35h28', { stroke: '#ffc45e', 'stroke-dasharray': '3 4' })]),
+  coin: () => mini([c(20, 20, 13, { stroke: '#ffdc6b' }), p('M20 12l6 8-6 8-6-8z', { fill: '#ffdc6b', stroke: '#ffdc6b' })]),
+  pack: () => mini([rect(9, 13, 22, 21, { rx: 3 }), p('M15 13v-3a5 5 0 0 1 10 0v3M9 21h22')]),
 };
 
 export const ATTR_ICONS: Readonly<Record<AttrKey, (cls?: string) => IconNode>> = {

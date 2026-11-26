@@ -102,6 +102,10 @@ export class Controls implements ControlsLike {
     if (input.hit('Tab')) this.cycleTarget();
     if (input.hit('Space')) this.jump();
     if (input.hit('KeyF')) this.act();
+    if (g.missions.active?.choosing) {
+      if (input.hit('KeyO')) g.missions.choose(false);
+      if (input.hit('KeyN')) g.missions.choose(true);
+    }
 
     if (input.acting) {
       const t = p.target;

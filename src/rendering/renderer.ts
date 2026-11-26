@@ -263,7 +263,9 @@ export class Renderer implements RendererLike {
       .set('uCloud', e.cloud)
       .set('uWind', e.wind)
       .set('uRealm', e.realm || 0)
-      .set('uWall', e.wall || 0);
+      .set('uWall', e.wall || 0)
+      .set('uSky', e.sky || [0, 0])
+      .set('uSkyTop', e.skyTop || [0.59, 0.7, 0.47]);
     p.set('uRockCol', e.rockCol).set('uLeafPal', this.leafPal).set('uPave', e.pave || 0);
     p.set('uLightPos', f.lightPos).set('uLightCol', f.lightCol).set('uLightCount', f.lightCount);
     p.set('uPencil', this.pencil).set('uPaperAnchor', this.paperAnchor);

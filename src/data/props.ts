@@ -92,6 +92,11 @@ export const PROPS: readonly PropDef[] = [
     collide: 0.4,
     light: { color: [0.6, 0.9, 1.0], radius: 5, y: 2.7, always: true },
   },
+  { id: 'flowers', type: 35, seeThrough: true, reach: 1.15, height: 0.9, collide: 0, scale: [0.8, 1.15] },
+  { id: 'fern', type: 36, seeThrough: true, reach: 0.75, height: 1.0, collide: 0, scale: [0.85, 1.3] },
+  { id: 'tallgrass', type: 37, seeThrough: true, reach: 0.6, height: 1.1, collide: 0, scale: [0.85, 1.4] },
+  { id: 'pebbles', type: 38, reach: 0.7, height: 0.3, collide: 0, scale: [0.8, 1.5] },
+  { id: 'ruin', type: 39, reach: 2.0, height: 2.8, collide: 0.5, scale: [0.9, 1.15] },
 ];
 
 const BY_ID = new Map<PropId, PropDef>(PROPS.map((p) => [p.id, p]));

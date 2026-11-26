@@ -1895,6 +1895,18 @@ button.worn-tile:hover {
   gap: 18px;
 }
 
+.board-note {
+  grid-column: 1 / -1;
+  align-self: start;
+  margin: 0;
+  padding: 10px 14px 11px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--dim);
+  background: var(--deep);
+  border: 1px solid var(--faint);
+}
+
 .contract {
   display: flex;
   flex-direction: column;

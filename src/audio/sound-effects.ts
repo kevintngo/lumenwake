@@ -27,6 +27,9 @@ const MONSTER_VOICE: Readonly<Record<CreatureId, MonsterVoice>> = {
   sentinel: { freq: 420, type: 'triangle', bend: 1.1 },
   keeper: { freq: 150, type: 'triangle', bend: 0.75 },
   drifter: { freq: 520, type: 'sine', bend: 1.3 },
+  thornmother: { freq: 360, type: 'sine', bend: 0.78 },
+  saltcolossus: { freq: 175, type: 'square', bend: 0.82 },
+  ambersentinel: { freq: 400, type: 'triangle', bend: 1.05 },
 };
 
 const DEFAULT_VOICE: MonsterVoice = { freq: 600, type: 'triangle', bend: 1.2 };

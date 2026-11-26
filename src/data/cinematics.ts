@@ -391,7 +391,9 @@ export const TRIGGERS: readonly CinematicTrigger[] = [
     play: 'descent',
     cast: (d) => {
       const e = d as GameEventMap['mission:begin'];
-      return { offer: e.offer, biome: e.biome, goal: e.goal };
+      const depth = e.offer.depth || 1;
+      // below the contract, the card names the depth
+      return { offer: depth > 1 ? { ...e.offer, name: `Depth ${depth}` } : e.offer, biome: e.biome, goal: e.goal };
     },
   },
   {

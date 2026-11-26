@@ -124,7 +124,8 @@ export interface GameEventMap {
   'mission:taken': ContractOffer | null;
   'mission:begin': { offer: ContractOffer; biome: BiomeDef; goal: GoalDef; threat: ThreatProfile };
   'mission:progress': { cores?: number; need?: number; marks?: number; markNeed?: number };
-  'mission:done': { offer: ContractOffer };
+  'mission:done': { offer: ContractOffer; choose: boolean };
+  'run:deeper': { depth: number };
   'mission:report': MissionReport;
   'report:closed': void;
   'site:used': {

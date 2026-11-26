@@ -5,8 +5,91 @@ import { biomeById } from '../data/biomes';
 import { propById } from '../data/props';
 import { SITES } from '../data/sites';
 import type { PropDef, PropId } from '../types/domain';
-import type { BiomeDef, ChunkData, ChunkProp, NavLike, NavLink, RoomSpec, StructureInstance, ZoneSpec } from '../types/world';
+import type {
+  BiomeDef,
+  ChunkData,
+  ChunkProp,
+  LandmarkId,
+  NavLike,
+  NavLink,
+  RoomSpec,
+  StructureInstance,
+  ZoneSpec,
+} from '../types/world';
 import { rimAt } from './layout';
+
+/** a landmark's pieces around its middle: [prop, x, z, scale] */
+type Piece = readonly [PropId, number, number, number];
+
+const LANDMARKS: Readonly<Record<LandmarkId, readonly Piece[]>> = {
+  circle: [
+    ['stone', 3.3, 0, 1.0],
+    ['stone', 1.65, 2.86, 1.12],
+    ['stone', -1.65, 2.86, 0.95],
+    ['stone', -3.3, 0, 1.15],
+    ['stone', -1.65, -2.86, 1.0],
+    ['stone', 1.65, -2.86, 0.9],
+    ['flowers', 0, 0, 1.2],
+  ],
+  grove: [
+    ['tree', 0, 0, 1.85],
+    ['bush', 2.9, 0.9, 1.15],
+    ['bush', -2.5, 1.7, 1.0],
+    ['flowers', 1.3, -2.8, 1.2],
+    ['fern', -1.6, -2.6, 1.2],
+  ],
+  crystals: [
+    ['crystal', 0, 0, 1.9],
+    ['crystal', 1.9, 1.0, 1.3],
+    ['crystal', -1.6, 1.5, 1.5],
+    ['crystal', 0.5, -2.0, 1.1],
+    ['pebbles', -2.2, -1.4, 1.3],
+  ],
+  ruins: [
+    ['ruin', 0, 0, 1.0],
+    ['column', 3.0, -1.6, 1.0],
+    ['pebbles', -2.6, -2.0, 1.3],
+    ['tallgrass', 1.8, 2.6, 1.2],
+  ],
+  bigcaps: [
+    ['bigcap', 0, 0, 1.25],
+    ['bigcap', 2.7, 1.2, 0.9],
+    ['bigcap', -1.9, 2.2, 1.05],
+    ['mushroom', 1.2, -2.2, 1.3],
+    ['fern', -2.2, -1.5, 1.1],
+  ],
+  pines: [
+    ['pine', 0, 0, 1.4],
+    ['pine', 2.7, 1.1, 1.15],
+    ['pine', -2.4, 1.7, 1.25],
+    ['stump', 1.4, -2.2, 1.2],
+    ['cairn', -1.6, -2.3, 1.2],
+  ],
+  shards: [
+    ['shard', 0, 0, 1.1],
+    ['shard', 2.6, 1.3, 0.85],
+    ['floater', -2.2, 1.5, 1.15],
+    ['crystal', 1.1, -2.2, 1.2],
+  ],
+  spires: [
+    ['stone', 0, 0, 1.25],
+    ['cairn', 2.4, 1.2, 1.3],
+    ['stone', -2.0, 1.6, 0.95],
+    ['pebbles', 0.8, -2.3, 1.4],
+  ],
+  corals: [
+    ['crystal', 0, 0, 1.6],
+    ['bush', 2.4, 1.1, 1.2],
+    ['flowers', -2.1, 1.5, 1.3],
+    ['pebbles', 1.0, -2.2, 1.3],
+  ],
+  lanterns: [
+    ['willow', 0, 0, 1.15],
+    ['reeds', 2.5, 1.0, 1.2],
+    ['flowers', -2.2, 1.6, 1.2],
+    ['reeds', 1.0, -2.3, 1.1],
+  ],
+};
 
 const N = WORLD.CHUNK;
 const CELL = WORLD.CELL;
@@ -130,7 +213,7 @@ export function createZone(spec: ZoneSpec, nav: NavLike): ZoneGenerator {
 
   const structures: ZoneStructure[] = [];
   const rnd = mulberry32((S ^ 0x5bd1e995) >>> 0);
-  const keep: { x: number; z: number; r: number }[] = [];
+  const keep: { x: number; z: number; r: number; soft?: boolean }[] = [];
   const taken = new Set<string>();
 
   const patches = (x: number, z: number, R: number): string[] => {
@@ -188,14 +271,27 @@ export function createZone(spec: ZoneSpec, nav: NavLike): ZoneGenerator {
     return false;
   }
 
+  /** on a bridge between islands, or its ends: the stretch a flower would block, not the whole line across an island */
+  function onBridge(x: number, z: number, margin: number): boolean {
+    for (const l of links) {
+      const px = x - l.ax;
+      const pz = z - l.az;
+      const t = px * l.ux + pz * l.uz;
+      if (t > l.t0 - 2.5 && t < l.t1 + 2.5 && Math.abs(px * l.uz - pz * l.ux) < l.w / 2 + margin) return true;
+    }
+    return false;
+  }
+
   for (const r of rooms) {
     if (r.kind === 'start') build('pad', r.x, r.z, { room: r.i, role: 'arrive' });
     if (r.kind === 'exit') build('pad', r.x, r.z, { room: r.i, role: 'leave', pal: 1 });
-    if (r.terrace) keep.push({ x: r.terrace.x, z: r.terrace.z, r: r.terrace.r + 1.4 });
+    if (r.terrace) keep.push({ x: r.terrace.x, z: r.terrace.z, r: r.terrace.r + 1.4, soft: true });
     keep.push({
       x: r.x,
       z: r.z,
       r: r.clear ?? (r.kind === 'boss' ? r.r * 0.8 : r.kind === 'cache' ? 2.5 : r.r * 0.3),
+      // the open middle of a fight island keeps out trees and rocks, not flowers
+      soft: !spec.hub && (r.kind === 'fight' || r.kind === 'boss'),
     });
   }
 
@@ -290,6 +386,58 @@ export function createZone(spec: ZoneSpec, nav: NavLike): ZoneGenerator {
     }
   }
 
+  const leafPal = (k: number): number => B.leaf[Math.floor(k * B.leaf.length) % B.leaf.length];
+  const VEG = new Set<PropId>(['tree', 'pine', 'bush', 'willow', 'bigcap', 'fern', 'tallgrass', 'reeds']);
+
+  /** one set piece off to the side of a fight island (two round an elder's), built from props that fit */
+  function landmark(r: RoomSpec, kind: LandmarkId, lo: number, hi: number): boolean {
+    const pieces = LANDMARKS[kind];
+    for (let tries = 0; tries < 40; tries++) {
+      const a = rnd() * 6.283;
+      const d = (lo + rnd() * (hi - lo)) * rimAt(r, a);
+      const x = r.x + Math.sin(a) * d;
+      const z = r.z + Math.cos(a) * d;
+      if (onLink(x, z, 4.5) || dist(x, z) > -4.2) continue;
+      if (structures.some((o) => Math.hypot(o.x - x, o.z - z) < 4.2 + o.def.reach * o.scale)) continue;
+      const turn = rnd() * 6.283;
+      const c = Math.cos(turn);
+      const sn = Math.sin(turn);
+      let placed = 0;
+      for (const [id, px, pz, sc] of pieces) {
+        const bx = x + px * c - pz * sn;
+        const bz = z + px * sn + pz * c;
+        const def = getProp(id);
+        if (!clear(id, bx, bz, sc) || onLink(bx, bz, 1.4) || dist(bx, bz) > -def.reach * sc * 0.7 - 0.3) continue;
+        build(id, bx, bz, {
+          room: r.i,
+          scale: sc,
+          rot: rnd() * 6.283,
+          pal: id === 'flowers' ? Math.floor(rnd() * 6) : VEG.has(id) ? leafPal(rnd()) : 0,
+        });
+        placed++;
+      }
+      if (placed) keep.push({ x, z, r: 3.6, soft: true });
+      return placed > 0;
+    }
+    return false;
+  }
+
+  if (B.landmarks && B.landmarks.length && !spec.hub) {
+    for (const r of rooms) {
+      if (r.kind !== 'fight' && r.kind !== 'boss') continue;
+      const kinds = B.landmarks;
+      const first = Math.floor(rnd() * kinds.length);
+      if (r.kind === 'boss') {
+        landmark(r, kinds[first], 0.83, 0.9);
+        landmark(r, kinds[(first + 1) % kinds.length], 0.83, 0.9);
+      } else if (rnd() < 0.85) {
+        landmark(r, kinds[first], 0.55, 0.72);
+      }
+    }
+  }
+
+  type Row = readonly [PropId, number, number, number?];
+
   function cellProp(ccx: number, ccz: number): ChunkProp | null {
     if (!B.props.length) return null;
     const cxw = (ccx + 0.5) * CELL;
@@ -297,9 +445,10 @@ export function createZone(spec: ZoneSpec, nav: NavLike): ZoneGenerator {
     const d = dist(cxw, czw);
     if (d > -1.4 || !nearRoom) return null;
     const room = nearRoom;
-    const f = smoothstep(-5.5, -1.6, d);
+    // trees and rocks thicken toward the rim, in a band narrow enough to leave the middle to meadows
+    const f = smoothstep(B.decor ? -4.0 : -5.5, -1.6, d);
     let pick = hash01(ccx, ccz, S + 22);
-    let row: (readonly [PropId, number, number, number?]) | null = null;
+    let row: Row | null = null;
     for (let i = 0; i < B.props.length; i++) {
       pick -= lerp(B.props[i][1], B.props[i][2], f) * (room.kind === 'cache' ? 0.6 : 1);
       if (pick <= 0) {
@@ -307,15 +456,44 @@ export function createZone(spec: ZoneSpec, nav: NavLike): ZoneGenerator {
         break;
       }
     }
-    if (!row) return null;
+    let small: Row | null = null;
+    let meadow = 0;
+    if (B.decor && !spec.hub) {
+      // small plants gather in meadows rather than evenly, and fill where a tree or rock would not fit
+      meadow = smoothstep(-0.2, 0.3, fbm2(ccx * 0.21, ccz * 0.21, 2, S + 40));
+      let pick2 = hash01(ccx, ccz, S + 41);
+      for (const dr of B.decor) {
+        pick2 -= dr[1] * (0.6 + 2.4 * meadow) * (room.kind === 'cache' ? 0.7 : 1);
+        if (pick2 <= 0) {
+          small = dr[2] >= 0 ? [dr[0], 0, 0, dr[2]] : [dr[0], 0, 0];
+          break;
+        }
+      }
+    }
+    const big = (): ChunkProp | null => (row ? placeRow(row, false, ccx, ccz, cxw, czw, room) : null);
+    const little = (): ChunkProp | null => (small ? placeRow(small, true, ccx, ccz, cxw, czw, room) : null);
+    // in a meadow away from the rim, the flowers win the cell
+    return meadow > 0.55 && f < 0.5 ? little() || big() : big() || little();
+  }
+
+  function placeRow(
+    row: Row,
+    decor: boolean,
+    ccx: number,
+    ccz: number,
+    cxw: number,
+    czw: number,
+    room: RoomSpec,
+  ): ChunkProp | null {
     const def = getProp(row[0]);
     const sr = def.scale ?? [1, 1];
     const scale = lerp(sr[0], sr[1], hash01(ccx, ccz, S + 23));
     const roomIn = Math.max(0, CELL / 2 - def.reach * scale - 0.04);
     const x = cxw + (hash01(ccx, ccz, S + 24) * 2 - 1) * roomIn;
     const z = czw + (hash01(ccx, ccz, S + 25) * 2 - 1) * roomIn;
-    if (onLink(x, z, 1.6)) return null;
+    if (decor ? onBridge(x, z, 0.8) : onLink(x, z, 1.6)) return null;
     for (const k of keep) {
+      if (decor && k.soft) continue;
       if (Math.hypot(k.x - x, k.z - z) < k.r + def.reach * scale * 0.5 + (def.collide ? 0.8 : 0)) return null;
     }
     if (dist(x, z) > -def.reach * scale * 0.6 - 0.5) return null;
@@ -391,6 +569,12 @@ export function createZone(spec: ZoneSpec, nav: NavLike): ZoneGenerator {
         let r = lerp(B.ground[0], B.ground2[0], vary);
         let gg = lerp(B.ground[1], B.ground2[1], vary);
         let b = lerp(B.ground[2], B.ground2[2], vary);
+        if (B.ground3) {
+          const patch = smoothstep(0.08, 0.42, fbm2(x * 0.026, z * 0.026, 2, S + 50)) * 0.8;
+          r = lerp(r, B.ground3[0], patch);
+          gg = lerp(gg, B.ground3[1], patch);
+          b = lerp(b, B.ground3[2], patch);
+        }
         const rock = d > 0 ? smoothstep(0.1, 0.7, d) : smoothstep(0.75, 1.1, slope);
         r = lerp(r, B.rock[0], rock);
         gg = lerp(gg, B.rock[1], rock);

@@ -151,6 +151,8 @@ export interface ChunkData {
   props: ChunkProp[];
 }
 
+export type LandmarkId = 'circle' | 'grove' | 'crystals' | 'ruins' | 'bigcaps' | 'pines' | 'shards' | 'spires' | 'corals' | 'lanterns';
+
 export interface BiomeDef {
   readonly id: BiomeId;
   readonly name: string;
@@ -171,6 +173,12 @@ export interface BiomeDef {
   readonly gravity?: number;
   readonly hop?: number;
   readonly props: readonly (readonly [PropId, number, number, number?])[];
+  /** small plants and stones that gather in meadows across an island: [prop, density, palette] */
+  readonly decor?: readonly (readonly [PropId, number, number])[];
+  /** the set pieces an island can have, one each, off to one side */
+  readonly landmarks?: readonly LandmarkId[];
+  /** a third ground color, laid in broad patches */
+  readonly ground3?: RgbTuple;
   readonly monsters: readonly (readonly [CreatureId, number])[];
   readonly variant?: { readonly prefix: string; readonly pencil: RgbTuple };
   readonly boss?: CreatureId;

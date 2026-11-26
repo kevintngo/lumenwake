@@ -1,3 +1,4 @@
+import { CREATURES } from '../../data/creatures';
 import { RELICS, type RelicDef } from '../../data/relics';
 import type { CreatureId, RelicId } from '../../types/domain';
 import type { MonsterEntity } from '../../types/entity';
@@ -6,8 +7,12 @@ import { rollItem } from '../inventory/gear-service';
 import { rand } from '../sim-rng';
 import { applyKnockback } from './monster-specials';
 
-export const relicsOf = (elder: CreatureId): RelicDef[] =>
-  Object.values(RELICS).filter((r) => r.from === elder);
+/** an elder's relics; the elders of newer places carry those of the elder whose shape they share */
+export const relicsOf = (elder: CreatureId): RelicDef[] => {
+  const own = Object.values(RELICS).filter((r) => r.from === elder);
+  const kin = CREATURES[elder]?.archetype;
+  return own.length || !kin ? own : Object.values(RELICS).filter((r) => r.from === kin);
+};
 
 export const relicChance = (rank = 0, dry = 0): number =>
   Math.min(1, 0.18 + 0.14 * rank + 0.15 * dry);
@@ -201,7 +206,8 @@ export class Relics implements RelicsLike {
     const a = g.missions.active;
     const pool = relicsOf(m.defId);
     if (!pool.length || !a || a.offer.first) return;
-    const rank = g.missions.threat?.rank ?? a.offer.threat ?? 0;
+    // every depth below the contract counts as another rank of threat
+    const rank = (g.missions.threat?.rank ?? a.offer.threat ?? 0) + Math.max(0, (a.offer.depth || 1) - 1);
     if (rand() >= relicChance(rank, s.relicDry || 0)) {
       s.relicDry = (s.relicDry || 0) + 1;
       return;

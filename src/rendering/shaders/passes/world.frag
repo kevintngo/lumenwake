@@ -183,6 +183,9 @@ void main() {
     grass *= edge;
     id = edge < 0.03 ? -1.0 : id;
   }
+  if (open || wet) {
+    if (farIslands(rd, s.albedo, s.cover, s.ink)) { shade = 0.0; grass = 0.0; kind = 1.0; }
+  }
   oLay = vec4(s.albedo, s.cover);
   oGbuf = vec4(octEncode(N), depth, id);
   oMark = vec4(shade, s.ink, grass, kind);
