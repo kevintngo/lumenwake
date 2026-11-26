@@ -2,7 +2,7 @@
 
 A cel-shaded sky-island action RPG rendered in raw WebGL2 shaders. Arrive by shuttle at Meridian Landing, choose your people and class, take contracts from the dispatcher, and fight across procedurally generated islands, underground vaults, and low-gravity moon shards against packs and towering colossi.
 
-**Play online:** [https://lumenwake-game.vercel.app](https://lumenwake-game.vercel.app)
+**Play online:** [https://kevintngo.github.io/lumenwake/](https://kevintngo.github.io/lumenwake/)
 
 ## Features
 

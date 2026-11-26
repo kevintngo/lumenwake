@@ -4,7 +4,6 @@ import type { GameEventMap } from '../types/events';
 import type { GameContext, TutorialLike } from '../types/game-context';
 import type { CameraGoal } from '../types/render';
 
-const KEY = 'lumenwake.firststeps';
 const LOOKAHEAD = 3;
 
 export class Tutorial implements TutorialLike {
@@ -49,24 +48,17 @@ export class Tutorial implements TutorialLike {
     return this.i >= 0 ? STEPS[this.i] : null;
   }
 
-  private seen(): boolean {
-    try {
-      return localStorage.getItem(KEY) === 'done' && !/[?&]firststeps\b/.test(location.search);
-    } catch {
-      return false;
-    }
+  /** first steps play for every new surveyor; one who finished or skipped them is left alone (?firststeps forces them) */
+  private begin(): void {
+    const s = this.game.player.sheet;
+    const forced = /[?&]firststeps\b/.test(location.search);
+    if (!forced && (s.guided || s.missions > 0)) return;
+    this.start();
   }
 
   private remember(): void {
-    try {
-      localStorage.setItem(KEY, 'done');
-    } catch {
-    }
-  }
-
-  private begin(): void {
-    if (this.seen() || this.game.player.sheet.missions > 0) return;
-    this.start();
+    this.game.player.sheet.guided = true;
+    this.game.save();
   }
 
   private start(): void {

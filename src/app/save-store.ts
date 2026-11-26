@@ -25,6 +25,14 @@ import type {
 import type { SaveStoreLike } from '../types/game-context';
 import type { GearItem, HeroSummary, PlayerSheet, SaveAccount, SaveHero } from '../types/sheet';
 
+const legacyGuided = (): boolean => {
+  try {
+    return localStorage.getItem('lumenwake.firststeps') === 'done';
+  } catch {
+    return false;
+  }
+};
+
 const VERSION = 1;
 const ACCOUNT = 'lumenwake.v1.account';
 const HERO = (id: string) => `lumenwake.v1.hero.${id}`;
@@ -179,6 +187,9 @@ function mendHero(raw: unknown): SaveHero | null {
   s.parts = int(r.parts, 0, 1e9, 0);
   s.relicDry = int(r.relicDry, 0, 99, 0);
   s.deepest = int(r.deepest, 0, 9999, 0);
+  // saves from before first steps were kept per surveyor: guided if they have run a contract, or if this
+  // browser had finished the first steps once (the old, shared flag)
+  s.guided = typeof r.guided === 'boolean' ? r.guided : s.missions > 0 || legacyGuided();
 
   const rawRelics = (r.relics && typeof r.relics === 'object' ? r.relics : {}) as Record<string, unknown>;
   for (const id of Object.keys(rawRelics)) {

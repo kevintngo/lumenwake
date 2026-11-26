@@ -77,6 +77,8 @@ export interface PlayerSheet {
   relicDry: number;
   /** the deepest island chain cleared on any contract (1 is the contract itself) */
   deepest: number;
+  /** this surveyor has finished or skipped the first steps; every new surveyor starts without it */
+  guided: boolean;
   boon: BoonId | null;
 }
 
