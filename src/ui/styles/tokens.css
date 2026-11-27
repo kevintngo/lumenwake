@@ -35,8 +35,9 @@
   --c-hunt: #ffad9b;
   --c-relic: #e3b0ff;
   --c-parts: #b9f0ff;
-  --hand: 'Chakra Petch', 'Saira', 'Segoe UI', system-ui, sans-serif;
-  --display: 'Orbitron', 'Chakra Petch', system-ui, sans-serif;
+  /* no web fonts: these are the device's own (the first ones only if someone has them installed) */
+  --hand: 'Chakra Petch', 'Bahnschrift', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+  --display: 'Orbitron', 'Eurostile', 'Bahnschrift', 'Futura', 'Avenir Next', system-ui, sans-serif;
   --cut: 10px;
   --vh: 100vh;
   --view-h: var(--vh);

@@ -6,6 +6,8 @@ import { createAmbience, type AmbiencePlayer } from './ambience';
 import { AREAS } from './music-data';
 import { createMusic, type MusicPlayer } from './music-player';
 import { SAMPLED, SAMPLE_NAMES, type SampleCue, type SampleResult } from './sample-map';
+import { SKETCHES } from './sfx-sketches';
+import { SFX_RATE, renderSketch, seedOf } from './sfx-synth';
 import { SOUNDS } from './sound-effects';
 import { BASE_LEVELS, LEVELS, createKit, type AudioBus, type SynthKit } from './synth-kit';
 
@@ -13,7 +15,26 @@ const REPEAT_GAP = 0.035;
 const REPEAT_GAPS: Partial<Record<keyof GameEventMap, number>> = { step: 0.13, 'charge:dust': 0.1 };
 const MAX_STAGGER = 0.12;
 const TICK = 0.1;
-const SAMPLE_DIR = `${import.meta.env.BASE_URL}sfx/`;
+/** Milliseconds of sound-making at a time, before the page gets a turn. */
+const MAKE_SLICE = 8;
+/** Made first: the interface, the arrival, and what a first fight needs. */
+const MAKE_FIRST = [
+  'click',
+  'deny',
+  'shuttle-pass',
+  'shuttle-land',
+  'teleport',
+  'step-grass-1',
+  'step-grass-2',
+  'step-stone-1',
+  'step-stone-2',
+  'land',
+  'jump-1',
+  'swing-1',
+  'swing-2',
+  'hit-1',
+  'hit-2',
+];
 
 type AudioContextCtor = typeof AudioContext;
 type LevelKey = 'master' | 'music' | 'sfx' | 'ambience';
@@ -21,18 +42,31 @@ const LEVEL_KEYS: readonly LevelKey[] = ['master', 'music', 'sfx', 'ambience'];
 
 const isCueList = (value: SampleCue | readonly SampleCue[]): value is readonly SampleCue[] => Array.isArray(value);
 
-function loadSamples(kit: SynthKit): Promise<void> {
-  return Promise.all(
-    SAMPLE_NAMES.map((name) =>
-      fetch(SAMPLE_DIR + name + '.wav')
-        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
-        .then((data) => kit.ctx.decodeAudioData(data))
-        .then((buffer) => {
-          kit.samples.set(name, buffer);
-        })
-        .catch(() => {}),
-    ),
-  ).then(() => {});
+/**
+ * The sound effects, made from their sketches (sfx-synth.ts) rather than fetched: a few at a time so the page stays
+ * smooth, the ones heard first made first. Until one is made, its event falls back on the synthesized SOUNDS.
+ */
+function makeSamples(kit: SynthKit): void {
+  const order = [...new Set<string>([...MAKE_FIRST, ...SAMPLE_NAMES])];
+  let at = 0;
+  const next = (): void => {
+    const t0 = performance.now();
+    while (at < order.length && performance.now() - t0 < MAKE_SLICE) {
+      const name = order[at++];
+      const sketch = SKETCHES[name];
+      if (!sketch) continue;
+      try {
+        const data = renderSketch(sketch, seedOf(name));
+        const buffer = kit.ctx.createBuffer(1, data.length, SFX_RATE);
+        buffer.getChannelData(0).set(data);
+        kit.samples.set(name, buffer);
+      } catch (err) {
+        console.warn('[audio] sound not made:', name, err);
+      }
+    }
+    if (at < order.length) setTimeout(next, 0);
+  };
+  setTimeout(next, 0);
 }
 
 export function createAudio(game: GameContext): void {
@@ -112,7 +146,7 @@ export function createAudio(game: GameContext): void {
       music = createMusic(fresh, game);
       ambience = createAmbience(fresh, game, music);
       kit = fresh;
-      void loadSamples(fresh);
+      makeSamples(fresh);
       for (const type of Object.keys(music.hears) as (keyof GameEventMap)[]) {
         const hear = music.hears[type] as ((payload: unknown) => void) | undefined;
         if (hear) bus.onDynamic(type, (payload) => safely(() => hear(payload ?? {})));

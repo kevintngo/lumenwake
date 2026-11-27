@@ -168,6 +168,7 @@ export interface RendererLike {
   warm(): boolean;
   figure(spec: FigureRequest): Uint8Array;
   render(frame: RenderFrame): void;
+  withWorld<T>(world: WorldLike, fn: (tex: WorldTexturesLike) => T): T;
 }
 
 export interface UiSettings {

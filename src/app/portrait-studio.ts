@@ -1,4 +1,5 @@
 import { FAMILIES } from '../data/classes';
+import { ArtStudio } from './art-studio';
 import { CREATURES } from '../data/creatures';
 import { BASES, type GearBaseDef } from '../data/gear';
 import { Camera } from '../rendering/camera';
@@ -150,9 +151,11 @@ export class Portraits implements PortraitsLike {
   bust = '';
   gear: Record<string, string> = {};
   elders: Record<string, string> = {};
+  private readonly studio: ArtStudio;
 
   constructor(game: GameContext) {
     this.game = game;
+    this.studio = new ArtStudio(game);
     for (const ev of ['people', 'class', 'equip'] as const) {
       game.bus.on(ev, () => {
         this.due = true;
@@ -168,9 +171,18 @@ export class Portraits implements PortraitsLike {
     });
   }
 
+  picture(name: string): string | undefined {
+    return this.studio.picture(name);
+  }
+
   update(): void {
     if (document.hidden) return;
     const g = this.game;
+    try {
+      if (this.studio.update()) g.bus.emit('portrait', { bust: this.bust });
+    } catch (err) {
+      console.warn('Pictures not drawn:', err);
+    }
     if (this.due) {
       this.due = false;
       try {

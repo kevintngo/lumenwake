@@ -24,7 +24,8 @@ SOFTWARE.
 
 Third-Party Asset Attributions
 
-Sound Effects (public/sfx/):
+Sound Effects (synthesized at runtime from compact spectral sketches of these
+recordings, src/audio/; the recordings themselves are no longer shipped):
 - Kenney (kenney.nl) — Impact Sounds, Sci-fi Sounds, RPG Audio, Interface Sounds,
   and Digital Audio packs, licensed under Creative Commons Zero (CC0 1.0 Public Domain).
 - ElevenLabs Sound Effects v2 — Generated sound effects for arc blades, abilities,
@@ -32,4 +33,5 @@ Sound Effects (public/sfx/):
   ElevenLabs generated audio terms.
 
 Typography:
-- Chakra Petch and Orbitron — SIL Open Font License (OFL), loaded via Google Fonts.
+- No fonts are shipped or loaded. The styles name Chakra Petch and Orbitron (SIL Open
+  Font License) first, so they are used only where already installed on the device.

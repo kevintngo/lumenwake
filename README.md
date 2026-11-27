@@ -12,8 +12,9 @@ A cel-shaded sky-island action RPG rendered in raw WebGL2 shaders. Arrive by shu
 - **Sky backdrop:** distant floating islands, some with waterfalls, over a sea of cloud, drawn by direction so they stay put as the camera turns.
 - **Ten-slot gear, relics, salvage & honing:** Paper-doll equipment with rarities, affixes, boss relics, salvage parts, honing, and item locks.
 - **Evolving Lumen companion:** Shoulder-mounted light companion with three tempers, eight forms, assist bolts, and rechargeable bursts.
-- **Procedural music & recorded SFX:** Per-biome and per-boss interactive Web Audio score layered with recorded sound effects.
+- **Procedural music & sound:** Per-biome and per-boss interactive Web Audio score; sound effects synthesized when the game starts, from compact sketches of recorded effects.
 - **Custom WebGL2 renderer & Preact UI:** Raymarched pen-and-cel shaders separated into standalone `.glsl`/`.vert`/`.frag` files, live 3D portrait stages, responsive desktop and touch layouts, and local save persistence with export/import.
+- **One file, nothing fetched:** the build is a single self-contained `index.html` (under 1 MB). Every picture in the interface (peoples, classes, crew, lumens, places) is drawn by the game's own renderer the first time it is needed, sounds are synthesized, fonts are the device's own, and the icon and web-app manifest are inlined.
 
 ## Development
 
@@ -38,7 +39,7 @@ npm run build
 npm run preview
 ```
 
-Configured for zero-config static deployment on Vercel (`vercel.json` builds with `npm run build` and serves `dist/`).
+`npm run build` writes `dist/index.html`, the whole game in one file (script, styles, icon and manifest inlined; shaders minified), plus `dist/og.jpg`, the link-preview image, which the game itself never requests. Configured for zero-config static deployment on Vercel (`vercel.json` builds with `npm run build` and serves `dist/`).
 
 ## Controls
 
@@ -60,7 +61,7 @@ Configured for zero-config static deployment on Vercel (`vercel.json` builds wit
 ## Architecture
 
 ```text
-public/               Static assets served directly (art/, sfx/, icons, manifest, og.jpg)
+public/               og.jpg, the link-preview image (the only file besides index.html)
 src/
   main.ts             Application entry point
   config.ts           Shared world, render, camera, and physics constants
@@ -76,7 +77,7 @@ src/
     missions/         Threat calculation, encounters, contract lifecycle, sites, town crew
   rendering/          Raw WebGL2 engine, passes, camera, toroidal world textures, and standalone GLSL shaders
   audio/              Modular Web Audio synth kit, sample map, SFX triggers, procedural music & ambience
-  app/                Composition root (Game), controls, environment, FX, view builder, cinematics, portraits, tutorial, saves
+  app/                Composition root (Game), controls, environment, FX, view builder, cinematics, portraits & art studio, tutorial, saves
   ui/                 Preact components, imperative 60fps overlays (plates, touch stick, markers), settings & modular CSS
 ```
 

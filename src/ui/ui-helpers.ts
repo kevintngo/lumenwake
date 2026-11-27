@@ -39,8 +39,12 @@ export const STAT_SHORT: Readonly<Record<StatKey, string>> = {
   lifeOnKill: 'Life on kill',
 };
 
-// public files are served from the build's base: the site root on Vercel, /lumenwake/ on GitHub Pages
-export const art = (name: string): string => `${import.meta.env.BASE_URL}art/${name}.webp`;
+// the interface's pictures are drawn by the game itself (app/art-studio.ts) the first time they are asked for
+let pictures: ((name: string) => string | undefined) | null = null;
+export const setPictureSource = (fn: (name: string) => string | undefined): void => {
+  pictures = fn;
+};
+export const art = (name: string): string | undefined => (pictures ? pictures(name) : undefined);
 
 export const pct = (v: number): string => `${Math.round(v * 100)}%`;
 

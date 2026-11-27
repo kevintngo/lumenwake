@@ -80,8 +80,9 @@ type FrameCommon = Pick<
 export class Renderer implements RendererLike {
   private readonly canvas: HTMLCanvasElement;
   private readonly gl: WebGL2RenderingContext;
-  readonly worldTex: WorldTextures;
+  worldTex: WorldTextures;
   readonly minimap: Minimap;
+  private asideTex: WorldTextures | null = null;
   private readonly worldPass: WorldPass;
   private readonly entityPass: EntityPass;
   private readonly fxPass: FxPass;
@@ -168,6 +169,20 @@ export class Renderer implements RendererLike {
 
   setWorld(world: WorldLike): void {
     this.worldTex.setWorld(world);
+  }
+
+  /** Runs fn with another world's ground on textures of its own (for the interface's pictures of places): the game's
+   *  own world textures are left as they were, so nothing has to be streamed in again afterwards. */
+  withWorld<T>(world: WorldLike, fn: (tex: WorldTextures) => T): T {
+    const tex = this.asideTex || (this.asideTex = new WorldTextures(this.gl, world));
+    tex.setWorld(world);
+    const keep = this.worldTex;
+    this.worldTex = tex;
+    try {
+      return fn(tex);
+    } finally {
+      this.worldTex = keep;
+    }
   }
 
   adapt(dtMs: number): void {

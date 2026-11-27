@@ -1,0 +1,12 @@
+{
+  "name": "Lumenwake",
+  "short_name": "Lumenwake",
+  "description": "Take a contract on the survey ship, drop to islands in the sky, and fight your way across them. A sky-island action RPG drawn by shaders.",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0a1433",
+  "theme_color": "#14295f",
+  "categories": [
+    "games"
+  ]
+}

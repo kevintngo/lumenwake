@@ -118,6 +118,9 @@ export interface PortraitsLike {
   bust: string;
   gear: Record<string, string>;
   elders: Record<string, string>;
+  /** A picture for the interface (people-*, class-*, crew-*, lumen-*, place-*), drawn by the game on first asking:
+   *  its data URL once drawn, undefined until then (a 'portrait' event follows when it is ready). */
+  picture(name: string): string | undefined;
   update(): void;
   mount(box: HTMLElement, what: string): void;
   turn(box: HTMLElement, by: number): void;
