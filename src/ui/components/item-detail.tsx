@@ -1,4 +1,4 @@
-import type { JSX } from 'preact';
+import type { JSX } from '../dom';
 import { FAMILIES } from '../../data/classes';
 import { SLOT_KINDS } from '../../data/gear';
 import { ITEMS } from '../../data/items';

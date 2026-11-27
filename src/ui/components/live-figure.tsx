@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef } from '../dom';
 import type { GameContext } from '../../types/game-context';
 import { floorRingSvg } from '../icons';
 

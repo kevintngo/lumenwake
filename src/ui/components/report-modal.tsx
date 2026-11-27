@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef } from '../dom';
 import { biomeById } from '../../data/biomes';
 import { GOALS } from '../../sim/missions/missions-system';
 import type { GameContext } from '../../types/game-context';

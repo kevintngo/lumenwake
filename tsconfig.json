@@ -3,7 +3,11 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -11,8 +15,23 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "preact",
-    "types": ["vite/client"]
+    "jsxImportSource": "lumen-dom",
+    "types": [
+      "vite/client"
+    ],
+    "paths": {
+      "lumen-dom": [
+        "./src/ui/dom/index.ts"
+      ],
+      "lumen-dom/jsx-runtime": [
+        "./src/ui/dom/jsx-runtime.ts"
+      ],
+      "lumen-dom/jsx-dev-runtime": [
+        "./src/ui/dom/jsx-runtime.ts"
+      ]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

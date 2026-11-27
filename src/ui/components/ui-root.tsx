@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from '../dom';
 import { ITEMS } from '../../data/items';
 import { LUMENS } from '../../data/lumens';
 import { SITES } from '../../data/sites';

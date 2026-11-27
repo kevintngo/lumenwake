@@ -1,5 +1,5 @@
 import './styles/index.css';
-import { render } from 'preact';
+import { render } from './dom';
 import type { GameContext } from '../types/game-context';
 import { UiRoot } from './components/ui-root';
 import { setPictureSource } from './ui-helpers';

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from '../dom';
 import type { MenuTabId, WindowKind } from '../../types/domain';
 import type { NpcEntity } from '../../types/entity';
 import type { GuideStepPayload } from '../../types/events';

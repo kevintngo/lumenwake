@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from '../dom';
 import type { GuideStepPayload, GuideTipPayload } from '../../types/events';
 import type { GameContext } from '../../types/game-context';
 

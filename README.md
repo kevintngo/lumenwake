@@ -13,8 +13,8 @@ A cel-shaded sky-island action RPG rendered in raw WebGL2 shaders. Arrive by shu
 - **Ten-slot gear, relics, salvage & honing:** Paper-doll equipment with rarities, affixes, boss relics, salvage parts, honing, and item locks.
 - **Evolving Lumen companion:** Shoulder-mounted light companion with three tempers, eight forms, assist bolts, and rechargeable bursts.
 - **Procedural music & sound:** Per-biome and per-boss interactive Web Audio score; sound effects synthesized when the game starts, from compact sketches of recorded effects.
-- **Custom WebGL2 renderer & Preact UI:** Raymarched pen-and-cel shaders separated into standalone `.glsl`/`.vert`/`.frag` files, live 3D portrait stages, responsive desktop and touch layouts, and local save persistence with export/import.
-- **One file, nothing fetched:** the build is a single self-contained `index.html` (under 1 MB). Every picture in the interface (peoples, classes, crew, lumens, places) is drawn by the game's own renderer the first time it is needed, sounds are synthesized, fonts are the device's own, and the icon and web-app manifest are inlined.
+- **Custom WebGL2 renderer & UI:** Raymarched pen-and-cel shaders separated into standalone `.glsl`/`.vert`/`.frag` files, live 3D portrait stages, responsive desktop and touch layouts, and local save persistence with export/import.
+- **One file, nothing fetched:** the build is a single self-contained `index.html` (under 1 MB). Every picture in the interface (peoples, classes, crew, lumens, places) is drawn by the game's own renderer the first time it is needed, sounds are synthesized, fonts are the device's own, and the icon and web-app manifest are inlined. No runtime dependencies: the interface's JSX runs on its own small renderer (`src/ui/dom`).
 
 ## Development
 
@@ -78,7 +78,7 @@ src/
   rendering/          Raw WebGL2 engine, passes, camera, toroidal world textures, and standalone GLSL shaders
   audio/              Modular Web Audio synth kit, sample map, SFX triggers, procedural music & ambience
   app/                Composition root (Game), controls, environment, FX, view builder, cinematics, portraits & art studio, tutorial, saves
-  ui/                 Preact components, imperative 60fps overlays (plates, touch stick, markers), settings & modular CSS
+  ui/                 JSX components on an in-house renderer (dom/), imperative 60fps overlays (plates, touch stick, markers), settings & modular CSS
 ```
 
 ## License

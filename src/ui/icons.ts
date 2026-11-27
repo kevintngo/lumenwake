@@ -1,4 +1,4 @@
-import { h, type JSX } from 'preact';
+import { h, type JSX } from './dom';
 import type { GearBaseDef } from '../data/gear';
 import type { ItemDef } from '../data/items';
 import type { AttrKey, RgbTuple, TemperId } from '../types/domain';

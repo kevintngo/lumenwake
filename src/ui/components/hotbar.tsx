@@ -1,5 +1,5 @@
-import type { ComponentChildren } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import type { ComponentChildren } from '../dom';
+import { useEffect, useRef, useState } from '../dom';
 import { ITEMS } from '../../data/items';
 import type { ClassId, ItemId } from '../../types/domain';
 import type { GameContext } from '../../types/game-context';

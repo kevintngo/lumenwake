@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
-import preact from '@preact/preset-vite';
 
 const dataUrl = (type: string, text: string): string => `data:${type},${encodeURIComponent(text.trim())}`;
 
@@ -86,8 +86,19 @@ function glslMinify(): Plugin {
   };
 }
 
+// the interface's JSX goes through its own small renderer (src/ui/dom): the game has no runtime dependencies
+const runtime = fileURLToPath(new URL('./src/ui/dom/jsx-runtime.ts', import.meta.url));
+const dom = fileURLToPath(new URL('./src/ui/dom/index.ts', import.meta.url));
+
 export default defineConfig({
-  plugins: [preact(), glslMinify(), selfContained()],
+  plugins: [glslMinify(), selfContained()],
+  esbuild: { jsx: 'automatic', jsxImportSource: 'lumen-dom' },
+  resolve: {
+    alias: [
+      { find: /^lumen-dom\/jsx-(dev-)?runtime$/, replacement: runtime },
+      { find: /^lumen-dom$/, replacement: dom },
+    ],
+  },
   build: {
     target: 'es2022',
     outDir: 'dist',

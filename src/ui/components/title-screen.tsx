@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from '../dom';
 import { VIEWS } from '../../config';
 import { damp } from '../../core/math';
 import { ABILITIES } from '../../data/abilities';

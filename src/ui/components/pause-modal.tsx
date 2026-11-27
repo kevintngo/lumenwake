@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef } from '../dom';
 import type { GameContext } from '../../types/game-context';
 import type { SettingsStore } from '../../types/render';
 import { SettingsModal, type SettingsSectionId } from './settings-modal';
